@@ -1,0 +1,63 @@
+# Pre-commit configuration compatible with both pre-commit and prek
+repos:
+  - repo: local
+    hooks:
+      - id: cargo-fmt
+        name: cargo fmt
+        entry: cargo fmt --all --
+        language: system
+        types: [rust]
+        pass_filenames: false
+        stages: [commit]
+        # This automatically fixes formatting issues
+
+      - id: cargo-clippy-fix
+        name: cargo clippy fix
+        entry: cargo clippy --all-features --all-targets --fix --allow-staged --allow-dirty -- -D warnings
+        language: system
+        types: [rust]
+        pass_filenames: false
+        stages: [commit]
+        # This automatically fixes clippy warnings where possible
+
+      - id: cargo-clippy
+        name: cargo clippy check
+        entry: cargo clippy --all-features --all-targets -- -D warnings
+        language: system
+        types: [rust]
+        pass_filenames: false
+        stages: [commit]
+        # This checks for any remaining clippy warnings that couldn't be auto-fixed
+
+      - id: cargo-nextest
+        name: cargo nextest
+        entry: cargo nextest run --all
+        language: system
+        types: [rust]
+        pass_filenames: false
+        stages: [push]
+
+      - id: cargo-check
+        name: cargo check
+        entry: cargo check --all --all-features
+        language: system
+        types: [rust]
+        pass_filenames: false
+        stages: [commit]
+
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.5.0
+    hooks:
+      - id: trailing-whitespace
+        stages: [commit]
+      - id: end-of-file-fixer
+        stages: [commit]
+      - id: check-yaml
+        stages: [commit]
+      - id: check-toml
+        stages: [commit]
+      - id: check-merge-conflict
+        stages: [commit]
+      - id: mixed-line-ending
+        args: ['--fix=lf']
+        stages: [commit]
