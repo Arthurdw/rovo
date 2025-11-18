@@ -1,3 +1,5 @@
+#![allow(unused)]
+
 use aide::axum::IntoApiResponse;
 use axum::response::Json;
 use rovo::rovo;
