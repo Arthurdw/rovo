@@ -1,0 +1,23 @@
+error: Missing response type in @response annotation
+       help: format is '@response <code> <type> <description>'
+       note: did you forget to add the type? For example:
+       note:   '@response 204 () Todo item deleted successfully.'
+       note: common types: () for empty responses, Json<T> for JSON, (StatusCode, Json<T>) for custom status
+ --> tests/ui/missing_response_type.rs:7:1
+  |
+7 | /// @response 204 Todo item deleted successfully.
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `aide::axum::IntoApiResponse`
+ --> tests/ui/missing_response_type.rs:1:5
+  |
+1 | use aide::axum::IntoApiResponse;
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` on by default
+
+warning: unused import: `axum::response::Json`
+ --> tests/ui/missing_response_type.rs:2:5
+  |
+2 | use axum::response::Json;
+  |     ^^^^^^^^^^^^^^^^^^^^

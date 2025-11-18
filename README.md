@@ -184,6 +184,29 @@ async fn old_handler() -> impl IntoApiResponse {
 }
 ```
 
+#### `@rovo-ignore`
+
+Stop processing doc comment annotations after this point:
+
+```rust
+/// Get user information.
+///
+/// Returns the current user's profile information.
+///
+/// @tag users
+/// @response 200 Json<User> User found successfully
+/// @rovo-ignore
+/// Everything after this line is treated as regular documentation
+/// and won't be processed for OpenAPI annotations.
+/// You can write @anything here and it won't cause errors.
+#[rovo]
+async fn handler() -> impl IntoApiResponse {
+    // ...
+}
+```
+
+This is useful when you want to include additional developer documentation that shouldn't be part of the API specification.
+
 ## Router API
 
 ### Creating a Router

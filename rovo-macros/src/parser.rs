@@ -29,7 +29,7 @@ fn levenshtein_distance(s1: &str, s2: &str) -> usize {
 
 /// Find the closest matching annotation
 fn find_closest_annotation(input: &str) -> Option<&'static str> {
-    const ANNOTATIONS: &[&str] = &["response", "example", "tag", "security", "id", "hidden"];
+    const ANNOTATIONS: &[&str] = &["response", "example", "tag", "security", "id", "hidden", "rovo-ignore"];
 
     let input_lower = input.to_lowercase();
     let mut best_match = None;
@@ -296,7 +296,7 @@ fn extract_doc_text(attr: &str) -> String {
     String::new()
 }
 
-fn parse_doc_comments(lines: &[DocLine], func_name: &str) -> Result<DocInfo, ParseError> {
+fn parse_doc_comments(lines: &[DocLine], _func_name: &str) -> Result<DocInfo, ParseError> {
     let mut doc_info = DocInfo::default();
     let mut description_lines = Vec::new();
     let mut in_description = false;
@@ -361,6 +361,41 @@ fn parse_doc_comments(lines: &[DocLine], func_name: &str) -> Result<DocInfo, Par
                 ));
             }
 
+            // Check if the "type" looks like it's actually part of the description
+            // (common mistake: forgetting to include the type)
+            let looks_like_description = {
+                // List of common words that suggest this is a description, not a type
+                let description_words = [
+                    "item", "deleted", "successfully", "created", "updated", "not",
+                    "error", "failed", "success", "the", "a", "an", "user", "data",
+                    "resource", "found", "missing", "invalid", "request", "response"
+                ];
+
+                let type_lower = response_type_str.to_lowercase();
+                description_words.iter().any(|&word| type_lower == word)
+                    // Or if it's a simple word (no type syntax) and description starts lowercase
+                    || (!response_type_str.contains('<')
+                        && !response_type_str.contains('(')
+                        && !response_type_str.contains(')')
+                        && !response_type_str.contains("::")
+                        && description.chars().next().map_or(false, |c| c.is_lowercase()))
+            };
+
+            if looks_like_description {
+                return Err(ParseError::with_span(
+                    format!(
+                        "Missing response type in @response annotation\n\
+                         help: format is '@response <code> <type> <description>'\n\
+                         note: did you forget to add the type? For example:\n\
+                         note:   '@response {} () {}'\n\
+                         note: common types: () for empty responses, Json<T> for JSON, (StatusCode, Json<T>) for custom status",
+                        status_code,
+                        trimmed.trim_start_matches("@response").trim_start_matches(char::is_whitespace).trim_start_matches(parts[1]).trim()
+                    ),
+                    span
+                ));
+            }
+
             // Parse the response type string into a TokenStream
             let response_type: TokenStream = response_type_str
                 .parse()
@@ -369,7 +404,8 @@ fn parse_doc_comments(lines: &[DocLine], func_name: &str) -> Result<DocInfo, Par
                         format!(
                             "Invalid response type '{}'\n\
                              help: response type must be valid Rust syntax\n\
-                             note: common types: Json<T>, (), (StatusCode, Json<T>)",
+                             note: common types: Json<T>, (), (StatusCode, Json<T>)\n\
+                             note: if this is a description, you may have forgotten the type parameter",
                             response_type_str
                         ),
                         span
@@ -501,6 +537,9 @@ fn parse_doc_comments(lines: &[DocLine], func_name: &str) -> Result<DocInfo, Par
         } else if trimmed == "@hidden" {
             // Mark as hidden
             doc_info.hidden = true;
+        } else if trimmed == "@rovo-ignore" {
+            // Stop processing further doc comments
+            break;
         } else if trimmed.starts_with('@') {
             // Unknown annotation
             let annotation = trimmed.split_whitespace().next().unwrap_or(trimmed);
@@ -510,13 +549,13 @@ fn parse_doc_comments(lines: &[DocLine], func_name: &str) -> Result<DocInfo, Par
                 format!(
                     "Unknown annotation '{}'\n\
                      help: did you mean '@{}'?\n\
-                     note: valid annotations are @response, @example, @tag, @security, @id, @hidden",
+                     note: valid annotations are @response, @example, @tag, @security, @id, @hidden, @rovo-ignore",
                     annotation, suggestion
                 )
             } else {
                 format!(
                     "Unknown annotation '{}'\n\
-                     note: valid annotations are @response, @example, @tag, @security, @id, @hidden",
+                     note: valid annotations are @response, @example, @tag, @security, @id, @hidden, @rovo-ignore",
                     annotation
                 )
             };

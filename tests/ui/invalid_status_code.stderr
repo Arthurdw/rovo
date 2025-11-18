@@ -1,11 +1,10 @@
-error: In function `test_handler`, invalid status code 999 on doc comment line 3: HTTP status codes must be between 100-599
-       Found: @response 999 Json<String> Invalid status code
- --> tests/ui/invalid_status_code.rs:8:1
+error: Status code 999 is out of valid range
+       help: HTTP status codes must be between 100-599
+       note: common codes: 200 (OK), 201 (Created), 400 (Bad Request), 404 (Not Found), 500 (Internal Error)
+ --> tests/ui/invalid_status_code.rs:7:1
   |
-8 | #[rovo]
-  | ^^^^^^^
-  |
-  = note: this error originates in the attribute macro `rovo` (in Nightly builds, run with -Z macro-backtrace for more info)
+7 | /// @response 999 Json<String> Invalid status code
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 warning: unused import: `aide::axum::IntoApiResponse`
  --> tests/ui/invalid_status_code.rs:1:5
