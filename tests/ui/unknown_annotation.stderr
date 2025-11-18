@@ -1,0 +1,21 @@
+error: Unknown annotation '@respons'
+       help: did you mean '@response'?
+       note: valid annotations are @response, @example, @tag, @security, @id, @hidden
+ --> tests/ui/unknown_annotation.rs:7:1
+  |
+7 | /// @respons 200 Json<String> Typo in annotation
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `aide::axum::IntoApiResponse`
+ --> tests/ui/unknown_annotation.rs:1:5
+  |
+1 | use aide::axum::IntoApiResponse;
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` on by default
+
+warning: unused import: `axum::response::Json`
+ --> tests/ui/unknown_annotation.rs:2:5
+  |
+2 | use axum::response::Json;
+  |     ^^^^^^^^^^^^^^^^^^^^

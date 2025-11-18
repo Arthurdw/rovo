@@ -1,5 +1,5 @@
 use proc_macro::TokenStream;
-use quote::quote;
+use quote::{quote, quote_spanned};
 
 mod parser;
 use parser::parse_rovo_function;
@@ -193,10 +193,17 @@ pub fn rovo(_attr: TokenStream, item: TokenStream) -> TokenStream {
         }
         Err(err) => {
             let err_msg = err.to_string();
-            quote! {
-                compile_error!(#err_msg);
-            }
-            .into()
+            // Use the span from the error if available, otherwise use call_site
+            let error_tokens = if let Some(span) = err.span() {
+                quote_spanned! {span=>
+                    compile_error!(#err_msg);
+                }
+            } else {
+                quote! {
+                    compile_error!(#err_msg);
+                }
+            };
+            error_tokens.into()
         }
     }
 }

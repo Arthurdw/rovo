@@ -1,17 +1,75 @@
-use proc_macro2::{Ident, TokenStream, TokenTree};
+use proc_macro2::{Ident, Span, TokenStream, TokenTree};
 use quote::ToTokens;
 use std::fmt;
+
+/// Calculate Levenshtein distance between two strings
+fn levenshtein_distance(s1: &str, s2: &str) -> usize {
+    let len1 = s1.len();
+    let len2 = s2.len();
+    let mut matrix = vec![vec![0; len2 + 1]; len1 + 1];
+
+    for i in 0..=len1 {
+        matrix[i][0] = i;
+    }
+    for j in 0..=len2 {
+        matrix[0][j] = j;
+    }
+
+    for (i, c1) in s1.chars().enumerate() {
+        for (j, c2) in s2.chars().enumerate() {
+            let cost = if c1 == c2 { 0 } else { 1 };
+            matrix[i + 1][j + 1] = (matrix[i][j + 1] + 1)
+                .min(matrix[i + 1][j] + 1)
+                .min(matrix[i][j] + cost);
+        }
+    }
+
+    matrix[len1][len2]
+}
+
+/// Find the closest matching annotation
+fn find_closest_annotation(input: &str) -> Option<&'static str> {
+    const ANNOTATIONS: &[&str] = &["response", "example", "tag", "security", "id", "hidden"];
+
+    let input_lower = input.to_lowercase();
+    let mut best_match = None;
+    let mut best_distance = usize::MAX;
+
+    for &annotation in ANNOTATIONS {
+        let distance = levenshtein_distance(&input_lower, annotation);
+        // Only suggest if distance is small (≤ 2 characters different)
+        if distance < best_distance && distance <= 2 {
+            best_distance = distance;
+            best_match = Some(annotation);
+        }
+    }
+
+    best_match
+}
 
 #[derive(Debug)]
 pub struct ParseError {
     message: String,
+    span: Option<Span>,
 }
 
 impl ParseError {
     fn new(message: impl Into<String>) -> Self {
         Self {
             message: message.into(),
+            span: None,
         }
+    }
+
+    fn with_span(message: impl Into<String>, span: Span) -> Self {
+        Self {
+            message: message.into(),
+            span: Some(span),
+        }
+    }
+
+    pub fn span(&self) -> Option<Span> {
+        self.span
     }
 }
 
@@ -116,6 +174,11 @@ impl ToTokens for FuncItem {
     }
 }
 
+struct DocLine {
+    text: String,
+    span: Span,
+}
+
 pub fn parse_rovo_function(input: TokenStream) -> Result<(FuncItem, DocInfo), ParseError> {
     let tokens: Vec<TokenTree> = input.clone().into_iter().collect();
 
@@ -133,9 +196,13 @@ pub fn parse_rovo_function(input: TokenStream) -> Result<(FuncItem, DocInfo), Pa
                     if let TokenTree::Group(group) = &tokens[i + 1] {
                         let attr_content = group.stream().to_string();
                         if attr_content.starts_with("doc") {
-                            // Extract the doc comment text
+                            // Extract the doc comment text and preserve the span
                             let doc_text = extract_doc_text(&attr_content);
-                            doc_lines.push(doc_text);
+                            let span = group.span();
+                            doc_lines.push(DocLine {
+                                text: doc_text,
+                                span,
+                            });
                         } else if attr_content.starts_with("deprecated") {
                             // Mark as deprecated
                             is_deprecated = true;
@@ -162,8 +229,8 @@ pub fn parse_rovo_function(input: TokenStream) -> Result<(FuncItem, DocInfo), Pa
     // Extract state type from function parameters
     let state_type = extract_state_type(&input);
 
-    // Parse doc comments
-    let mut doc_info = parse_doc_comments(&doc_lines)?;
+    // Parse doc comments - pass function name and spans for better error messages
+    let mut doc_info = parse_doc_comments(&doc_lines, &func_name.to_string())?;
 
     // Set deprecated flag from Rust attribute
     doc_info.deprecated = is_deprecated;
@@ -229,80 +296,232 @@ fn extract_doc_text(attr: &str) -> String {
     String::new()
 }
 
-fn parse_doc_comments(lines: &[String]) -> Result<DocInfo, ParseError> {
+fn parse_doc_comments(lines: &[DocLine], func_name: &str) -> Result<DocInfo, ParseError> {
     let mut doc_info = DocInfo::default();
     let mut description_lines = Vec::new();
     let mut in_description = false;
     let mut title_set = false;
 
-    for line in lines {
-        let trimmed = line.trim();
+    for (line_num, doc_line) in lines.iter().enumerate() {
+        let trimmed = doc_line.text.trim();
+        let span = doc_line.span;
 
         if trimmed.starts_with("@response") {
             // Parse: @response 200 Json<TodoItem> A single Todo item.
             let parts: Vec<&str> = trimmed.splitn(4, ' ').collect();
-            if parts.len() >= 4 {
-                let status_code = parts[1]
-                    .parse::<u16>()
-                    .map_err(|_| ParseError::new(format!("Invalid status code: {}", parts[1])))?;
-                let response_type_str = parts[2];
-                let description = parts[3].to_string();
 
-                // Parse the response type string into a TokenStream
-                let response_type: TokenStream = response_type_str
-                    .parse()
-                    .map_err(|_| {
-                        ParseError::new(format!("Invalid response type: {}", response_type_str))
-                    })?;
-
-                doc_info.responses.push(ResponseInfo {
-                    status_code,
-                    response_type,
-                    description,
-                });
+            if parts.len() < 4 {
+                return Err(ParseError::with_span(
+                    format!(
+                        "Invalid @response annotation format\n\
+                         help: expected '@response <code> <type> <description>'\n\
+                         note: example '@response 200 Json<User> Successfully retrieved user'"
+                    ),
+                    span
+                ));
             }
+
+            let status_code = parts[1]
+                .parse::<u16>()
+                .map_err(|_| ParseError::with_span(
+                    format!(
+                        "Invalid status code '{}'\n\
+                         help: status code must be a number between 100-599\n\
+                         note: common codes: 200 (OK), 201 (Created), 400 (Bad Request), 404 (Not Found), 500 (Internal Error)",
+                        parts[1]
+                    ),
+                    span
+                ))?;
+
+            // Validate status code is in valid HTTP range
+            if !(100..=599).contains(&status_code) {
+                return Err(ParseError::with_span(
+                    format!(
+                        "Status code {} is out of valid range\n\
+                         help: HTTP status codes must be between 100-599\n\
+                         note: common codes: 200 (OK), 201 (Created), 400 (Bad Request), 404 (Not Found), 500 (Internal Error)",
+                        status_code
+                    ),
+                    span
+                ));
+            }
+
+            let response_type_str = parts[2];
+            let description = parts[3].to_string();
+
+            if description.trim().is_empty() {
+                return Err(ParseError::with_span(
+                    format!(
+                        "Missing description for @response\n\
+                         help: add a description after the response type\n\
+                         note: example '@response {} {} Successfully created resource'",
+                        status_code, response_type_str
+                    ),
+                    span
+                ));
+            }
+
+            // Parse the response type string into a TokenStream
+            let response_type: TokenStream = response_type_str
+                .parse()
+                .map_err(|_| {
+                    ParseError::with_span(
+                        format!(
+                            "Invalid response type '{}'\n\
+                             help: response type must be valid Rust syntax\n\
+                             note: common types: Json<T>, (), (StatusCode, Json<T>)",
+                            response_type_str
+                        ),
+                        span
+                    )
+                })?;
+
+            doc_info.responses.push(ResponseInfo {
+                status_code,
+                response_type,
+                description,
+            });
         } else if trimmed.starts_with("@example") {
             // Parse: @example 200 TodoItem::default()
             let parts: Vec<&str> = trimmed.splitn(3, ' ').collect();
-            if parts.len() >= 3 {
-                let status_code = parts[1]
-                    .parse::<u16>()
-                    .map_err(|_| ParseError::new(format!("Invalid status code: {}", parts[1])))?;
-                let example_code_str = parts[2];
 
-                // Parse the example code string into a TokenStream
-                let example_code: TokenStream = example_code_str
-                    .parse()
-                    .map_err(|_| {
-                        ParseError::new(format!("Invalid example code: {}", example_code_str))
-                    })?;
-
-                doc_info.examples.push(ExampleInfo {
-                    status_code,
-                    example_code,
-                });
+            if parts.len() < 3 {
+                return Err(ParseError::new(format!(
+                    "Invalid @example annotation on line {}: Expected format '@example <code> <expression>'",
+                    line_num + 1
+                )));
             }
+
+            let status_code = parts[1]
+                .parse::<u16>()
+                .map_err(|_| ParseError::new(format!(
+                    "Invalid status code '{}' on line {}: Must be a number between 100-599",
+                    parts[1], line_num + 1
+                )))?;
+
+            // Validate status code is in valid HTTP range
+            if !(100..=599).contains(&status_code) {
+                return Err(ParseError::new(format!(
+                    "Invalid status code {} on line {}: HTTP status codes must be between 100-599",
+                    status_code, line_num + 1
+                )));
+            }
+
+            let example_code_str = parts[2];
+
+            if example_code_str.trim().is_empty() {
+                return Err(ParseError::new(format!(
+                    "Empty example expression on line {}: Expression is required",
+                    line_num + 1
+                )));
+            }
+
+            // Parse the example code string into a TokenStream
+            let example_code: TokenStream = example_code_str
+                .parse()
+                .map_err(|_| {
+                    ParseError::new(format!(
+                        "Invalid example expression '{}' on line {}: Must be valid Rust expression",
+                        example_code_str, line_num + 1
+                    ))
+                })?;
+
+            doc_info.examples.push(ExampleInfo {
+                status_code,
+                example_code,
+            });
         } else if trimmed.starts_with("@tag") {
             // Parse: @tag <tag_name>
             let parts: Vec<&str> = trimmed.splitn(2, ' ').collect();
-            if parts.len() >= 2 {
-                doc_info.tags.push(parts[1].trim().to_string());
+
+            if parts.len() < 2 {
+                return Err(ParseError::new(format!(
+                    "Invalid @tag annotation on line {}: Expected format '@tag <tag_name>'",
+                    line_num + 1
+                )));
             }
+
+            let tag = parts[1].trim();
+            if tag.is_empty() {
+                return Err(ParseError::new(format!(
+                    "Empty tag name on line {}: Tag name cannot be empty",
+                    line_num + 1
+                )));
+            }
+
+            doc_info.tags.push(tag.to_string());
         } else if trimmed.starts_with("@security") {
             // Parse: @security <scheme_name>
             let parts: Vec<&str> = trimmed.splitn(2, ' ').collect();
-            if parts.len() >= 2 {
-                doc_info.security_requirements.push(parts[1].trim().to_string());
+
+            if parts.len() < 2 {
+                return Err(ParseError::new(format!(
+                    "Invalid @security annotation on line {}: Expected format '@security <scheme_name>'",
+                    line_num + 1
+                )));
             }
+
+            let scheme = parts[1].trim();
+            if scheme.is_empty() {
+                return Err(ParseError::new(format!(
+                    "Empty security scheme name on line {}: Scheme name cannot be empty",
+                    line_num + 1
+                )));
+            }
+
+            doc_info.security_requirements.push(scheme.to_string());
         } else if trimmed.starts_with("@id") {
             // Parse: @id <operation_id>
             let parts: Vec<&str> = trimmed.splitn(2, ' ').collect();
-            if parts.len() >= 2 {
-                doc_info.operation_id = Some(parts[1].trim().to_string());
+
+            if parts.len() < 2 {
+                return Err(ParseError::new(format!(
+                    "Invalid @id annotation on line {}: Expected format '@id <operation_id>'",
+                    line_num + 1
+                )));
             }
+
+            let id = parts[1].trim();
+            if id.is_empty() {
+                return Err(ParseError::new(format!(
+                    "Empty operation ID on line {}: Operation ID cannot be empty",
+                    line_num + 1
+                )));
+            }
+
+            // Validate that operation ID is a valid identifier (alphanumeric + underscores)
+            if !id.chars().all(|c| c.is_alphanumeric() || c == '_') {
+                return Err(ParseError::new(format!(
+                    "Invalid operation ID '{}' on line {}: Must contain only alphanumeric characters and underscores",
+                    id, line_num + 1
+                )));
+            }
+
+            doc_info.operation_id = Some(id.to_string());
         } else if trimmed == "@hidden" {
             // Mark as hidden
             doc_info.hidden = true;
+        } else if trimmed.starts_with('@') {
+            // Unknown annotation
+            let annotation = trimmed.split_whitespace().next().unwrap_or(trimmed);
+            let annotation_name = annotation.strip_prefix('@').unwrap_or(annotation);
+
+            let error_msg = if let Some(suggestion) = find_closest_annotation(annotation_name) {
+                format!(
+                    "Unknown annotation '{}'\n\
+                     help: did you mean '@{}'?\n\
+                     note: valid annotations are @response, @example, @tag, @security, @id, @hidden",
+                    annotation, suggestion
+                )
+            } else {
+                format!(
+                    "Unknown annotation '{}'\n\
+                     note: valid annotations are @response, @example, @tag, @security, @id, @hidden",
+                    annotation
+                )
+            };
+
+            return Err(ParseError::with_span(error_msg, span));
         } else if !trimmed.is_empty() {
             if !title_set {
                 doc_info.title = Some(trimmed.to_string());

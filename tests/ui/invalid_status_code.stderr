@@ -1,0 +1,22 @@
+error: In function `test_handler`, invalid status code 999 on doc comment line 3: HTTP status codes must be between 100-599
+       Found: @response 999 Json<String> Invalid status code
+ --> tests/ui/invalid_status_code.rs:8:1
+  |
+8 | #[rovo]
+  | ^^^^^^^
+  |
+  = note: this error originates in the attribute macro `rovo` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+warning: unused import: `aide::axum::IntoApiResponse`
+ --> tests/ui/invalid_status_code.rs:1:5
+  |
+1 | use aide::axum::IntoApiResponse;
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` on by default
+
+warning: unused import: `axum::response::Json`
+ --> tests/ui/invalid_status_code.rs:2:5
+  |
+2 | use axum::response::Json;
+  |     ^^^^^^^^^^^^^^^^^^^^

@@ -8,6 +8,7 @@ Built on top of [aide](https://github.com/tamasfe/aide), rovo provides a seamles
 
 - 🎯 **Drop-in replacement**: Use `rovo::Router` instead of `axum::Router` with the exact same API
 - 📝 **Doc-comment driven**: Write API docs as Rust doc comments with special annotations
+- ✅ **Compile-time validation**: Catches documentation errors at compile time, not runtime
 - 🔄 **Method chaining**: Supports `.post()`, `.patch()`, `.delete()` just like axum
 - 🚀 **Simplified setup**: Helper methods for Swagger UI and OpenAPI JSON endpoints
 - 🏷️ **Rich annotations**: Support for tags, security, deprecation, examples, and more
