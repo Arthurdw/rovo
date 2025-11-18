@@ -81,7 +81,7 @@ fn test_macro_generates_docs_function() {
 
     // This should compile - the _docs functions exist
     let _router: ApiRouter<AppState> = ApiRouter::new()
-        .api_route("/items/:id", get_with(get_item, get_item_docs))
+        .api_route("/items/{id}", get_with(get_item, get_item_docs))
         .api_route("/simple", get_with(simple_handler, simple_handler_docs))
         .api_route("/multi", get_with(multi_response, multi_response_docs))
         .with_state(state);
@@ -110,7 +110,7 @@ fn test_multiple_handlers_compile() {
     let _router: ApiRouter<AppState> = ApiRouter::new()
         .api_route("/a", get_with(simple_handler, simple_handler_docs))
         .api_route("/b", get_with(multi_response, multi_response_docs))
-        .api_route("/c/:id", get_with(get_item, get_item_docs))
+        .api_route("/c/{id}", get_with(get_item, get_item_docs))
         .with_state(state);
 }
 
@@ -123,6 +123,6 @@ fn test_handler_with_path_params() {
 
     let _router: ApiRouter<AppState> =
         ApiRouter::new()
-            .api_route("/items/:id", get_with(get_item, get_item_docs))
+            .api_route("/items/{id}", get_with(get_item, get_item_docs))
             .with_state(state);
 }
