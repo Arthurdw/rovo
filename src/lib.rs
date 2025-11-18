@@ -60,6 +60,7 @@ where
     }
 
     /// Add Swagger UI route at the specified path
+    #[cfg(feature = "swagger")]
     pub fn with_swagger(mut self, swagger_path: &str, api_json_path: &str) -> Self
     where
         S: Clone + Send + Sync + 'static,
@@ -67,6 +68,32 @@ where
         self.inner = self.inner.route(
             swagger_path,
             aide::swagger::Swagger::new(api_json_path).axum_route(),
+        );
+        self
+    }
+
+    /// Add Redoc UI route at the specified path
+    #[cfg(feature = "redoc")]
+    pub fn with_redoc(mut self, redoc_path: &str, api_json_path: &str) -> Self
+    where
+        S: Clone + Send + Sync + 'static,
+    {
+        self.inner = self.inner.route(
+            redoc_path,
+            aide::redoc::Redoc::new(api_json_path).axum_route(),
+        );
+        self
+    }
+
+    /// Add Scalar UI route at the specified path
+    #[cfg(feature = "scalar")]
+    pub fn with_scalar(mut self, scalar_path: &str, api_json_path: &str) -> Self
+    where
+        S: Clone + Send + Sync + 'static,
+    {
+        self.inner = self.inner.route(
+            scalar_path,
+            aide::scalar::Scalar::new(api_json_path).axum_route(),
         );
         self
     }

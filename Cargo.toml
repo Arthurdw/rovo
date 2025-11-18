@@ -7,9 +7,15 @@ name = "rovo"
 version = "0.1.0"
 edition = "2021"
 
+[features]
+default = []
+swagger = ["aide/swagger"]
+redoc = ["aide/redoc"]
+scalar = ["aide/scalar"]
+
 [dependencies]
 rovo-macros = { path = "rovo-macros" }
-aide = { version = "0.15", features = ["axum", "axum-json", "swagger"] }
+aide = { version = "0.15", features = ["axum", "axum-json"] }
 paste = "1.0"
 axum = "0.8.7"
 

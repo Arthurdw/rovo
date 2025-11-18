@@ -19,11 +19,36 @@ Built on top of [aide](https://github.com/tamasfe/aide), rovo provides a seamles
 
 ```toml
 [dependencies]
-rovo = "0.1"
+rovo = { version = "0.1", features = ["swagger"] }  # Choose your UI: swagger, redoc, or scalar
 aide = { version = "0.15", features = ["axum"] }
 axum = "0.8"
 schemars = "0.8"
 serde = { version = "1.0", features = ["derive"] }
+```
+
+### Feature Flags
+
+Rovo supports multiple OpenAPI documentation UIs through feature flags. **Note: No UI is enabled by default** - you must explicitly choose which UI(s) to use:
+
+- **`swagger`** - Enables Swagger UI support
+- **`redoc`** - Enables Redoc UI support
+- **`scalar`** - Enables Scalar UI support
+
+You can enable one or multiple UIs:
+
+```toml
+[dependencies]
+# Use Swagger UI
+rovo = { version = "0.1", features = ["swagger"] }
+
+# Use Redoc
+rovo = { version = "0.1", features = ["redoc"] }
+
+# Use Scalar
+rovo = { version = "0.1", features = ["scalar"] }
+
+# Use all three UIs
+rovo = { version = "0.1", features = ["swagger", "redoc", "scalar"] }
 ```
 
 ## Quick Start
@@ -243,12 +268,51 @@ Router::new()
     )
 ```
 
-### Adding Swagger UI
+### Adding Documentation UI
+
+#### Swagger UI
 
 ```rust
 Router::new()
     .route("/users", get(list_users))
     .with_swagger("/docs", "/api.json")  // Swagger UI at /docs
+    .with_api_json("/api.json", serve_api)
+    .with_state(state)
+    .finish_api_with_extension(api)
+```
+
+#### Redoc UI
+
+```rust
+Router::new()
+    .route("/users", get(list_users))
+    .with_redoc("/docs", "/api.json")  // Redoc UI at /docs
+    .with_api_json("/api.json", serve_api)
+    .with_state(state)
+    .finish_api_with_extension(api)
+```
+
+#### Scalar UI
+
+```rust
+Router::new()
+    .route("/users", get(list_users))
+    .with_scalar("/docs", "/api.json")  // Scalar UI at /docs
+    .with_api_json("/api.json", serve_api)
+    .with_state(state)
+    .finish_api_with_extension(api)
+```
+
+#### Multiple UIs
+
+You can serve multiple UIs at different paths:
+
+```rust
+Router::new()
+    .route("/users", get(list_users))
+    .with_swagger("/swagger", "/api.json")  // Swagger UI at /swagger
+    .with_redoc("/redoc", "/api.json")      // Redoc UI at /redoc
+    .with_scalar("/scalar", "/api.json")    // Scalar UI at /scalar
     .with_api_json("/api.json", serve_api)
     .with_state(state)
     .finish_api_with_extension(api)
@@ -266,7 +330,7 @@ See [examples/todo_api.rs](./examples/todo_api.rs) for a full CRUD API with:
 Run it with:
 
 ```bash
-cargo run --example todo_api
+cargo run -F swagger --example todo_api
 # Visit http://127.0.0.1:3000 for Swagger UI
 ```
 
@@ -516,20 +580,6 @@ async fn handler() -> impl IntoApiResponse {
 let router: Router<()> = Router::<AppState>::new()
     .route("/path", get(handler))
     .with_state(state);
-```
-
-### Routes return 404
-
-**Problem**: Routes work in axum but return 404 in rovo
-
-**Solution**: Make sure you're using axum path syntax (`{id}`), not OpenAPI syntax:
-
-```rust
-// ✅ Correct
-.route("/todos/{id}", get(get_todo))
-
-// ❌ Wrong
-.route("/todos/:id", get(get_todo))
 ```
 
 ## Contributing
