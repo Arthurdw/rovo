@@ -1,10 +1,15 @@
-use aide::axum::{routing::get_with, ApiRouter, IntoApiResponse};
+use aide::{
+    axum::{routing::get_with, IntoApiResponse},
+    openapi::OpenApi,
+    swagger::Swagger,
+};
 use axum::{
     extract::{Path, State},
     http::StatusCode,
     response::{IntoResponse, Json},
+    Extension,
 };
-use rovo::rovo;
+use rovo::{rovo, Router};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -67,7 +72,7 @@ async fn get_todo(
     Path(TodoId { id }): Path<TodoId>,
 ) -> impl IntoApiResponse {
     if let Some(todo) = app.todos.lock().unwrap().get(&id) {
-        Json(todo.clone()).into_response()
+        (StatusCode::OK, Json(todo.clone())).into_response()
     } else {
         StatusCode::NOT_FOUND.into_response()
     }
@@ -79,7 +84,7 @@ async fn get_todo(
 ///
 /// @response 200 Json<Vec<TodoItem>> List of all todo items.
 #[rovo]
-async fn list_todos(State(app): State<AppState>) -> impl IntoApiResponse {
+async fn list_todos(State(app): State<AppState>) -> Json<Vec<TodoItem>> {
     let todos: Vec<TodoItem> = app.todos.lock().unwrap().values().cloned().collect();
     Json(todos)
 }
@@ -94,7 +99,7 @@ async fn list_todos(State(app): State<AppState>) -> impl IntoApiResponse {
 async fn create_todo(
     State(app): State<AppState>,
     Json(req): Json<CreateTodoRequest>,
-) -> impl IntoApiResponse {
+) -> (StatusCode, Json<TodoItem>) {
     let todo = TodoItem {
         id: Uuid::new_v4(),
         description: req.description,
@@ -126,7 +131,7 @@ async fn update_todo(
         if let Some(complete) = req.complete {
             todo.complete = complete;
         }
-        Json(todo.clone()).into_response()
+        (StatusCode::OK, Json(todo.clone())).into_response()
     } else {
         StatusCode::NOT_FOUND.into_response()
     }
@@ -150,27 +155,23 @@ async fn delete_todo(
     }
 }
 
-pub fn todo_routes(state: AppState) -> ApiRouter {
-    aide::axum::ApiRouter::new()
-        .api_route("/todos", get_with(list_todos, list_todos_docs))
-        .api_route(
+pub fn todo_routes(state: AppState) -> Router<AppState> {
+    Router::new()
+        .route(
             "/todos",
-            aide::axum::routing::post_with(create_todo, create_todo_docs),
+            get_with(list_todos, list_todos_docs).post_with(create_todo, create_todo_docs),
         )
-        .api_route("/todos/:id", get_with(get_todo, get_todo_docs))
-        .api_route(
-            "/todos/:id",
-            aide::axum::routing::patch_with(update_todo, update_todo_docs),
-        )
-        .api_route(
-            "/todos/:id",
-            aide::axum::routing::delete_with(delete_todo, delete_todo_docs),
+        .route(
+            "/todos/{id}",
+            get_with(get_todo, get_todo_docs)
+                .patch_with(update_todo, update_todo_docs)
+                .delete_with(delete_todo, delete_todo_docs),
         )
         .with_state(state)
 }
 
-async fn swagger_ui() -> axum::response::Html<String> {
-    axum::response::Html(include_str!("./swagger.html").to_string())
+async fn serve_api(Extension(api): Extension<OpenApi>) -> axum::Json<OpenApi> {
+    axum::Json(api)
 }
 
 #[tokio::main]
@@ -210,24 +211,22 @@ async fn main() {
         todos: Arc::new(Mutex::new(todos_map)),
     };
 
-    aide::gen::extract_schemas(true);
-
-    let mut api = aide::openapi::OpenApi::default();
+    let mut api = OpenApi::default();
     api.info.title = "Todo API Example".to_string();
     api.info.description = Some("OpenAPI documentation example using rovo".to_string());
 
-    // Build the router
-    let app = todo_routes(state.clone())
-        .finish_api(&mut api)
-        .route(
-            "/openapi.json",
-            axum::routing::get({
-                let api = api.clone();
-                move || async move { axum::Json(api.clone()) }
-            }),
-        )
-        .route("/", axum::routing::get(swagger_ui))
-        .into_make_service();
+    // Build the router with Swagger UI and API documentation
+    let todo_router = todo_routes(state.clone());
+
+    let app = aide::axum::ApiRouter::new()
+        .nest("/api", todo_router.into_inner())
+        .with_state(state);
+
+    let docs = aide::axum::ApiRouter::new()
+        .route("/", axum::routing::get(|| async { axum::response::Redirect::permanent("/docs") }))
+        .route("/docs", Swagger::new("/api.json").axum_route())
+        .route("/api.json", axum::routing::get(serve_api))
+        .merge(app);
 
     let listener = tokio::net::TcpListener::bind("127.0.0.1:3000")
         .await
@@ -235,8 +234,14 @@ async fn main() {
 
     info!("Server started successfully");
     info!("Address: http://127.0.0.1:3000");
-    info!("Documentation: http://127.0.0.1:3000");
-    info!("OpenAPI spec: http://127.0.0.1:3000/openapi.json");
+    info!("Documentation: http://127.0.0.1:3000/docs");
+    info!("OpenAPI spec: http://127.0.0.1:3000/api.json");
 
-    axum::serve(listener, app).await.unwrap();
+    let final_app = docs
+        .finish_api(&mut api)
+        .layer(Extension(api));
+
+    axum::serve(listener, final_app)
+        .await
+        .unwrap();
 }
