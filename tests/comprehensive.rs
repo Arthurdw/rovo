@@ -4,7 +4,7 @@ use axum::{
     http::StatusCode,
     response::{IntoResponse, Json},
 };
-use rovo::{rovo, routing::get, Router};
+use rovo::{routing::get, rovo, Router};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -90,8 +90,8 @@ fn test_macro_generates_docs_function() {
 
 #[test]
 fn test_docs_function_callable() {
-    use aide::transform::TransformOperation;
     use aide::openapi::Operation;
+    use aide::transform::TransformOperation;
 
     // Create a mock operation
     let mut operation = Operation::default();

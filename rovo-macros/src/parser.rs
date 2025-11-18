@@ -29,7 +29,15 @@ fn levenshtein_distance(s1: &str, s2: &str) -> usize {
 
 /// Find the closest matching annotation
 fn find_closest_annotation(input: &str) -> Option<&'static str> {
-    const ANNOTATIONS: &[&str] = &["response", "example", "tag", "security", "id", "hidden", "rovo-ignore"];
+    const ANNOTATIONS: &[&str] = &[
+        "response",
+        "example",
+        "tag",
+        "security",
+        "id",
+        "hidden",
+        "rovo-ignore",
+    ];
 
     let input_lower = input.to_lowercase();
     let mut best_match = None;
@@ -317,7 +325,7 @@ fn parse_doc_comments(lines: &[DocLine], _func_name: &str) -> Result<DocInfo, Pa
                          help: expected '@response <code> <type> <description>'\n\
                          note: example '@response 200 Json<User> Successfully retrieved user'"
                     ),
-                    span
+                    span,
                 ));
             }
 
@@ -357,7 +365,7 @@ fn parse_doc_comments(lines: &[DocLine], _func_name: &str) -> Result<DocInfo, Pa
                          note: example '@response {} {} Successfully created resource'",
                         status_code, response_type_str
                     ),
-                    span
+                    span,
                 ));
             }
 
@@ -366,9 +374,26 @@ fn parse_doc_comments(lines: &[DocLine], _func_name: &str) -> Result<DocInfo, Pa
             let looks_like_description = {
                 // List of common words that suggest this is a description, not a type
                 let description_words = [
-                    "item", "deleted", "successfully", "created", "updated", "not",
-                    "error", "failed", "success", "the", "a", "an", "user", "data",
-                    "resource", "found", "missing", "invalid", "request", "response"
+                    "item",
+                    "deleted",
+                    "successfully",
+                    "created",
+                    "updated",
+                    "not",
+                    "error",
+                    "failed",
+                    "success",
+                    "the",
+                    "a",
+                    "an",
+                    "user",
+                    "data",
+                    "resource",
+                    "found",
+                    "missing",
+                    "invalid",
+                    "request",
+                    "response",
                 ];
 
                 let type_lower = response_type_str.to_lowercase();
@@ -501,7 +526,7 @@ fn parse_doc_comments(lines: &[DocLine], _func_name: &str) -> Result<DocInfo, Pa
                          help: expected '@tag <tag_name>'\n\
                          note: example '@tag users' or '@tag authentication'"
                     ),
-                    span
+                    span,
                 ));
             }
 
@@ -513,7 +538,7 @@ fn parse_doc_comments(lines: &[DocLine], _func_name: &str) -> Result<DocInfo, Pa
                          help: provide a tag name after @tag\n\
                          note: tags help organize endpoints in the OpenAPI documentation"
                     ),
-                    span
+                    span,
                 ));
             }
 
@@ -530,7 +555,7 @@ fn parse_doc_comments(lines: &[DocLine], _func_name: &str) -> Result<DocInfo, Pa
                          note: example '@security bearer_auth' or '@security api_key'\n\
                          note: security schemes must be defined separately in your OpenAPI spec"
                     ),
-                    span
+                    span,
                 ));
             }
 
@@ -542,7 +567,7 @@ fn parse_doc_comments(lines: &[DocLine], _func_name: &str) -> Result<DocInfo, Pa
                          help: provide a security scheme name after @security\n\
                          note: the scheme must match a security definition in your OpenAPI spec"
                     ),
-                    span
+                    span,
                 ));
             }
 
@@ -559,7 +584,7 @@ fn parse_doc_comments(lines: &[DocLine], _func_name: &str) -> Result<DocInfo, Pa
                          note: example '@id getUserById' or '@id create_user'\n\
                          note: operation IDs help identify endpoints in generated clients"
                     ),
-                    span
+                    span,
                 ));
             }
 
@@ -571,7 +596,7 @@ fn parse_doc_comments(lines: &[DocLine], _func_name: &str) -> Result<DocInfo, Pa
                          help: provide an operation ID after @id\n\
                          note: operation IDs must be unique across all endpoints"
                     ),
-                    span
+                    span,
                 ));
             }
 

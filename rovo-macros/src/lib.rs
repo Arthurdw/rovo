@@ -66,40 +66,54 @@ pub fn rovo(_attr: TokenStream, item: TokenStream) -> TokenStream {
                 // No responses specified - generate a minimal docs function
                 vec![]
             } else {
-                doc_info.responses.iter().map(|resp| {
-                    let code = resp.status_code;
-                    let response_type = &resp.response_type;
-                    let desc = &resp.description;
+                doc_info
+                    .responses
+                    .iter()
+                    .map(|resp| {
+                        let code = resp.status_code;
+                        let response_type = &resp.response_type;
+                        let desc = &resp.description;
 
-                    // Check if there's an explicit example for this status code
-                    if let Some(example) = doc_info.examples.iter().find(|e| e.status_code == code) {
-                        let example_code = &example.example_code;
-                        quote! {
-                            .response_with::<#code, #response_type, _>(|res| {
-                                res.description(#desc)
-                                    .example(#example_code)
-                            })
+                        // Check if there's an explicit example for this status code
+                        if let Some(example) =
+                            doc_info.examples.iter().find(|e| e.status_code == code)
+                        {
+                            let example_code = &example.example_code;
+                            quote! {
+                                .response_with::<#code, #response_type, _>(|res| {
+                                    res.description(#desc)
+                                        .example(#example_code)
+                                })
+                            }
+                        } else {
+                            // No explicit example, just add the description
+                            quote! {
+                                .response_with::<#code, #response_type, _>(|res| {
+                                    res.description(#desc)
+                                })
+                            }
                         }
-                    } else {
-                        // No explicit example, just add the description
-                        quote! {
-                            .response_with::<#code, #response_type, _>(|res| {
-                                res.description(#desc)
-                            })
-                        }
-                    }
-                }).collect()
+                    })
+                    .collect()
             };
 
             // Generate tag setters
-            let tag_setters: Vec<_> = doc_info.tags.iter().map(|tag| {
-                quote! { .tag(#tag) }
-            }).collect();
+            let tag_setters: Vec<_> = doc_info
+                .tags
+                .iter()
+                .map(|tag| {
+                    quote! { .tag(#tag) }
+                })
+                .collect();
 
             // Generate security requirement setters
-            let security_setters: Vec<_> = doc_info.security_requirements.iter().map(|scheme| {
-                quote! { .security_requirement(#scheme) }
-            }).collect();
+            let security_setters: Vec<_> = doc_info
+                .security_requirements
+                .iter()
+                .map(|scheme| {
+                    quote! { .security_requirement(#scheme) }
+                })
+                .collect();
 
             // Generate operation ID setter
             let operation_id_setter = if let Some(id) = &doc_info.operation_id {
@@ -134,7 +148,11 @@ pub fn rovo(_attr: TokenStream, item: TokenStream) -> TokenStream {
             let const_name = quote::format_ident!("{}", func_name.to_string().to_uppercase());
 
             // Determine the state type for the trait implementation
-            let state_type = func_item.state_type.as_ref().map(|st| quote! { #st }).unwrap_or(quote! { () });
+            let state_type = func_item
+                .state_type
+                .as_ref()
+                .map(|st| quote! { #st })
+                .unwrap_or(quote! { () });
 
             let output = quote! {
                 // Internal implementation with renamed function

@@ -1,7 +1,7 @@
 use aide::axum::IntoApiResponse;
 use axum::extract::{Path, State};
 use axum::response::Json;
-use rovo::{rovo, routing::get, Router};
+use rovo::{routing::get, rovo, Router};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;

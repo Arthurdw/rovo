@@ -3,8 +3,8 @@ pub use rovo_macros::rovo;
 // Re-export aide for convenience
 pub use aide;
 
-use aide::axum::ApiRouter as AideApiRouter;
 use ::axum::Extension;
+use aide::axum::ApiRouter as AideApiRouter;
 
 /// A drop-in replacement for axum::Router that adds OpenAPI documentation support.
 ///
@@ -99,11 +99,7 @@ where
     }
 
     /// Add the OpenAPI JSON endpoint
-    pub fn with_api_json<H, T>(
-        mut self,
-        path: &str,
-        handler: H,
-    ) -> Self
+    pub fn with_api_json<H, T>(mut self, path: &str, handler: H) -> Self
     where
         H: ::axum::handler::Handler<T, S>,
         S: Clone + Send + Sync + 'static,
@@ -129,10 +125,7 @@ where
     }
 
     /// Finish the API with OpenAPI spec embedded via Extension layer
-    pub fn finish_api_with_extension(
-        self,
-        api: aide::openapi::OpenApi,
-    ) -> ::axum::Router<S>
+    pub fn finish_api_with_extension(self, api: aide::openapi::OpenApi) -> ::axum::Router<S>
     where
         S: Clone + Send + Sync + 'static,
     {
@@ -324,5 +317,5 @@ pub mod routing {
 }
 
 pub mod axum {
-    pub use aide::axum::{IntoApiResponse, ApiRouter};
+    pub use aide::axum::{ApiRouter, IntoApiResponse};
 }
