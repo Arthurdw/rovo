@@ -43,7 +43,7 @@ jobs:
         run: cargo build --release --all-features
 
       - name: Run tests
-        run: cargo test --all --release
+        run: cargo test --all --all-features --release
 
       - name: Extract version
         id: extract-version
