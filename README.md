@@ -1,34 +1,42 @@
 # rovo
 
-A lightweight proc-macro crate for generating OpenAPI documentation with [aide](https://github.com/tamasfe/aide).
+A drop-in replacement for axum's Router that adds automatic OpenAPI documentation using doc comments.
+
+Built on top of [aide](https://github.com/tamasfe/aide), rovo provides a seamless way to document your axum APIs without writing separate documentation functions.
 
 ## Features
 
-- 📝 **Doc-comment driven**: Write API docs as Rust doc comments
-- 🎯 **Type-safe**: Full type checking for response types and examples
-- 🔄 **DRY**: No need for separate `_docs` functions
-- ⚡ **Lightweight**: Minimal dependencies for fast compilation
-- 🚀 **Easy integration**: Works seamlessly with aide and axum
+- 🎯 **Drop-in replacement**: Use `rovo::Router` instead of `axum::Router` with the exact same API
+- 📝 **Doc-comment driven**: Write API docs as Rust doc comments with special annotations
+- 🔄 **Method chaining**: Supports `.post()`, `.patch()`, `.delete()` just like axum
+- 🚀 **Simplified setup**: Helper methods for Swagger UI and OpenAPI JSON endpoints
+- 🏷️ **Rich annotations**: Support for tags, security, deprecation, examples, and more
+- ⚡ **Type-safe**: Full type checking for response types and examples
+- 🪶 **Lightweight**: Minimal overhead over plain axum
 
 ## Installation
 
 ```toml
 [dependencies]
 rovo = "0.1"
-aide = { version = "0.13", features = ["axum"] }
-axum = "0.7"
+aide = { version = "0.15", features = ["axum"] }
+axum = "0.8"
+schemars = "0.8"
+serde = { version = "1.0", features = ["derive"] }
 ```
 
 ## Quick Start
 
-### Basic Example
-
 ```rust
-use aide::axum::{routing::get_with, ApiRouter, IntoApiResponse};
-use axum::{extract::State, response::Json};
-use rovo::rovo;
+use aide::axum::IntoApiResponse;
+use aide::openapi::OpenApi;
+use axum::{extract::State, response::Json, Extension};
+use rovo::{rovo, Router, routing::get};
 use schemars::JsonSchema;
 use serde::Serialize;
+
+#[derive(Clone)]
+struct AppState {}
 
 #[derive(Serialize, JsonSchema)]
 struct User {
@@ -40,6 +48,7 @@ struct User {
 ///
 /// Returns the current user's profile information.
 ///
+/// @tag users
 /// @response 200 Json<User> User profile retrieved successfully.
 #[rovo]
 async fn get_user(State(_state): State<AppState>) -> impl IntoApiResponse {
@@ -49,199 +58,454 @@ async fn get_user(State(_state): State<AppState>) -> impl IntoApiResponse {
     })
 }
 
-// The macro generates `get_user_docs` automatically
-fn routes(state: AppState) -> ApiRouter {
-    ApiRouter::new()
-        .api_route("/user", get_with(get_user, get_user_docs))
+async fn serve_api(Extension(api): Extension<OpenApi>) -> axum::Json<OpenApi> {
+    axum::Json(api)
+}
+
+#[tokio::main]
+async fn main() {
+    let state = AppState {};
+
+    let mut api = OpenApi::default();
+    api.info.title = "My API".to_string();
+
+    let app = Router::new()
+        .route("/user", get(get_user))
+        .with_swagger("/", "/api.json")
+        .with_api_json("/api.json", serve_api)
         .with_state(state)
+        .finish_api_with_extension(api);
+
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:3000")
+        .await
+        .unwrap();
+
+    axum::serve(listener, app).await.unwrap();
 }
 ```
 
-### CRUD Example
+Visit `http://127.0.0.1:3000` to see your interactive Swagger UI documentation!
+
+## Documentation Annotations
+
+### Basic Structure
 
 ```rust
-use aide::axum::{routing::get_with, ApiRouter, IntoApiResponse};
-use axum::{
-    extract::{Path, State},
-    http::StatusCode,
-    response::Json,
-};
-use rovo::rovo;
-use schemars::JsonSchema;
-use serde::{Deserialize, Serialize};
-use uuid::Uuid;
-
-#[derive(Serialize, JsonSchema)]
-struct Todo {
-    id: Uuid,
-    title: String,
-    completed: bool,
-}
-
-#[derive(Deserialize, JsonSchema)]
-struct TodoId {
-    id: Uuid,
-}
-
-/// Get a todo by ID.
+/// Title (first line becomes the summary)
 ///
-/// Retrieves a specific todo item by its unique identifier.
+/// Description paragraph can span multiple lines
+/// and provides detailed information about the endpoint.
 ///
-/// @response 200 Json<Todo> Todo found successfully.
-/// @example 200 Todo { id: Uuid::nil(), title: "Example".into(), completed: false }
-/// @response 404 () Todo not found.
+/// @tag category_name
+/// @response 200 Json<ResponseType> Success description
+/// @response 404 () Not found description
 #[rovo]
-async fn get_todo(
-    State(state): State<AppState>,
-    Path(TodoId { id }): Path<TodoId>,
-) -> impl IntoApiResponse {
-    match state.todos.get(&id) {
-        Some(todo) => Json(todo.clone()).into_response(),
-        None => StatusCode::NOT_FOUND.into_response(),
-    }
-}
-
-// Routes use `:id` (axum syntax) not `{id}` (OpenAPI syntax)
-fn routes(state: AppState) -> ApiRouter {
-    ApiRouter::new()
-        .api_route("/todos/:id", get_with(get_todo, get_todo_docs))
-        .with_state(state)
+async fn handler() -> impl IntoApiResponse {
+    // ...
 }
 ```
 
-**Important:** Use `:id` in route paths (axum syntax), not `{id}` (OpenAPI syntax).
+### Available Annotations
 
-## Documentation Syntax
+#### `@response <code> <type> <description>`
 
-### Title and Description
-
-The first line of the doc comment becomes the summary, subsequent lines become the description:
+Document response status codes:
 
 ```rust
-/// Get a todo item.        // <- Summary
-///
-/// Retrieves a todo item    // <- Description
-/// by its unique ID.        //    (continues)
+/// @response 200 Json<User> User found successfully
+/// @response 404 () User not found
+/// @response 500 Json<ErrorResponse> Internal server error
 ```
 
-### Response Annotations
+#### `@example <code> <expression>`
 
-Use `@response` to document different response codes:
-
-```rust
-/// @response 200 Json<TodoItem> Successfully retrieved the todo item.
-/// @response 404 () Todo item was not found.
-/// @response 500 Json<ErrorResponse> Internal server error occurred.
-```
-
-Format: `@response <status_code> <response_type> <description>`
-
-### Example Annotations
-
-Use `@example` to provide examples for responses:
+Provide example responses:
 
 ```rust
-/// @response 200 Json<User> User information.
+/// @response 200 Json<User> User information
 /// @example 200 User::default()
 ```
 
-For complex examples, you can use any Rust expression:
+Or with custom values:
 
 ```rust
-/// @example 200 User { id: Uuid::nil(), name: "John".into(), email: "john@example.com".into() }
+/// @example 200 User { id: 1, name: "Alice".into(), email: "alice@example.com".into() }
 ```
 
-Format: `@example <status_code> <rust_expression>`
+#### `@tag <tag_name>`
 
-## Examples
+Group operations by tags (can be used multiple times):
 
-See the [examples](./examples) directory for a complete CRUD API example with Swagger UI.
+```rust
+/// @tag users
+/// @tag authentication
+```
+
+Tags help organize your API in Swagger UI by grouping related endpoints together.
+
+#### `@security <scheme_name>`
+
+Specify security requirements (can be used multiple times):
+
+```rust
+/// @security bearer_auth
+/// @security api_key
+```
+
+Note: You need to define security schemes in your OpenAPI spec separately.
+
+#### `@id <operation_id>`
+
+Set a custom operation ID (defaults to function name):
+
+```rust
+/// @id getUserById
+```
+
+#### `@hidden`
+
+Hide an operation from the documentation:
+
+```rust
+/// @hidden
+```
+
+#### `#[deprecated]`
+
+Use Rust's built-in deprecation attribute to mark endpoints as deprecated:
+
+```rust
+/// Old endpoint, use /v2/users instead
+#[deprecated]
+#[rovo]
+async fn old_handler() -> impl IntoApiResponse {
+    // ...
+}
+```
+
+## Router API
+
+### Creating a Router
+
+```rust
+use rovo::Router;
+
+let app = Router::new()
+    .route("/path", get(handler))
+    .with_state(state);
+```
+
+### Method Chaining
+
+Rovo supports the same method chaining as axum:
+
+```rust
+use rovo::routing::{get, post, patch, delete};
+
+Router::new()
+    .route("/items", get(list_items).post(create_item))
+    .route("/items/{id}", get(get_item).patch(update_item).delete(delete_item))
+```
+
+### Nesting Routes
+
+```rust
+Router::new()
+    .nest(
+        "/api",
+        Router::new()
+            .route("/users", get(list_users))
+            .route("/posts", get(list_posts))
+    )
+```
+
+### Adding Swagger UI
+
+```rust
+Router::new()
+    .route("/users", get(list_users))
+    .with_swagger("/docs", "/api.json")  // Swagger UI at /docs
+    .with_api_json("/api.json", serve_api)
+    .with_state(state)
+    .finish_api_with_extension(api)
+```
+
+## Complete Example
+
+See [examples/todo_api.rs](./examples/todo_api.rs) for a full CRUD API with:
+- Create, Read, Update, Delete operations
+- Swagger UI integration
+- Proper error handling
+- Request/response validation
+- Nested routing
+
+Run it with:
 
 ```bash
 cargo run --example todo_api
-# Visit http://127.0.0.1:3000 for interactive API documentation
+# Visit http://127.0.0.1:3000 for Swagger UI
 ```
 
-The example includes:
-- Full CRUD operations (Create, Read, Update, Delete)
-- Interactive Swagger UI documentation
-- Proper HTTP status codes
-- Request/response validation
+## Migration Guide
+
+### From Axum 0.8+
+
+Migrating an existing axum project to rovo is straightforward:
+
+#### Step 1: Update Dependencies
+
+```toml
+[dependencies]
+# Add these
+rovo = "0.1"
+aide = { version = "0.15", features = ["axum"] }
+schemars = "0.8"
+
+# Keep your existing axum
+axum = "0.8"
+```
+
+#### Step 2: Replace Router Import
+
+```rust
+// Before
+use axum::Router;
+
+// After
+use rovo::Router;
+```
+
+#### Step 3: Update Handler Return Types
+
+```rust
+// Before
+use axum::response::IntoResponse;
+async fn handler() -> impl IntoResponse {
+    Json(data)
+}
+
+// After
+use aide::axum::IntoApiResponse;
+async fn handler() -> impl IntoApiResponse {
+    Json(data)
+}
+```
+
+#### Step 4: Add the #[rovo] Macro and Docs
+
+```rust
+// Before
+async fn get_user(State(state): State<AppState>) -> impl IntoApiResponse {
+    Json(user)
+}
+
+// After
+/// Get user by ID
+///
+/// @tag users
+/// @response 200 Json<User> User found
+/// @response 404 () User not found
+#[rovo]
+async fn get_user(State(state): State<AppState>) -> impl IntoApiResponse {
+    Json(user)
+}
+```
+
+#### Step 5: Update Routing Imports
+
+```rust
+// Before
+use axum::routing::{get, post};
+
+// After
+use rovo::routing::{get, post};
+```
+
+#### Step 6: Add OpenAPI Setup
+
+```rust
+use aide::openapi::OpenApi;
+use axum::Extension;
+
+async fn serve_api(Extension(api): Extension<OpenApi>) -> axum::Json<OpenApi> {
+    axum::Json(api)
+}
+
+#[tokio::main]
+async fn main() {
+    let state = AppState::new();
+
+    let mut api = OpenApi::default();
+    api.info.title = "My API".to_string();
+    api.info.description = Some("API description".to_string());
+
+    let app = Router::new()
+        .route("/users", get(list_users))
+        // ... your other routes
+        .with_swagger("/", "/api.json")
+        .with_api_json("/api.json", serve_api)
+        .with_state(state)
+        .finish_api_with_extension(api);
+
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:3000")
+        .await
+        .unwrap();
+
+    axum::serve(listener, app).await.unwrap();
+}
+```
+
+### Migration Checklist
+
+- [ ] Add `rovo` and `aide` dependencies
+- [ ] Change `axum::Router` to `rovo::Router`
+- [ ] Change `IntoResponse` to `IntoApiResponse`
+- [ ] Add `#[rovo]` macro to handlers
+- [ ] Add doc comments with `@response` annotations
+- [ ] Change `axum::routing::*` to `rovo::routing::*`
+- [ ] Add OpenAPI configuration
+- [ ] Add Swagger UI setup
+- [ ] Test all endpoints
+
+### Incremental Migration
+
+You can migrate gradually by mixing rovo and aide routing:
+
+```rust
+use rovo::routing::get as rovo_get;
+use aide::axum::routing::get as aide_get;
+
+Router::new()
+    .route("/documented", rovo_get(documented_handler))  // Migrated with #[rovo]
+    .route("/legacy", aide_get(legacy_handler))          // Not yet migrated
+```
+
+However, we recommend fully migrating to `#[rovo]` for all endpoints to maintain consistency.
 
 ## Comparison with aide
 
 | Feature | aide | rovo |
 |---------|------|------|
-| Documentation location | Separate function | With handler |
-| Example generation | Manual | Can use Default trait |
-| Lines of code | ~15-20 per endpoint | ~5-10 per endpoint |
+| Documentation location | Separate `_docs` function | With handler (doc comments) |
+| Routing API | aide's `api_route()` | Drop-in axum replacement |
+| Method chaining | Custom implementation | Native axum syntax |
+| Setup complexity | Manual | Helper methods |
+| Lines of code per endpoint | ~15-20 | ~5-10 |
 
-## How it works
+## Tips and Best Practices
 
-The `#[rovo]` macro:
+### Path Parameters
 
-1. Parses doc comments and extracts documentation metadata
-2. Extracts title, description, responses, and examples
-3. Generates a `{function_name}_docs` function automatically
-4. Uses aide's `TransformOperation` API to build documentation
-
-## Troubleshooting
-
-### Routes return 404
-
-**Problem:** Routes with path parameters like `/todos/:id` return 404.
-
-**Solution:** Make sure you're using `:id` (axum syntax) in your route definitions, not `{id}` (OpenAPI syntax).
+Use structs with `JsonSchema` for proper documentation:
 
 ```rust
-// ✅ Correct
-.api_route("/todos/:id", get_with(get_todo, get_todo_docs))
-
-// ❌ Wrong
-.api_route("/todos/{id}", get_with(get_todo, get_todo_docs))
-```
-
-### Path parameters not documented in OpenAPI
-
-**Problem:** Path parameters don't appear in the OpenAPI specification.
-
-**Solution:** Use a struct with `JsonSchema` for path parameters instead of raw types:
-
-```rust
-// ✅ Correct - parameters will be documented
 #[derive(Deserialize, JsonSchema)]
-struct TodoId {
+struct UserId {
+    /// The unique user identifier
     id: Uuid,
 }
 
-async fn get_todo(Path(TodoId { id }): Path<TodoId>) -> impl IntoApiResponse {
-    // ...
-}
-
-// ❌ Wrong - parameters won't be documented properly
-async fn get_todo(Path(id): Path<Uuid>) -> impl IntoApiResponse {
+#[rovo]
+async fn get_user(Path(UserId { id }): Path<UserId>) -> impl IntoApiResponse {
     // ...
 }
 ```
 
-### Handler doesn't implement `OperationHandler`
+### Complex Response Types
 
-**Problem:** Compiler error about `OperationHandler` trait not being implemented.
-
-**Solution:** Make sure your handler returns `impl IntoApiResponse` (from `aide::axum`), not `impl IntoResponse` (from `axum`):
+For handlers that return multiple types, use `impl IntoApiResponse`:
 
 ```rust
-use aide::axum::IntoApiResponse;
-
-// ✅ Correct
+#[rovo]
 async fn handler() -> impl IntoApiResponse {
-    Json(data)
+    if condition {
+        (StatusCode::OK, Json(data)).into_response()
+    } else {
+        StatusCode::NOT_FOUND.into_response()
+    }
 }
+```
+
+### Tags for Organization
+
+Use consistent tags to organize your API:
+
+```rust
+/// @tag users
+/// @tag admin
+```
+
+### Security Documentation
+
+Define security schemes in your OpenAPI object:
+
+```rust
+use aide::openapi::{SecurityScheme, SecuritySchemeData};
+
+let mut api = OpenApi::default();
+api.components.get_or_insert_default()
+    .security_schemes
+    .insert(
+        "bearer_auth".to_string(),
+        SecurityScheme {
+            data: SecuritySchemeData::Http {
+                scheme: "bearer".to_string(),
+                bearer_format: Some("JWT".to_string()),
+            },
+            ..Default::default()
+        },
+    );
+```
+
+Then reference it in handlers:
+
+```rust
+/// @security bearer_auth
+#[rovo]
+async fn protected_handler() -> impl IntoApiResponse {
+    // ...
+}
+```
+
+## Troubleshooting
+
+### Handler doesn't implement required traits
+
+**Error**: "doesn't implement `IntoApiMethodRouter`"
+
+**Solution**: Make sure you added the `#[rovo]` macro to your handler:
+
+```rust
+#[rovo]  // Don't forget this!
+async fn handler() -> impl IntoApiResponse {
+    // ...
+}
+```
+
+### Type mismatch errors with `.with_state()`
+
+**Error**: Type mismatch when calling `.with_state()`
+
+**Solution**: Add explicit type annotation:
+
+```rust
+let router: Router<()> = Router::<AppState>::new()
+    .route("/path", get(handler))
+    .with_state(state);
+```
+
+### Routes return 404
+
+**Problem**: Routes work in axum but return 404 in rovo
+
+**Solution**: Make sure you're using axum path syntax (`{id}`), not OpenAPI syntax:
+
+```rust
+// ✅ Correct
+.route("/todos/{id}", get(get_todo))
 
 // ❌ Wrong
-async fn handler() -> impl IntoResponse {
-    Json(data)
-}
+.route("/todos/:id", get(get_todo))
 ```
 
 ## Contributing
