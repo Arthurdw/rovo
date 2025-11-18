@@ -8,23 +8,26 @@ use ::axum::Extension;
 
 /// A drop-in replacement for axum::Router that adds OpenAPI documentation support.
 ///
-/// Use this Router with aide's routing helpers for undocumented endpoints,
-/// or with rovo's helper macros for endpoints decorated with `#[rovo]`.
+/// This Router works seamlessly with handlers decorated with `#[rovo]` and provides
+/// a fluent API for building documented APIs with Swagger UI integration.
 ///
 /// # Example
 /// ```ignore
-/// use rovo::{Router, rovo};
-/// use aide::axum::routing::{get, post};
+/// use rovo::{Router, rovo, routing::get};
+/// use aide::openapi::OpenApi;
 ///
 /// #[rovo]
 /// async fn documented_handler() -> impl IntoApiResponse { /* ... */ }
 ///
-/// async fn regular_handler() -> impl IntoResponse { /* ... */ }
+/// let mut api = OpenApi::default();
+/// api.info.title = "My API".to_string();
 ///
 /// let app = Router::new()
-///     .route("/documented", rovo::get!(documented_handler))
-///     .route("/regular", get(regular_handler))
-///     .with_state(state);
+///     .route("/documented", get(documented_handler))
+///     .with_swagger("/", "/api.json")
+///     .with_api_json("/api.json", serve_api)
+///     .with_state(state)
+///     .finish_api_with_extension(api);
 /// ```
 pub struct Router<S = ()> {
     inner: AideApiRouter<S>,
@@ -128,20 +131,39 @@ where
 }
 
 /// Trait for handlers that carry their own documentation.
-/// Automatically implemented by the `#[rovo]` macro.
+///
+/// This trait is automatically implemented by the `#[rovo]` macro for decorated handlers.
+/// It provides methods to convert the handler into documented route handlers for each HTTP method.
+///
+/// You typically won't implement this trait manually - instead, use the `#[rovo]` macro
+/// on your handler functions.
 pub trait IntoApiMethodRouter<S = ()> {
+    /// Convert into a GET route with documentation
     fn into_get_route(self) -> aide::axum::routing::ApiMethodRouter<S>;
+    /// Convert into a POST route with documentation
     fn into_post_route(self) -> aide::axum::routing::ApiMethodRouter<S>;
+    /// Convert into a PATCH route with documentation
     fn into_patch_route(self) -> aide::axum::routing::ApiMethodRouter<S>;
+    /// Convert into a DELETE route with documentation
     fn into_delete_route(self) -> aide::axum::routing::ApiMethodRouter<S>;
+    /// Convert into a PUT route with documentation
     fn into_put_route(self) -> aide::axum::routing::ApiMethodRouter<S>;
 }
 
 /// Wrapper around `ApiMethodRouter` that provides method chaining for documented handlers.
 ///
 /// This type is returned by routing functions like `get()`, `post()`, etc. and allows
-/// chaining methods with the same names as axum (`.post()`, `.patch()`, etc.) while
-/// accepting documented handlers.
+/// chaining methods with the exact same names as axum (`.post()`, `.patch()`, etc.) while
+/// accepting documented handlers decorated with `#[rovo]`.
+///
+/// # Example
+/// ```ignore
+/// use rovo::routing::get;
+///
+/// Router::new()
+///     .route("/items", get(list_items).post(create_item))
+///     .route("/items/{id}", get(get_item).patch(update_item).delete(delete_item))
+/// ```
 pub struct ApiMethodRouter<S = ()> {
     inner: aide::axum::routing::ApiMethodRouter<S>,
 }
@@ -213,10 +235,22 @@ impl<S> From<ApiMethodRouter<S>> for aide::axum::routing::ApiMethodRouter<S> {
 }
 
 /// Drop-in replacement routing functions that work with `#[rovo]` decorated handlers.
+///
+/// These functions provide the same API as axum's routing functions but accept
+/// handlers decorated with `#[rovo]` and automatically include their documentation.
+///
+/// # Example
+/// ```ignore
+/// use rovo::routing::{get, post};
+///
+/// Router::new()
+///     .route("/items", get(list_items).post(create_item))
+///     .route("/items/{id}", get(get_item).patch(update_item).delete(delete_item))
+/// ```
 pub mod routing {
     use super::*;
 
-    /// Create a GET route with documentation.
+    /// Create a GET route with documentation from a `#[rovo]` decorated handler.
     pub fn get<S, H>(handler: H) -> ApiMethodRouter<S>
     where
         H: IntoApiMethodRouter<S>,
@@ -225,7 +259,7 @@ pub mod routing {
         ApiMethodRouter::new(handler.into_get_route())
     }
 
-    /// Create a POST route with documentation.
+    /// Create a POST route with documentation from a `#[rovo]` decorated handler.
     pub fn post<S, H>(handler: H) -> ApiMethodRouter<S>
     where
         H: IntoApiMethodRouter<S>,
@@ -234,7 +268,7 @@ pub mod routing {
         ApiMethodRouter::new(handler.into_post_route())
     }
 
-    /// Create a PATCH route with documentation.
+    /// Create a PATCH route with documentation from a `#[rovo]` decorated handler.
     pub fn patch<S, H>(handler: H) -> ApiMethodRouter<S>
     where
         H: IntoApiMethodRouter<S>,
@@ -243,7 +277,7 @@ pub mod routing {
         ApiMethodRouter::new(handler.into_patch_route())
     }
 
-    /// Create a DELETE route with documentation.
+    /// Create a DELETE route with documentation from a `#[rovo]` decorated handler.
     pub fn delete<S, H>(handler: H) -> ApiMethodRouter<S>
     where
         H: IntoApiMethodRouter<S>,
@@ -252,7 +286,7 @@ pub mod routing {
         ApiMethodRouter::new(handler.into_delete_route())
     }
 
-    /// Create a PUT route with documentation.
+    /// Create a PUT route with documentation from a `#[rovo]` decorated handler.
     pub fn put<S, H>(handler: H) -> ApiMethodRouter<S>
     where
         H: IntoApiMethodRouter<S>,

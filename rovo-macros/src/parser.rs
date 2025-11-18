@@ -40,6 +40,11 @@ pub struct DocInfo {
     pub description: Option<String>,
     pub responses: Vec<ResponseInfo>,
     pub examples: Vec<ExampleInfo>,
+    pub tags: Vec<String>,
+    pub deprecated: bool,
+    pub security_requirements: Vec<String>,
+    pub operation_id: Option<String>,
+    pub hidden: bool,
 }
 
 #[derive(Clone)]
@@ -114,15 +119,16 @@ impl ToTokens for FuncItem {
 pub fn parse_rovo_function(input: TokenStream) -> Result<(FuncItem, DocInfo), ParseError> {
     let tokens: Vec<TokenTree> = input.clone().into_iter().collect();
 
-    // Extract doc comments and function name
+    // Extract doc comments, attributes, and function name
     let mut doc_lines = Vec::new();
     let mut func_name = None;
+    let mut is_deprecated = false;
     let mut i = 0;
 
     while i < tokens.len() {
         match &tokens[i] {
             TokenTree::Punct(p) if p.as_char() == '#' => {
-                // Check if this is a doc comment
+                // Check if this is an attribute
                 if i + 1 < tokens.len() {
                     if let TokenTree::Group(group) = &tokens[i + 1] {
                         let attr_content = group.stream().to_string();
@@ -130,6 +136,9 @@ pub fn parse_rovo_function(input: TokenStream) -> Result<(FuncItem, DocInfo), Pa
                             // Extract the doc comment text
                             let doc_text = extract_doc_text(&attr_content);
                             doc_lines.push(doc_text);
+                        } else if attr_content.starts_with("deprecated") {
+                            // Mark as deprecated
+                            is_deprecated = true;
                         }
                     }
                 }
@@ -154,7 +163,10 @@ pub fn parse_rovo_function(input: TokenStream) -> Result<(FuncItem, DocInfo), Pa
     let state_type = extract_state_type(&input);
 
     // Parse doc comments
-    let doc_info = parse_doc_comments(&doc_lines)?;
+    let mut doc_info = parse_doc_comments(&doc_lines)?;
+
+    // Set deprecated flag from Rust attribute
+    doc_info.deprecated = is_deprecated;
 
     let func_item = FuncItem {
         name: func_name,
@@ -270,6 +282,27 @@ fn parse_doc_comments(lines: &[String]) -> Result<DocInfo, ParseError> {
                     example_code,
                 });
             }
+        } else if trimmed.starts_with("@tag") {
+            // Parse: @tag <tag_name>
+            let parts: Vec<&str> = trimmed.splitn(2, ' ').collect();
+            if parts.len() >= 2 {
+                doc_info.tags.push(parts[1].trim().to_string());
+            }
+        } else if trimmed.starts_with("@security") {
+            // Parse: @security <scheme_name>
+            let parts: Vec<&str> = trimmed.splitn(2, ' ').collect();
+            if parts.len() >= 2 {
+                doc_info.security_requirements.push(parts[1].trim().to_string());
+            }
+        } else if trimmed.starts_with("@id") {
+            // Parse: @id <operation_id>
+            let parts: Vec<&str> = trimmed.splitn(2, ' ').collect();
+            if parts.len() >= 2 {
+                doc_info.operation_id = Some(parts[1].trim().to_string());
+            }
+        } else if trimmed == "@hidden" {
+            // Mark as hidden
+            doc_info.hidden = true;
         } else if !trimmed.is_empty() {
             if !title_set {
                 doc_info.title = Some(trimmed.to_string());

@@ -59,6 +59,7 @@ pub struct UpdateTodoRequest {
 ///
 /// Retrieve a Todo item by its ID from the database.
 ///
+/// @tag todos
 /// @response 200 Json<TodoItem> Successfully retrieved the todo item.
 /// @example 200 TodoItem::default()
 /// @response 404 () Todo item was not found.
@@ -78,6 +79,7 @@ async fn get_todo(
 ///
 /// Returns a list of all todo items in the system.
 ///
+/// @tag todos
 /// @response 200 Json<Vec<TodoItem>> List of all todo items.
 #[rovo]
 async fn list_todos(State(app): State<AppState>) -> Json<Vec<TodoItem>> {
@@ -89,6 +91,7 @@ async fn list_todos(State(app): State<AppState>) -> Json<Vec<TodoItem>> {
 ///
 /// Creates a new todo item with the provided description.
 ///
+/// @tag todos
 /// @response 201 Json<TodoItem> Todo item created successfully.
 /// @example 201 TodoItem::default()
 #[rovo]
@@ -109,6 +112,7 @@ async fn create_todo(
 ///
 /// Updates the description and/or completion status of a todo item.
 ///
+/// @tag todos
 /// @response 200 Json<TodoItem> Todo item updated successfully.
 /// @example 200 TodoItem::default()
 /// @response 404 () Todo item was not found.
@@ -137,6 +141,7 @@ async fn update_todo(
 ///
 /// Permanently deletes a todo item by its ID.
 ///
+/// @tag todos
 /// @response 204 () Todo item deleted successfully.
 /// @response 404 () Todo item was not found.
 #[rovo]
@@ -151,24 +156,14 @@ async fn delete_todo(
     }
 }
 
-pub fn todo_routes(state: AppState) -> Router<AppState> {
-    use rovo::routing::get;
-
-    Router::new()
-        .route("/todos", get(list_todos).post(create_todo))
-        .route(
-            "/todos/{id}",
-            get(get_todo).patch(update_todo).delete(delete_todo),
-        )
-        .with_state(state)
-}
-
 async fn serve_api(Extension(api): Extension<OpenApi>) -> axum::Json<OpenApi> {
     axum::Json(api)
 }
 
 #[tokio::main]
 async fn main() {
+    use rovo::routing::get;
+
     // Initialize tracing
     tracing_subscriber::fmt()
         .with_env_filter(
@@ -187,7 +182,15 @@ async fn main() {
 
     // Build the router with Swagger UI and API documentation - all in one place!
     let app = Router::new()
-        .nest("/api", todo_routes(state.clone()))
+        .nest(
+            "/api",
+            Router::new()
+                .route("/todos", get(list_todos).post(create_todo))
+                .route(
+                    "/todos/{id}",
+                    get(get_todo).patch(update_todo).delete(delete_todo),
+                ),
+        )
         .with_swagger("/", "/api.json")
         .with_api_json("/api.json", serve_api)
         .with_state(state)
@@ -199,7 +202,6 @@ async fn main() {
 
     info!("Server started successfully");
     info!("Address: http://127.0.0.1:3000");
-    info!("OpenAPI spec: http://127.0.0.1:3000/api.json");
 
     axum::serve(listener, app).await.unwrap();
 }

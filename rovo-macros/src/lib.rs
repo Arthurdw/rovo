@@ -6,17 +6,47 @@ use parser::parse_rovo_function;
 
 /// Macro that generates OpenAPI documentation from doc comments.
 ///
+/// This macro automatically generates OpenAPI documentation for your handlers
+/// using doc comments with special annotations.
+///
+/// # Supported Annotations
+///
+/// - `@response <code> <type> <description>` - Document a response status code
+/// - `@example <code> <expression>` - Provide an example response for a status code
+/// - `@tag <tag_name>` - Add a tag for grouping operations (can be used multiple times)
+/// - `@security <scheme_name>` - Add security requirements (can be used multiple times)
+/// - `@id <operation_id>` - Set a custom operation ID (defaults to function name)
+/// - `@hidden` - Hide this operation from documentation
+///
+/// Additionally, the Rust `#[deprecated]` attribute is automatically detected
+/// and will mark the operation as deprecated in the OpenAPI spec.
+///
 /// # Example
 ///
 /// ```ignore
 /// /// Get a single Todo item.
 /// ///
-/// /// Retrieve a Todo item by its ID.
+/// /// Retrieve a Todo item by its ID from the database.
 /// ///
-/// /// @response 200 Json<TodoItem> A single Todo item.
-/// /// @response 404 () Todo was not found.
+/// /// @tag todos
+/// /// @response 200 Json<TodoItem> Successfully retrieved the todo item.
+/// /// @example 200 TodoItem::default()
+/// /// @response 404 () Todo item was not found.
 /// #[rovo]
-/// async fn get_todo(State(app): State<AppState>, Path(todo): Path<SelectTodo>) -> impl IntoApiResponse {
+/// async fn get_todo(
+///     State(app): State<AppState>,
+///     Path(todo): Path<SelectTodo>
+/// ) -> impl IntoApiResponse {
+///     // ...
+/// }
+///
+/// /// This is a deprecated endpoint.
+/// ///
+/// /// @tag admin
+/// /// @security bearer_auth
+/// #[deprecated]
+/// #[rovo]
+/// async fn old_handler() -> impl IntoApiResponse {
 ///     // ...
 /// }
 /// ```
@@ -61,6 +91,39 @@ pub fn rovo(_attr: TokenStream, item: TokenStream) -> TokenStream {
                 }).collect()
             };
 
+            // Generate tag setters
+            let tag_setters: Vec<_> = doc_info.tags.iter().map(|tag| {
+                quote! { .tag(#tag) }
+            }).collect();
+
+            // Generate security requirement setters
+            let security_setters: Vec<_> = doc_info.security_requirements.iter().map(|scheme| {
+                quote! { .security_requirement(#scheme) }
+            }).collect();
+
+            // Generate operation ID setter
+            let operation_id_setter = if let Some(id) = &doc_info.operation_id {
+                quote! { .id(#id) }
+            } else {
+                // Default to function name if no custom ID provided
+                let default_id = func_name.to_string();
+                quote! { .id(#default_id) }
+            };
+
+            // Generate deprecated setter
+            let deprecated_setter = if doc_info.deprecated {
+                quote! { .deprecated(true) }
+            } else {
+                quote! {}
+            };
+
+            // Generate hidden setter
+            let hidden_setter = if doc_info.hidden {
+                quote! { .hidden(true) }
+            } else {
+                quote! {}
+            };
+
             // Generate an internal implementation name
             let impl_name = quote::format_ident!("__{}_impl", func_name);
 
@@ -86,8 +149,14 @@ pub fn rovo(_attr: TokenStream, item: TokenStream) -> TokenStream {
                 impl #func_name {
                     #[doc(hidden)]
                     pub fn __docs(op: aide::transform::TransformOperation) -> aide::transform::TransformOperation {
-                        op.summary(#title)
+                        op
+                            #operation_id_setter
+                            .summary(#title)
                             .description(#description)
+                            #(#tag_setters)*
+                            #deprecated_setter
+                            #hidden_setter
+                            #(#security_setters)*
                             #(#response_code_setters)*
                     }
                 }
