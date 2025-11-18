@@ -42,8 +42,11 @@ where
     }
 
     /// Add a route to the router
-    pub fn route(mut self, path: &str, method_router: aide::axum::routing::ApiMethodRouter<S>) -> Self {
-        self.inner = self.inner.api_route(path, method_router);
+    pub fn route<M>(mut self, path: &str, method_router: M) -> Self
+    where
+        M: Into<aide::axum::routing::ApiMethodRouter<S>>,
+    {
+        self.inner = self.inner.api_route(path, method_router.into());
         self
     }
 
@@ -83,42 +86,139 @@ where
     }
 }
 
-/// Routing helper macros that automatically include docs for `#[rovo]` decorated handlers.
+/// Trait for handlers that carry their own documentation.
+/// Automatically implemented by the `#[rovo]` macro.
+pub trait IntoApiMethodRouter<S = ()> {
+    fn into_get_route(self) -> aide::axum::routing::ApiMethodRouter<S>;
+    fn into_post_route(self) -> aide::axum::routing::ApiMethodRouter<S>;
+    fn into_patch_route(self) -> aide::axum::routing::ApiMethodRouter<S>;
+    fn into_delete_route(self) -> aide::axum::routing::ApiMethodRouter<S>;
+    fn into_put_route(self) -> aide::axum::routing::ApiMethodRouter<S>;
+}
+
+/// Wrapper around `ApiMethodRouter` that provides method chaining for documented handlers.
 ///
-/// These macros work with the module structure that `#[rovo]` generates.
-#[macro_export]
-macro_rules! get {
-    ($handler:ident) => {
-        $crate::aide::axum::routing::get_with($handler::handler, $handler::docs)
-    };
+/// This type is returned by routing functions like `get()`, `post()`, etc. and allows
+/// chaining methods with the same names as axum (`.post()`, `.patch()`, etc.) while
+/// accepting documented handlers.
+pub struct ApiMethodRouter<S = ()> {
+    inner: aide::axum::routing::ApiMethodRouter<S>,
 }
 
-#[macro_export]
-macro_rules! post {
-    ($handler:ident) => {
-        $crate::aide::axum::routing::post_with($handler::handler, $handler::docs)
-    };
+impl<S> ApiMethodRouter<S>
+where
+    S: Clone + Send + Sync + 'static,
+{
+    /// Create a new ApiMethodRouter from aide's ApiMethodRouter
+    pub fn new(inner: aide::axum::routing::ApiMethodRouter<S>) -> Self {
+        Self { inner }
+    }
+
+    /// Chain a POST handler
+    pub fn post<H>(self, handler: H) -> Self
+    where
+        H: IntoApiMethodRouter<S>,
+    {
+        Self {
+            inner: self.inner.merge(handler.into_post_route()),
+        }
+    }
+
+    /// Chain a GET handler
+    pub fn get<H>(self, handler: H) -> Self
+    where
+        H: IntoApiMethodRouter<S>,
+    {
+        Self {
+            inner: self.inner.merge(handler.into_get_route()),
+        }
+    }
+
+    /// Chain a PATCH handler
+    pub fn patch<H>(self, handler: H) -> Self
+    where
+        H: IntoApiMethodRouter<S>,
+    {
+        Self {
+            inner: self.inner.merge(handler.into_patch_route()),
+        }
+    }
+
+    /// Chain a DELETE handler
+    pub fn delete<H>(self, handler: H) -> Self
+    where
+        H: IntoApiMethodRouter<S>,
+    {
+        Self {
+            inner: self.inner.merge(handler.into_delete_route()),
+        }
+    }
+
+    /// Chain a PUT handler
+    pub fn put<H>(self, handler: H) -> Self
+    where
+        H: IntoApiMethodRouter<S>,
+    {
+        Self {
+            inner: self.inner.merge(handler.into_put_route()),
+        }
+    }
 }
 
-#[macro_export]
-macro_rules! patch {
-    ($handler:ident) => {
-        $crate::aide::axum::routing::patch_with($handler::handler, $handler::docs)
-    };
+impl<S> From<ApiMethodRouter<S>> for aide::axum::routing::ApiMethodRouter<S> {
+    fn from(router: ApiMethodRouter<S>) -> Self {
+        router.inner
+    }
 }
 
-#[macro_export]
-macro_rules! delete {
-    ($handler:ident) => {
-        $crate::aide::axum::routing::delete_with($handler::handler, $handler::docs)
-    };
-}
+/// Drop-in replacement routing functions that work with `#[rovo]` decorated handlers.
+pub mod routing {
+    use super::*;
 
-#[macro_export]
-macro_rules! put {
-    ($handler:ident) => {
-        $crate::aide::axum::routing::put_with($handler::handler, $handler::docs)
-    };
+    /// Create a GET route with documentation.
+    pub fn get<S, H>(handler: H) -> ApiMethodRouter<S>
+    where
+        H: IntoApiMethodRouter<S>,
+        S: Clone + Send + Sync + 'static,
+    {
+        ApiMethodRouter::new(handler.into_get_route())
+    }
+
+    /// Create a POST route with documentation.
+    pub fn post<S, H>(handler: H) -> ApiMethodRouter<S>
+    where
+        H: IntoApiMethodRouter<S>,
+        S: Clone + Send + Sync + 'static,
+    {
+        ApiMethodRouter::new(handler.into_post_route())
+    }
+
+    /// Create a PATCH route with documentation.
+    pub fn patch<S, H>(handler: H) -> ApiMethodRouter<S>
+    where
+        H: IntoApiMethodRouter<S>,
+        S: Clone + Send + Sync + 'static,
+    {
+        ApiMethodRouter::new(handler.into_patch_route())
+    }
+
+    /// Create a DELETE route with documentation.
+    pub fn delete<S, H>(handler: H) -> ApiMethodRouter<S>
+    where
+        H: IntoApiMethodRouter<S>,
+        S: Clone + Send + Sync + 'static,
+    {
+        ApiMethodRouter::new(handler.into_delete_route())
+    }
+
+    /// Create a PUT route with documentation.
+    pub fn put<S, H>(handler: H) -> ApiMethodRouter<S>
+    where
+        H: IntoApiMethodRouter<S>,
+        S: Clone + Send + Sync + 'static,
+    {
+        ApiMethodRouter::new(handler.into_put_route())
+    }
 }
 
 pub mod axum {

@@ -67,26 +67,57 @@ pub fn rovo(_attr: TokenStream, item: TokenStream) -> TokenStream {
             // Get the renamed function tokens
             let impl_func = func_item.with_renamed(&impl_name);
 
+            // Create a const with an uppercase version of the handler name
+            let const_name = quote::format_ident!("{}", func_name.to_string().to_uppercase());
+
+            // Determine the state type for the trait implementation
+            let state_type = func_item.state_type.as_ref().map(|st| quote! { #st }).unwrap_or(quote! { () });
+
             let output = quote! {
                 // Internal implementation with renamed function
                 #[allow(non_snake_case, private_interfaces)]
                 #impl_func
 
-                // Create a module with the original function name that contains handler and docs
-                #[allow(non_snake_case)]
-                pub mod #func_name {
-                    use super::*;
+                // Create a zero-sized type that can be passed to routing functions
+                #[allow(non_camel_case_types)]
+                #[derive(Clone, Copy)]
+                pub struct #func_name;
 
-                    // Re-export the implementation as 'handler'
-                    pub use super::#impl_name as handler;
-
-                    // Generate documentation function
-                    pub fn docs(op: aide::transform::TransformOperation) -> aide::transform::TransformOperation {
+                impl #func_name {
+                    #[doc(hidden)]
+                    pub fn __docs(op: aide::transform::TransformOperation) -> aide::transform::TransformOperation {
                         op.summary(#title)
                             .description(#description)
                             #(#response_code_setters)*
                     }
                 }
+
+                // Implement the IntoApiMethodRouter trait
+                impl ::rovo::IntoApiMethodRouter<#state_type> for #func_name {
+                    fn into_get_route(self) -> aide::axum::routing::ApiMethodRouter<#state_type> {
+                        aide::axum::routing::get_with(#impl_name, Self::__docs)
+                    }
+
+                    fn into_post_route(self) -> aide::axum::routing::ApiMethodRouter<#state_type> {
+                        aide::axum::routing::post_with(#impl_name, Self::__docs)
+                    }
+
+                    fn into_patch_route(self) -> aide::axum::routing::ApiMethodRouter<#state_type> {
+                        aide::axum::routing::patch_with(#impl_name, Self::__docs)
+                    }
+
+                    fn into_delete_route(self) -> aide::axum::routing::ApiMethodRouter<#state_type> {
+                        aide::axum::routing::delete_with(#impl_name, Self::__docs)
+                    }
+
+                    fn into_put_route(self) -> aide::axum::routing::ApiMethodRouter<#state_type> {
+                        aide::axum::routing::put_with(#impl_name, Self::__docs)
+                    }
+                }
+
+                // Also create a CONST for explicit use
+                #[allow(non_upper_case_globals)]
+                pub const #const_name: #func_name = #func_name;
             };
 
             output.into()

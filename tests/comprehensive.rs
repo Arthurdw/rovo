@@ -1,10 +1,10 @@
-use aide::axum::{routing::get_with, ApiRouter, IntoApiResponse};
+use aide::axum::IntoApiResponse;
 use axum::{
     extract::{Path, State},
     http::StatusCode,
     response::{IntoResponse, Json},
 };
-use rovo::rovo;
+use rovo::{rovo, routing::get, Router};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -75,16 +75,16 @@ async fn multi_response(State(_state): State<AppState>) -> impl IntoApiResponse 
 
 #[test]
 fn test_macro_generates_docs_function() {
-    // The macro should generate a module with handler and docs
+    // The macro should generate a struct that implements IntoApiMethodRouter
     let state = AppState {
         value: "test".to_string(),
     };
 
-    // This should compile - the modules with handler and docs exist
-    let _router: ApiRouter<AppState> = ApiRouter::new()
-        .api_route("/items/{id}", get_with(get_item::handler, get_item::docs))
-        .api_route("/simple", get_with(simple_handler::handler, simple_handler::docs))
-        .api_route("/multi", get_with(multi_response::handler, multi_response::docs))
+    // This should compile using the new routing API
+    let _router: Router<()> = Router::<AppState>::new()
+        .route("/items/{id}", get(get_item))
+        .route("/simple", get(simple_handler))
+        .route("/multi", get(multi_response))
         .with_state(state);
 }
 
@@ -97,8 +97,8 @@ fn test_docs_function_callable() {
     let mut operation = Operation::default();
     let transform = TransformOperation::new(&mut operation);
 
-    // The docs function should be callable and return a TransformOperation
-    let _result = get_item::docs(transform);
+    // The __docs function should still be accessible for testing
+    let _result = get_item::__docs(transform);
 }
 
 #[test]
@@ -108,10 +108,10 @@ fn test_multiple_handlers_compile() {
         value: "test".to_string(),
     };
 
-    let _router: ApiRouter<AppState> = ApiRouter::new()
-        .api_route("/a", get_with(simple_handler::handler, simple_handler::docs))
-        .api_route("/b", get_with(multi_response::handler, multi_response::docs))
-        .api_route("/c/{id}", get_with(get_item::handler, get_item::docs))
+    let _router: Router<()> = Router::<AppState>::new()
+        .route("/a", get(simple_handler))
+        .route("/b", get(multi_response))
+        .route("/c/{id}", get(get_item))
         .with_state(state);
 }
 
@@ -122,8 +122,7 @@ fn test_handler_with_path_params() {
         value: "test".to_string(),
     };
 
-    let _router: ApiRouter<AppState> =
-        ApiRouter::new()
-            .api_route("/items/{id}", get_with(get_item::handler, get_item::docs))
-            .with_state(state);
+    let _router: Router<()> = Router::<AppState>::new()
+        .route("/items/{id}", get(get_item))
+        .with_state(state);
 }

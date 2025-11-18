@@ -46,6 +46,7 @@ pub struct DocInfo {
 pub struct FuncItem {
     pub name: Ident,
     pub tokens: TokenStream,
+    pub state_type: Option<TokenStream>,
 }
 
 impl FuncItem {
@@ -149,15 +150,59 @@ pub fn parse_rovo_function(input: TokenStream) -> Result<(FuncItem, DocInfo), Pa
 
     let func_name = func_name.ok_or_else(|| ParseError::new("Could not find function name"))?;
 
+    // Extract state type from function parameters
+    let state_type = extract_state_type(&input);
+
     // Parse doc comments
     let doc_info = parse_doc_comments(&doc_lines)?;
 
     let func_item = FuncItem {
         name: func_name,
         tokens: input,
+        state_type,
     };
 
     Ok((func_item, doc_info))
+}
+
+/// Extract the state type from State<T> in function parameters
+/// Returns None if no State extractor is found (meaning state type is ())
+fn extract_state_type(tokens: &TokenStream) -> Option<TokenStream> {
+    let token_str = tokens.to_string();
+
+    // Look for pattern "State < SomeType >"
+    // This is a simplified parser that looks for State<...>
+    if let Some(state_pos) = token_str.find("State") {
+        let after_state = &token_str[state_pos..];
+        if let Some(open_bracket) = after_state.find('<') {
+            // Find the matching closing bracket
+            let after_open = &after_state[open_bracket + 1..];
+            let mut depth = 1;
+            let mut close_pos = 0;
+
+            for (i, ch) in after_open.chars().enumerate() {
+                if ch == '<' {
+                    depth += 1;
+                } else if ch == '>' {
+                    depth -= 1;
+                    if depth == 0 {
+                        close_pos = i;
+                        break;
+                    }
+                }
+            }
+
+            if close_pos > 0 {
+                let state_type_str = &after_open[..close_pos].trim();
+                // Parse the extracted string back into a TokenStream
+                if let Ok(state_type) = state_type_str.parse::<TokenStream>() {
+                    return Some(state_type);
+                }
+            }
+        }
+    }
+
+    None
 }
 
 fn extract_doc_text(attr: &str) -> String {

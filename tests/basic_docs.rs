@@ -1,8 +1,7 @@
-use aide::axum::routing::get_with;
-use aide::axum::{ApiRouter, IntoApiResponse};
+use aide::axum::IntoApiResponse;
 use axum::extract::{Path, State};
 use axum::response::Json;
-use rovo::rovo;
+use rovo::{rovo, routing::get, Router};
 use schemars::JsonSchema;
 use serde::Deserialize;
 use uuid::Uuid;
@@ -52,11 +51,11 @@ async fn get_todo(
 
 #[test]
 fn test_macro_compiles() {
-    // This test just ensures the macro compiles correctly
+    // This test ensures the macro compiles correctly with the new routing API
     let _state = AppState {};
 
-    // The macro should have generated a module with handler and docs
-    // that we can use with aide's get_with
-    let _router: ApiRouter<AppState> = ApiRouter::new()
-        .api_route("/todo/{id}", get_with(get_todo::handler, get_todo::docs));
+    // Use the new drop-in replacement routing function with our Router
+    let _router: Router<()> = Router::<AppState>::new()
+        .route("/todo/{id}", get(get_todo))
+        .with_state(_state);
 }
