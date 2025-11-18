@@ -302,7 +302,7 @@ fn parse_doc_comments(lines: &[DocLine], _func_name: &str) -> Result<DocInfo, Pa
     let mut in_description = false;
     let mut title_set = false;
 
-    for (line_num, doc_line) in lines.iter().enumerate() {
+    for doc_line in lines.iter() {
         let trimmed = doc_line.text.trim();
         let span = doc_line.span;
 
