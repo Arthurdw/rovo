@@ -124,26 +124,4 @@ jobs:
         run: cargo install cargo-deny
 
       - name: Check licenses
-        run: |
-          # Create a basic deny.toml if it doesn't exist
-          if [ ! -f deny.toml ]; then
-            cat > deny.toml << 'EOF'
-          [licenses]
-          # Allow common permissive licenses
-          allow = [
-              "MIT",
-              "Apache-2.0",
-              "BSD-2-Clause",
-              "BSD-3-Clause",
-              "ISC",
-              "Unicode-DFS-2016",
-          ]
-          # Deny copyleft licenses for libraries
-          deny = [
-              "GPL-3.0",
-              "AGPL-3.0",
-          ]
-          EOF
-          fi
-
-          cargo deny check licenses
+        run: cargo deny check licenses

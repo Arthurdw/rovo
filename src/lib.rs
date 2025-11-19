@@ -45,7 +45,8 @@
 //!
 //! let app = Router::new()
 //!     .route("/users/{id}", get(get_user))
-//!     .with_oas(api);
+//!     .with_oas(api)
+//!     .with_swagger("/swagger");
 //! # }
 //! ```
 //!
@@ -128,7 +129,7 @@ where
     #[must_use]
     pub fn nest(mut self, path: &str, router: Self) -> Self {
         self.inner = self.inner.nest(path, router.inner);
-        // Preserve OAS spec and route from parent if not set in nested router
+        // Adopt nested router's OAS spec if parent doesn't have one
         if self.oas_spec.is_none() && router.oas_spec.is_some() {
             self.oas_spec = router.oas_spec;
             self.oas_route = router.oas_route;
@@ -209,92 +210,8 @@ where
         self
     }
 
-    /// Add state to the router and finalize the API
-    pub fn with_state<S2>(self, state: S) -> ::axum::Router<S2>
-    where
-        S2: Clone + Send + Sync + 'static,
-    {
-        if let Some(api) = self.oas_spec {
-            let oas_route = self.oas_route.clone();
-
-            // Finish API first to populate it with routes
-            let mut api_mut = api;
-            let axum_router = self.inner.finish_api(&mut api_mut);
-
-            // Now api_mut is populated with all the routes
-            // Clone it for the JSON/YAML/YML handlers
-            let api_for_json = api_mut.clone();
-            let api_for_yaml = api_mut.clone();
-            let api_for_yml = api_mut.clone();
-
-            // Determine base route (without extension)
-            let base_route = oas_route.strip_suffix(".json").unwrap_or(&oas_route);
-
-            // Add JSON endpoint to the axum::Router
-            let router_with_json = axum_router.route(
-                &oas_route,
-                ::axum::routing::get(move || {
-                    let api = api_for_json.clone();
-                    async move { ::axum::Json(api) }
-                }),
-            );
-
-            // Add YAML endpoint
-            let yaml_route = format!("{base_route}.yaml");
-            let router_with_yaml = router_with_json.route(
-                &yaml_route,
-                ::axum::routing::get(move || {
-                    let api = api_for_yaml.clone();
-                    async move {
-                        match serde_yaml::to_string(&api) {
-                            Ok(yaml) => (
-                                [(::axum::http::header::CONTENT_TYPE, "application/x-yaml")],
-                                yaml,
-                            )
-                                .into_response(),
-                            Err(e) => (
-                                ::axum::http::StatusCode::INTERNAL_SERVER_ERROR,
-                                format!("Failed to serialize OpenAPI spec to YAML: {e}"),
-                            )
-                                .into_response(),
-                        }
-                    }
-                }),
-            );
-
-            // Add YML endpoint (alias for YAML)
-            let yml_route = format!("{base_route}.yml");
-            let router_with_yml = router_with_yaml.route(
-                &yml_route,
-                ::axum::routing::get(move || {
-                    let api = api_for_yml.clone();
-                    async move {
-                        match serde_yaml::to_string(&api) {
-                            Ok(yaml) => (
-                                [(::axum::http::header::CONTENT_TYPE, "application/x-yaml")],
-                                yaml,
-                            )
-                                .into_response(),
-                            Err(e) => (
-                                ::axum::http::StatusCode::INTERNAL_SERVER_ERROR,
-                                format!("Failed to serialize OpenAPI spec to YAML: {e}"),
-                            )
-                                .into_response(),
-                        }
-                    }
-                }),
-            );
-
-            // Add extension and state
-            router_with_yml.layer(Extension(api_mut)).with_state(state)
-        } else {
-            // No OAS spec, just convert directly
-            self.inner.with_state(state).into()
-        }
-    }
-
-    /// Finalize the API without state
-    pub fn finish(self) -> ::axum::Router<S>
+    /// Internal helper to wire up `OpenAPI` endpoints and extension
+    fn wire_openapi_routes(self) -> (Option<::axum::Router<S>>, Option<AideApiRouter<S>>)
     where
         S: Clone + Send + Sync + 'static,
     {
@@ -370,11 +287,42 @@ where
             );
 
             // Add extension
-            router_with_yml.layer(Extension(api_mut))
+            (Some(router_with_yml.layer(Extension(api_mut))), None)
         } else {
-            // No OAS spec, just convert directly
-            self.inner.into()
+            // No OAS spec, return the inner router
+            (None, Some(self.inner))
         }
+    }
+
+    /// Add state to the router and finalize the API
+    pub fn with_state(self, state: S) -> ::axum::Router
+    where
+        S: Clone + Send + Sync + 'static,
+    {
+        let (with_oas, without_oas) = self.wire_openapi_routes();
+
+        if let Some(router) = with_oas {
+            router.with_state(state)
+        } else if let Some(inner) = without_oas {
+            inner.with_state(state).into()
+        } else {
+            unreachable!("Either with_oas or without_oas must be Some")
+        }
+    }
+
+    /// Finalize the API without state
+    pub fn finish(self) -> ::axum::Router<S>
+    where
+        S: Clone + Send + Sync + 'static,
+    {
+        let (with_oas, without_oas) = self.wire_openapi_routes();
+
+        with_oas.unwrap_or_else(|| {
+            without_oas.map_or_else(
+                || unreachable!("Either with_oas or without_oas must be Some"),
+                std::convert::Into::into,
+            )
+        })
     }
 
     /// Finish building the API and return an axum Router for further configuration

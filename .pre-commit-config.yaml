@@ -55,6 +55,15 @@ repos:
         pass_filenames: false
         stages: [commit]
 
+      - id: cargo-deny
+        name: cargo deny check
+        entry: cargo deny check
+        language: system
+        types: [toml]
+        files: (Cargo.toml|Cargo.lock|deny.toml)
+        pass_filenames: false
+        stages: [commit]
+
       - id: cargo-check
         name: cargo check
         entry: cargo check --workspace --all-features

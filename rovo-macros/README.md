@@ -8,4 +8,4 @@ This crate contains the implementation of the `#[rovo]` attribute macro and is n
 
 ## License
 
-GPL-3.0
+MIT

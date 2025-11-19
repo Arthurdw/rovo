@@ -434,4 +434,4 @@ Contributions are welcome. Please submit a Pull Request.
 
 ## License
 
-GPL-3.0
+MIT

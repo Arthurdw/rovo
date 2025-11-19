@@ -67,6 +67,14 @@ audit:
 unused-deps:
     cargo machete
 
+# Check licenses
+licenses:
+    cargo deny check licenses
+
+# Run all deny checks (licenses, advisories, bans, sources)
+deny-check:
+    cargo deny check
+
 # Update dependencies
 update:
     cargo update
@@ -89,6 +97,7 @@ install-tools:
     cargo install cargo-audit
     cargo install cargo-edit
     cargo install cargo-machete
+    cargo install cargo-deny
 
 # Prepare for release (run all checks)
 pre-release: fmt lint test
