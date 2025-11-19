@@ -40,7 +40,7 @@ use parser::parse_rovo_function;
 ///
 /// # Example
 ///
-/// ```ignore
+/// ```rust,ignore
 /// /// Get a single Todo item.
 /// ///
 /// /// Retrieve a Todo item by its ID from the database.

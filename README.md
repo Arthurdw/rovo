@@ -373,6 +373,48 @@ let router: Router<()> = Router::<AppState>::new()
 | Method chaining | Custom | Standard axum |
 | Lines per endpoint | ~15-20 | ~5-10 |
 
+## Development
+
+This project uses [just](https://github.com/casey/just) for common development tasks.
+
+### Quick Start
+
+```bash
+# List all available commands
+just
+
+# Run all checks (format, clippy, tests)
+just check
+
+# Fix formatting and clippy issues
+just fix
+
+# Run tests
+just test
+
+# Check for outdated dependencies
+just outdated
+
+# Check for security vulnerabilities
+just audit
+```
+
+### Available Commands
+
+- `just test` - Run all tests
+- `just lint` - Run clippy lints
+- `just fmt` - Format code
+- `just check` - Run all checks (fmt, clippy, test)
+- `just fix` - Run all checks and fixes
+- `just build` - Build the project
+- `just example` - Run the todo_api example
+- `just outdated` - Check for outdated dependencies
+- `just audit` - Check for security vulnerabilities
+- `just docs` - Build and open documentation
+- `just pre-release` - Run all pre-release checks
+
+See `just --list` for all available commands.
+
 ## Contributing
 
 Contributions are welcome. Please submit a Pull Request.

@@ -1,0 +1,131 @@
+---
+name: Dependency Check
+
+on:
+  schedule:
+    # Run every Monday at 9:00 AM UTC
+    - cron: "0 9 * * 1"
+  workflow_dispatch: # Allow manual trigger
+  pull_request:
+    paths:
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "**/Cargo.toml"
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+
+jobs:
+  audit:
+    name: Security Audit
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Install cargo-audit
+        run: cargo install cargo-audit
+
+      - name: Run security audit
+        run: cargo audit --deny warnings
+
+  outdated:
+    name: Check Outdated Dependencies
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Install cargo-outdated
+        run: cargo install cargo-outdated
+
+      - name: Check for outdated dependencies
+        run: |
+          echo "# Outdated Dependencies Report" > outdated-report.md
+          echo "" >> outdated-report.md
+          cargo outdated --format json > outdated.json || true
+
+          # Parse and display results
+          if [ -s outdated.json ]; then
+            echo "## Summary" >> outdated-report.md
+            echo "" >> outdated-report.md
+            echo '```' >> outdated-report.md
+            cargo outdated >> outdated-report.md || true
+            echo '```' >> outdated-report.md
+          else
+            echo "All dependencies are up to date!" >> outdated-report.md
+          fi
+
+          cat outdated-report.md
+
+      - name: Upload outdated report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: outdated-dependencies-report
+          path: outdated-report.md
+
+  dependency-review:
+    name: Dependency Review
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Dependency Review
+        uses: actions/dependency-review-action@v4
+        with:
+          fail-on-severity: moderate
+
+  licenses:
+    name: Check Licenses
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Install cargo-deny
+        run: cargo install cargo-deny
+
+      - name: Check licenses
+        run: |
+          # Create a basic deny.toml if it doesn't exist
+          if [ ! -f deny.toml ]; then
+            cat > deny.toml << 'EOF'
+          [licenses]
+          # Allow common permissive licenses
+          allow = [
+              "MIT",
+              "Apache-2.0",
+              "BSD-2-Clause",
+              "BSD-3-Clause",
+              "ISC",
+              "Unicode-DFS-2016",
+          ]
+          # Deny copyleft licenses for libraries
+          deny = [
+              "GPL-3.0",
+              "AGPL-3.0",
+          ]
+          EOF
+          fi
+
+          cargo deny check licenses

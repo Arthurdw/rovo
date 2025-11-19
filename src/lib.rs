@@ -19,9 +19,14 @@
 //!
 //! ## Quick Start
 //!
-//! ```ignore
-//! use rovo::{Router, rovo, routing::get};
-//! use aide::openapi::OpenApi;
+//! ```no_run
+//! use rovo::{Router, rovo, routing::get, schemars::JsonSchema, aide::axum::IntoApiResponse};
+//! use rovo::aide::openapi::OpenApi;
+//! use axum::{extract::Path, response::Json};
+//! use serde::Serialize;
+//!
+//! #[derive(Serialize, JsonSchema)]
+//! struct User { id: u32, name: String }
 //!
 //! /// Get user by ID
 //! ///
@@ -30,12 +35,18 @@
 //! /// @tag users
 //! #[rovo]
 //! async fn get_user(Path(id): Path<u32>) -> impl IntoApiResponse {
-//!     // handler implementation
+//!     Json(User { id, name: "Alice".to_string() })
 //! }
 //!
+//! # #[tokio::main]
+//! # async fn main() {
+//! let mut api = OpenApi::default();
+//! api.info.title = "My API".to_string();
+//!
 //! let app = Router::new()
-//!     .route("/users/:id", get(get_user))
-//!     .finish_api();
+//!     .route("/users/{id}", get(get_user))
+//!     .with_oas(api);
+//! # }
 //! ```
 //!
 //! ## Supported Annotations
@@ -63,21 +74,26 @@ use aide::openapi::OpenApi;
 /// a fluent API for building documented APIs with Swagger UI integration.
 ///
 /// # Example
-/// ```ignore
-/// use rovo::{Router, rovo, routing::get};
-/// use aide::openapi::OpenApi;
+/// ```no_run
+/// use rovo::{Router, rovo, routing::get, aide::axum::IntoApiResponse};
+/// use rovo::aide::openapi::OpenApi;
+/// use axum::response::Json;
 ///
 /// #[rovo]
-/// async fn documented_handler() -> impl IntoApiResponse { /* ... */ }
+/// async fn documented_handler() -> impl IntoApiResponse {
+///     Json(())
+/// }
 ///
+/// # #[tokio::main]
+/// # async fn main() {
 /// let mut api = OpenApi::default();
 /// api.info.title = "My API".to_string();
 ///
 /// let app = Router::new()
 ///     .route("/documented", get(documented_handler))
 ///     .with_oas(api)
-///     .with_swagger("/")
-///     .with_state(state);
+///     .with_swagger("/");
+/// # }
 /// ```
 pub struct Router<S = ()> {
     inner: AideApiRouter<S>,
@@ -419,12 +435,27 @@ pub trait IntoApiMethodRouter<S = ()> {
 /// accepting documented handlers decorated with `#[rovo]`.
 ///
 /// # Example
-/// ```ignore
-/// use rovo::routing::get;
+/// ```no_run
+/// use rovo::{Router, rovo, routing::{get, post, patch, delete}, aide::axum::IntoApiResponse};
+/// use axum::response::Json;
 ///
+/// #[rovo]
+/// async fn list_items() -> impl IntoApiResponse { Json(()) }
+/// #[rovo]
+/// async fn create_item() -> impl IntoApiResponse { Json(()) }
+/// #[rovo]
+/// async fn get_item() -> impl IntoApiResponse { Json(()) }
+/// #[rovo]
+/// async fn update_item() -> impl IntoApiResponse { Json(()) }
+/// #[rovo]
+/// async fn delete_item() -> impl IntoApiResponse { Json(()) }
+///
+/// # #[tokio::main]
+/// # async fn main() {
 /// Router::new()
 ///     .route("/items", get(list_items).post(create_item))
-///     .route("/items/{id}", get(get_item).patch(update_item).delete(delete_item))
+///     .route("/items/{id}", get(get_item).patch(update_item).delete(delete_item));
+/// # }
 /// ```
 pub struct ApiMethodRouter<S = ()> {
     inner: aide::axum::routing::ApiMethodRouter<S>,
@@ -503,12 +534,27 @@ impl<S> From<ApiMethodRouter<S>> for aide::axum::routing::ApiMethodRouter<S> {
 /// handlers decorated with `#[rovo]` and automatically include their documentation.
 ///
 /// # Example
-/// ```ignore
-/// use rovo::routing::{get, post};
+/// ```no_run
+/// use rovo::{Router, rovo, routing::{get, post, patch, delete}, aide::axum::IntoApiResponse};
+/// use axum::response::Json;
 ///
+/// #[rovo]
+/// async fn list_items() -> impl IntoApiResponse { Json(()) }
+/// #[rovo]
+/// async fn create_item() -> impl IntoApiResponse { Json(()) }
+/// #[rovo]
+/// async fn get_item() -> impl IntoApiResponse { Json(()) }
+/// #[rovo]
+/// async fn update_item() -> impl IntoApiResponse { Json(()) }
+/// #[rovo]
+/// async fn delete_item() -> impl IntoApiResponse { Json(()) }
+///
+/// # #[tokio::main]
+/// # async fn main() {
 /// Router::new()
 ///     .route("/items", get(list_items).post(create_item))
-///     .route("/items/{id}", get(get_item).patch(update_item).delete(delete_item))
+///     .route("/items/{id}", get(get_item).patch(update_item).delete(delete_item));
+/// # }
 /// ```
 pub mod routing {
     use super::{ApiMethodRouter, IntoApiMethodRouter};
