@@ -81,7 +81,7 @@ fn test_macro_generates_docs_function() {
     };
 
     // This should compile using the new routing API
-    let _router: Router<()> = Router::<AppState>::new()
+    let _router: ::axum::Router = Router::<AppState>::new()
         .route("/items/{id}", get(get_item))
         .route("/simple", get(simple_handler))
         .route("/multi", get(multi_response))
@@ -108,7 +108,7 @@ fn test_multiple_handlers_compile() {
         value: "test".to_string(),
     };
 
-    let _router: Router<()> = Router::<AppState>::new()
+    let _router: ::axum::Router = Router::<AppState>::new()
         .route("/a", get(simple_handler))
         .route("/b", get(multi_response))
         .route("/c/{id}", get(get_item))
@@ -122,7 +122,7 @@ fn test_handler_with_path_params() {
         value: "test".to_string(),
     };
 
-    let _router: Router<()> = Router::<AppState>::new()
+    let _router: ::axum::Router = Router::<AppState>::new()
         .route("/items/{id}", get(get_item))
         .with_state(state);
 }

@@ -48,7 +48,7 @@ async fn get_user(State(_state): State<AppState>, Path(_id): Path<UserId>) -> im
 fn test_with_example() {
     let _state = AppState {};
 
-    let _router: Router<()> = Router::<AppState>::new()
+    let _router: ::axum::Router = Router::<AppState>::new()
         .route("/users/{id}", get(get_user))
         .with_state(_state);
 }

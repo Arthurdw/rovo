@@ -2,6 +2,74 @@ use super::error::ParseError;
 use super::types::{ExampleInfo, ResponseInfo};
 use proc_macro2::{Span, TokenStream};
 
+/// Macro to parse simple annotations with format: @name <value>
+macro_rules! parse_simple_annotation {
+    ($trimmed:expr, $span:expr, $name:literal, $help:literal, $example:literal) => {{
+        let parts: Vec<&str> = $trimmed.splitn(2, ' ').collect();
+
+        if parts.len() < 2 {
+            return Err(ParseError::with_span(
+                concat!(
+                    "Invalid @",
+                    $name,
+                    " annotation format\n\
+                     help: expected '@",
+                    $name,
+                    " ",
+                    $help,
+                    "'\n\
+                     note: example '@",
+                    $name,
+                    " ",
+                    $example,
+                    "'"
+                ),
+                $span,
+            ));
+        }
+
+        let value = parts[1].trim();
+        if value.is_empty() {
+            return Err(ParseError::with_span(
+                concat!(
+                    "Empty ",
+                    $help,
+                    " in @",
+                    $name,
+                    " annotation\n\
+                     help: provide a ",
+                    $help,
+                    " after @",
+                    $name
+                ),
+                $span,
+            ));
+        }
+
+        value.to_string()
+    }};
+}
+
+/// Macro to parse and validate status codes
+macro_rules! parse_status_code {
+    ($code_str:expr, $span:expr) => {{
+        let status_code = $code_str.parse::<u16>().map_err(|_| {
+            ParseError::with_span(
+                format!(
+                    "Invalid status code '{}'\n\
+                     help: status code must be a number between 100-599\n\
+                     note: common codes: 200 (OK), 201 (Created), 400 (Bad Request), 404 (Not Found), 500 (Internal Error)",
+                    $code_str
+                ),
+                $span,
+            )
+        })?;
+
+        validate_status_code(status_code, $span)?;
+        status_code
+    }};
+}
+
 /// Parse @response annotation
 pub fn parse_response(trimmed: &str, span: Span) -> Result<ResponseInfo, ParseError> {
     let parts: Vec<&str> = trimmed.splitn(4, ' ').collect();
@@ -15,19 +83,7 @@ pub fn parse_response(trimmed: &str, span: Span) -> Result<ResponseInfo, ParseEr
         ));
     }
 
-    let status_code = parts[1].parse::<u16>().map_err(|_| {
-        ParseError::with_span(
-            format!(
-                "Invalid status code '{}'\n\
-                 help: status code must be a number between 100-599\n\
-                 note: common codes: 200 (OK), 201 (Created), 400 (Bad Request), 404 (Not Found), 500 (Internal Error)",
-                parts[1]
-            ),
-            span,
-        )
-    })?;
-
-    validate_status_code(status_code, span)?;
+    let status_code = parse_status_code!(parts[1], span);
 
     let response_type_str = parts[2];
     let description = parts[3].to_string();
@@ -94,19 +150,7 @@ pub fn parse_example(trimmed: &str, span: Span) -> Result<ExampleInfo, ParseErro
         ));
     }
 
-    let status_code = parts[1].parse::<u16>().map_err(|_| {
-        ParseError::with_span(
-            format!(
-                "Invalid status code '{}'\n\
-                 help: status code must be a number between 100-599\n\
-                 note: common codes: 200 (OK), 201 (Created), 400 (Bad Request), 404 (Not Found), 500 (Internal Error)",
-                parts[1]
-            ),
-            span,
-        )
-    })?;
-
-    validate_status_code(status_code, span)?;
+    let status_code = parse_status_code!(parts[1], span);
 
     let example_code_str = parts[2];
 
@@ -140,80 +184,17 @@ pub fn parse_example(trimmed: &str, span: Span) -> Result<ExampleInfo, ParseErro
 
 /// Parse @tag annotation
 pub fn parse_tag(trimmed: &str, span: Span) -> Result<String, ParseError> {
-    let parts: Vec<&str> = trimmed.splitn(2, ' ').collect();
-
-    if parts.len() < 2 {
-        return Err(ParseError::with_span(
-            "Invalid @tag annotation format\n\
-             help: expected '@tag <tag_name>'\n\
-             note: example '@tag users' or '@tag authentication'",
-            span,
-        ));
-    }
-
-    let tag = parts[1].trim();
-    if tag.is_empty() {
-        return Err(ParseError::with_span(
-            "Empty tag name in @tag annotation\n\
-             help: provide a tag name after @tag\n\
-             note: tags help organize endpoints in the OpenAPI documentation",
-            span,
-        ));
-    }
-
-    Ok(tag.to_string())
+    Ok(parse_simple_annotation!(trimmed, span, "tag", "<tag_name>", "users"))
 }
 
 /// Parse @security annotation
 pub fn parse_security(trimmed: &str, span: Span) -> Result<String, ParseError> {
-    let parts: Vec<&str> = trimmed.splitn(2, ' ').collect();
-
-    if parts.len() < 2 {
-        return Err(ParseError::with_span(
-            "Invalid @security annotation format\n\
-             help: expected '@security <scheme_name>'\n\
-             note: example '@security bearer_auth' or '@security api_key'\n\
-             note: security schemes must be defined separately in your OpenAPI spec",
-            span,
-        ));
-    }
-
-    let scheme = parts[1].trim();
-    if scheme.is_empty() {
-        return Err(ParseError::with_span(
-            "Empty security scheme name in @security annotation\n\
-             help: provide a security scheme name after @security\n\
-             note: the scheme must match a security definition in your OpenAPI spec",
-            span,
-        ));
-    }
-
-    Ok(scheme.to_string())
+    Ok(parse_simple_annotation!(trimmed, span, "security", "<scheme_name>", "bearer_auth"))
 }
 
 /// Parse @id annotation
 pub fn parse_id(trimmed: &str, span: Span) -> Result<String, ParseError> {
-    let parts: Vec<&str> = trimmed.splitn(2, ' ').collect();
-
-    if parts.len() < 2 {
-        return Err(ParseError::with_span(
-            "Invalid @id annotation format\n\
-             help: expected '@id <operation_id>'\n\
-             note: example '@id getUserById' or '@id create_user'\n\
-             note: operation IDs help identify endpoints in generated clients",
-            span,
-        ));
-    }
-
-    let id = parts[1].trim();
-    if id.is_empty() {
-        return Err(ParseError::with_span(
-            "Empty operation ID in @id annotation\n\
-             help: provide an operation ID after @id\n\
-             note: operation IDs must be unique across all endpoints",
-            span,
-        ));
-    }
+    let id = parse_simple_annotation!(trimmed, span, "id", "<operation_id>", "getUserById");
 
     if !id.chars().all(|c| c.is_alphanumeric() || c == '_') {
         return Err(ParseError::with_span(
@@ -226,7 +207,7 @@ pub fn parse_id(trimmed: &str, span: Span) -> Result<String, ParseError> {
         ));
     }
 
-    Ok(id.to_string())
+    Ok(id)
 }
 
 /// Validate HTTP status code

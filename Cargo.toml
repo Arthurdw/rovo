@@ -30,6 +30,7 @@ rovo-macros = { version = "0.1.2", path = "rovo-macros" }
 aide = { version = "0.15", features = ["axum", "axum-json"] }
 paste = "1.0"
 axum = "0.8.7"
+serde_yaml = "0.9"
 
 [dev-dependencies]
 axum = "0.8.7"
@@ -41,3 +42,4 @@ uuid = { version = "1", features = ["serde", "v4"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 trybuild = "1.0"
+tower = "0.5"

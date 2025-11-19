@@ -3,7 +3,6 @@ use axum::{
     extract::{Path, State},
     http::StatusCode,
     response::{IntoResponse, Json},
-    Extension,
 };
 use rovo::{rovo, Router};
 use schemars::JsonSchema;
@@ -156,10 +155,6 @@ async fn delete_todo(
     }
 }
 
-async fn serve_api(Extension(api): Extension<OpenApi>) -> axum::Json<OpenApi> {
-    axum::Json(api)
-}
-
 #[tokio::main]
 async fn main() {
     use rovo::routing::get;
@@ -191,10 +186,9 @@ async fn main() {
                     get(get_todo).patch(update_todo).delete(delete_todo),
                 ),
         )
-        .with_swagger("/", "/api.json")
-        .with_api_json("/api.json", serve_api)
-        .with_state(state)
-        .finish_api_with_extension(api);
+        .with_oas(api)
+        .with_swagger("/")
+        .with_state(state);
 
     let listener = tokio::net::TcpListener::bind("127.0.0.1:3000")
         .await

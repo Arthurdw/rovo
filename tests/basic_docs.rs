@@ -55,7 +55,7 @@ fn test_macro_compiles() {
     let _state = AppState {};
 
     // Use the new drop-in replacement routing function with our Router
-    let _router: Router<()> = Router::<AppState>::new()
+    let _router: ::axum::Router = Router::<AppState>::new()
         .route("/todo/{id}", get(get_todo))
         .with_state(_state);
 }

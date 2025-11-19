@@ -1,6 +1,6 @@
 error: Invalid @tag annotation format
        help: expected '@tag <tag_name>'
-       note: example '@tag users' or '@tag authentication'
+       note: example '@tag users'
  --> tests/ui/empty_tag.rs:8:1
   |
 8 | /// @tag

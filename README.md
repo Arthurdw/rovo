@@ -33,6 +33,15 @@ Choose one or more documentation UIs (none enabled by default):
 - `redoc` - Redoc UI
 - `scalar` - Scalar UI
 
+## OpenAPI Formats
+
+Rovo automatically serves your OpenAPI specification in multiple formats:
+
+- **JSON** - `/api.json` (default)
+- **YAML** - `/api.yaml` or `/api.yml`
+
+All formats are automatically available when you use `.with_oas()`.
+
 ## Quick Start
 
 ```rust
@@ -66,10 +75,6 @@ async fn get_user(State(_state): State<AppState>) -> impl IntoApiResponse {
     })
 }
 
-async fn serve_api(Extension(api): Extension<OpenApi>) -> axum::Json<OpenApi> {
-    axum::Json(api)
-}
-
 #[tokio::main]
 async fn main() {
     let state = AppState {};
@@ -79,10 +84,9 @@ async fn main() {
 
     let app = Router::new()
         .route("/user", get(get_user))
-        .with_swagger("/", "/api.json")
-        .with_api_json("/api.json", serve_api)
-        .with_state(state)
-        .finish_api_with_extension(api);
+        .with_oas(api)
+        .with_swagger("/")
+        .with_state(state);
 
     let listener = tokio::net::TcpListener::bind("127.0.0.1:3000")
         .await
@@ -217,13 +221,26 @@ Router::new()
 ```rust
 Router::new()
     .route("/users", get(list_users))
-    .with_swagger("/swagger", "/api.json")
-    .with_redoc("/redoc", "/api.json")
-    .with_scalar("/scalar", "/api.json")
-    .with_api_json("/api.json", serve_api)
+    .with_oas(api)
+    .with_swagger("/swagger")
+    .with_redoc("/redoc")
+    .with_scalar("/scalar")
     .with_state(state)
-    .finish_api_with_extension(api)
 ```
+
+Use custom OAS route:
+
+```rust
+Router::new()
+    .route("/users", get(list_users))
+    .with_oas_route(api, "/openapi")  // Creates /openapi.json, /openapi.yaml, and /openapi.yml
+    .with_swagger("/")
+    .with_state(state)
+```
+
+The OpenAPI spec is automatically available in multiple formats:
+- JSON: `/api.json` (or `/openapi.json` with custom route)
+- YAML: `/api.yaml` or `/api.yml` (or `/openapi.yaml`/`/openapi.yml` with custom route)
 
 ## Examples
 
@@ -266,19 +283,14 @@ Add OpenAPI setup in `main()`:
 ```rust
 use aide::openapi::OpenApi;
 
-async fn serve_api(Extension(api): Extension<OpenApi>) -> axum::Json<OpenApi> {
-    axum::Json(api)
-}
-
 let mut api = OpenApi::default();
 api.info.title = "My API".to_string();
 
 let app = Router::new()
     .route("/path", get(handler))
-    .with_swagger("/", "/api.json")
-    .with_api_json("/api.json", serve_api)
-    .with_state(state)
-    .finish_api_with_extension(api);
+    .with_oas(api)
+    .with_swagger("/")
+    .with_state(state);
 ```
 
 ## Comparison with aide
