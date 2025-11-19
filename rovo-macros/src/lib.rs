@@ -133,7 +133,7 @@ pub fn rovo(_attr: TokenStream, item: TokenStream) -> TokenStream {
 
             // Generate deprecated setter
             let deprecated_setter = if doc_info.deprecated {
-                quote! { .deprecated(true) }
+                quote! { .with(|mut op| { op.inner_mut().deprecated = true; op }) }
             } else {
                 quote! {}
             };
