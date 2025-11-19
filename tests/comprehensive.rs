@@ -1,11 +1,11 @@
-use aide::axum::IntoApiResponse;
 use axum::{
     extract::{Path, State},
     http::StatusCode,
     response::{IntoResponse, Json},
 };
+use rovo::aide::axum::IntoApiResponse;
+use rovo::schemars::JsonSchema;
 use rovo::{routing::get, rovo, Router};
-use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -81,7 +81,7 @@ fn test_macro_generates_docs_function() {
     };
 
     // This should compile using the new routing API
-    let _router: Router<()> = Router::<AppState>::new()
+    let _router: ::axum::Router = Router::<AppState>::new()
         .route("/items/{id}", get(get_item))
         .route("/simple", get(simple_handler))
         .route("/multi", get(multi_response))
@@ -90,8 +90,8 @@ fn test_macro_generates_docs_function() {
 
 #[test]
 fn test_docs_function_callable() {
-    use aide::openapi::Operation;
-    use aide::transform::TransformOperation;
+    use rovo::aide::openapi::Operation;
+    use rovo::aide::transform::TransformOperation;
 
     // Create a mock operation
     let mut operation = Operation::default();
@@ -108,7 +108,7 @@ fn test_multiple_handlers_compile() {
         value: "test".to_string(),
     };
 
-    let _router: Router<()> = Router::<AppState>::new()
+    let _router: ::axum::Router = Router::<AppState>::new()
         .route("/a", get(simple_handler))
         .route("/b", get(multi_response))
         .route("/c/{id}", get(get_item))
@@ -122,7 +122,7 @@ fn test_handler_with_path_params() {
         value: "test".to_string(),
     };
 
-    let _router: Router<()> = Router::<AppState>::new()
+    let _router: ::axum::Router = Router::<AppState>::new()
         .route("/items/{id}", get(get_item))
         .with_state(state);
 }

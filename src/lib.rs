@@ -1,36 +1,105 @@
+#![warn(clippy::all)]
+#![warn(clippy::nursery)]
+#![warn(clippy::pedantic)]
+#![warn(missing_docs)]
+#![warn(rust_2018_idioms)]
+#![deny(unsafe_code)]
+// Allow some overly strict pedantic lints
+#![allow(clippy::return_self_not_must_use)]
+#![allow(clippy::similar_names)]
+
+//! # Rovo
+//!
+//! A lightweight macro-based framework for generating `OpenAPI` documentation
+//! from doc comments in Axum handlers.
+//!
+//! Rovo provides a declarative way to document your API endpoints using special
+//! annotations in doc comments, automatically generating `OpenAPI` specifications
+//! without manual schema definitions.
+//!
+//! ## Quick Start
+//!
+//! ```no_run
+//! use rovo::{Router, rovo, routing::get, schemars::JsonSchema, aide::axum::IntoApiResponse};
+//! use rovo::aide::openapi::OpenApi;
+//! use axum::{extract::Path, response::Json};
+//! use serde::Serialize;
+//!
+//! #[derive(Serialize, JsonSchema)]
+//! struct User { id: u32, name: String }
+//!
+//! /// Get user by ID
+//! ///
+//! /// @response 200 Json<User> User found successfully
+//! /// @response 404 () User not found
+//! /// @tag users
+//! #[rovo]
+//! async fn get_user(Path(id): Path<u32>) -> impl IntoApiResponse {
+//!     Json(User { id, name: "Alice".to_string() })
+//! }
+//!
+//! # #[tokio::main]
+//! # async fn main() {
+//! let mut api = OpenApi::default();
+//! api.info.title = "My API".to_string();
+//!
+//! let app = Router::new()
+//!     .route("/users/{id}", get(get_user))
+//!     .with_oas(api)
+//!     .with_swagger("/swagger");
+//! # }
+//! ```
+//!
+//! ## Supported Annotations
+//!
+//! - `@response <code> <type> <description>` - Document response types
+//! - `@example <code> <expression>` - Provide response examples
+//! - `@tag <name>` - Group endpoints by tags
+//! - `@security <scheme>` - Specify security requirements
+//! - `@id <operation_id>` - Set custom operation ID
+//! - `@hidden` - Hide endpoint from documentation
+
 pub use rovo_macros::rovo;
 
-// Re-export aide for convenience
+// Re-export aide and schemars for convenience
 pub use aide;
+pub use schemars;
 
-use ::axum::Extension;
+use ::axum::{response::IntoResponse, Extension};
 use aide::axum::ApiRouter as AideApiRouter;
+use aide::openapi::OpenApi;
 
-/// A drop-in replacement for axum::Router that adds OpenAPI documentation support.
+/// A drop-in replacement for `axum::Router` that adds `OpenAPI` documentation support.
 ///
 /// This Router works seamlessly with handlers decorated with `#[rovo]` and provides
 /// a fluent API for building documented APIs with Swagger UI integration.
 ///
 /// # Example
-/// ```ignore
-/// use rovo::{Router, rovo, routing::get};
-/// use aide::openapi::OpenApi;
+/// ```no_run
+/// use rovo::{Router, rovo, routing::get, aide::axum::IntoApiResponse};
+/// use rovo::aide::openapi::OpenApi;
+/// use axum::response::Json;
 ///
 /// #[rovo]
-/// async fn documented_handler() -> impl IntoApiResponse { /* ... */ }
+/// async fn documented_handler() -> impl IntoApiResponse {
+///     Json(())
+/// }
 ///
+/// # #[tokio::main]
+/// # async fn main() {
 /// let mut api = OpenApi::default();
 /// api.info.title = "My API".to_string();
 ///
 /// let app = Router::new()
 ///     .route("/documented", get(documented_handler))
-///     .with_swagger("/", "/api.json")
-///     .with_api_json("/api.json", serve_api)
-///     .with_state(state)
-///     .finish_api_with_extension(api);
+///     .with_oas(api)
+///     .with_swagger("/");
+/// # }
 /// ```
 pub struct Router<S = ()> {
     inner: AideApiRouter<S>,
+    oas_spec: Option<OpenApi>,
+    oas_route: String,
 }
 
 impl<S> Router<S>
@@ -38,9 +107,12 @@ where
     S: Clone + Send + Sync + 'static,
 {
     /// Create a new Router
+    #[must_use]
     pub fn new() -> Self {
         Self {
             inner: AideApiRouter::new(),
+            oas_spec: None,
+            oas_route: "/api.json".to_string(),
         }
     }
 
@@ -54,69 +126,203 @@ where
     }
 
     /// Nest another router at the given path
-    pub fn nest(mut self, path: &str, router: Router<S>) -> Self {
+    #[must_use]
+    pub fn nest(mut self, path: &str, router: Self) -> Self {
         self.inner = self.inner.nest(path, router.inner);
+        // Adopt nested router's OAS spec if parent doesn't have one
+        if self.oas_spec.is_none() && router.oas_spec.is_some() {
+            self.oas_spec = router.oas_spec;
+            self.oas_route = router.oas_route;
+        }
+        self
+    }
+
+    /// Configure `OpenAPI` spec with default routes (/api.json and /api.yaml)
+    ///
+    /// This automatically sets up endpoints for both JSON and YAML formats.
+    #[must_use]
+    pub fn with_oas(mut self, api: OpenApi) -> Self {
+        self.oas_spec = Some(api);
+        self.oas_route = "/api.json".to_string();
+        self
+    }
+
+    /// Configure `OpenAPI` spec with custom base route
+    ///
+    /// This sets up endpoints with the specified base route.
+    /// For example, "/openapi" creates:
+    /// - /openapi.json
+    /// - /openapi.yaml
+    pub fn with_oas_route(mut self, api: OpenApi, route: impl Into<String>) -> Self {
+        self.oas_spec = Some(api);
+        let route_str = route.into();
+        // Remove extension if provided
+        let base_route = route_str
+            .strip_suffix(".json")
+            .or_else(|| route_str.strip_suffix(".yaml"))
+            .or_else(|| route_str.strip_suffix(".yml"))
+            .unwrap_or(&route_str);
+        self.oas_route = format!("{base_route}.json");
         self
     }
 
     /// Add Swagger UI route at the specified path
     #[cfg(feature = "swagger")]
-    pub fn with_swagger(mut self, swagger_path: &str, api_json_path: &str) -> Self
+    #[must_use]
+    pub fn with_swagger(mut self, swagger_path: &str) -> Self
     where
         S: Clone + Send + Sync + 'static,
     {
+        let api_route = self.oas_route.clone();
         self.inner = self.inner.route(
             swagger_path,
-            aide::swagger::Swagger::new(api_json_path).axum_route(),
+            aide::swagger::Swagger::new(&api_route).axum_route(),
         );
         self
     }
 
     /// Add Redoc UI route at the specified path
     #[cfg(feature = "redoc")]
-    pub fn with_redoc(mut self, redoc_path: &str, api_json_path: &str) -> Self
+    #[must_use]
+    pub fn with_redoc(mut self, redoc_path: &str) -> Self
     where
         S: Clone + Send + Sync + 'static,
     {
-        self.inner = self.inner.route(
-            redoc_path,
-            aide::redoc::Redoc::new(api_json_path).axum_route(),
-        );
+        let api_route = self.oas_route.clone();
+        self.inner = self
+            .inner
+            .route(redoc_path, aide::redoc::Redoc::new(&api_route).axum_route());
         self
     }
 
     /// Add Scalar UI route at the specified path
     #[cfg(feature = "scalar")]
-    pub fn with_scalar(mut self, scalar_path: &str, api_json_path: &str) -> Self
+    #[must_use]
+    pub fn with_scalar(mut self, scalar_path: &str) -> Self
     where
         S: Clone + Send + Sync + 'static,
     {
+        let api_route = self.oas_route.clone();
         self.inner = self.inner.route(
             scalar_path,
-            aide::scalar::Scalar::new(api_json_path).axum_route(),
+            aide::scalar::Scalar::new(&api_route).axum_route(),
         );
         self
     }
 
-    /// Add the OpenAPI JSON endpoint
-    pub fn with_api_json<H, T>(mut self, path: &str, handler: H) -> Self
+    /// Internal helper to wire up `OpenAPI` endpoints and extension
+    fn wire_openapi_routes(self) -> (Option<::axum::Router<S>>, Option<AideApiRouter<S>>)
     where
-        H: ::axum::handler::Handler<T, S>,
         S: Clone + Send + Sync + 'static,
-        T: 'static,
     {
-        self.inner = self.inner.route(path, ::axum::routing::get(handler));
-        self
+        if let Some(api) = self.oas_spec {
+            let oas_route = self.oas_route.clone();
+
+            // Finish API first to populate it with routes
+            let mut api_mut = api;
+            let axum_router = self.inner.finish_api(&mut api_mut);
+
+            // Now api_mut is populated with all the routes
+            // Clone it for the JSON/YAML/YML handlers
+            let api_for_json = api_mut.clone();
+            let api_for_yaml = api_mut.clone();
+            let api_for_yml = api_mut.clone();
+
+            // Determine base route (without extension)
+            let base_route = oas_route.strip_suffix(".json").unwrap_or(&oas_route);
+
+            // Add JSON endpoint to the axum::Router
+            let router_with_json = axum_router.route(
+                &oas_route,
+                ::axum::routing::get(move || {
+                    let api = api_for_json.clone();
+                    async move { ::axum::Json(api) }
+                }),
+            );
+
+            // Add YAML endpoint
+            let yaml_route = format!("{base_route}.yaml");
+            let router_with_yaml = router_with_json.route(
+                &yaml_route,
+                ::axum::routing::get(move || {
+                    let api = api_for_yaml.clone();
+                    async move {
+                        match serde_yaml::to_string(&api) {
+                            Ok(yaml) => (
+                                [(::axum::http::header::CONTENT_TYPE, "application/x-yaml")],
+                                yaml,
+                            )
+                                .into_response(),
+                            Err(e) => (
+                                ::axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                                format!("Failed to serialize OpenAPI spec to YAML: {e}"),
+                            )
+                                .into_response(),
+                        }
+                    }
+                }),
+            );
+
+            // Add YML endpoint (alias for YAML)
+            let yml_route = format!("{base_route}.yml");
+            let router_with_yml = router_with_yaml.route(
+                &yml_route,
+                ::axum::routing::get(move || {
+                    let api = api_for_yml.clone();
+                    async move {
+                        match serde_yaml::to_string(&api) {
+                            Ok(yaml) => (
+                                [(::axum::http::header::CONTENT_TYPE, "application/x-yaml")],
+                                yaml,
+                            )
+                                .into_response(),
+                            Err(e) => (
+                                ::axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                                format!("Failed to serialize OpenAPI spec to YAML: {e}"),
+                            )
+                                .into_response(),
+                        }
+                    }
+                }),
+            );
+
+            // Add extension
+            (Some(router_with_yml.layer(Extension(api_mut))), None)
+        } else {
+            // No OAS spec, return the inner router
+            (None, Some(self.inner))
+        }
     }
 
-    /// Add state to the router
-    pub fn with_state<S2>(self, state: S) -> Router<S2>
+    /// Add state to the router and finalize the API
+    pub fn with_state(self, state: S) -> ::axum::Router
     where
-        S2: Clone + Send + Sync + 'static,
+        S: Clone + Send + Sync + 'static,
     {
-        Router {
-            inner: self.inner.with_state(state),
+        let (with_oas, without_oas) = self.wire_openapi_routes();
+
+        if let Some(router) = with_oas {
+            router.with_state(state)
+        } else if let Some(inner) = without_oas {
+            inner.with_state(state).into()
+        } else {
+            unreachable!("Either with_oas or without_oas must be Some")
         }
+    }
+
+    /// Finalize the API without state
+    pub fn finish(self) -> ::axum::Router<S>
+    where
+        S: Clone + Send + Sync + 'static,
+    {
+        let (with_oas, without_oas) = self.wire_openapi_routes();
+
+        with_oas.unwrap_or_else(|| {
+            without_oas.map_or_else(
+                || unreachable!("Either with_oas or without_oas must be Some"),
+                std::convert::Into::into,
+            )
+        })
     }
 
     /// Finish building the API and return an axum Router for further configuration
@@ -124,7 +330,7 @@ where
         self.inner.finish_api(api)
     }
 
-    /// Finish the API with OpenAPI spec embedded via Extension layer
+    /// Finish the API with `OpenAPI` spec embedded via Extension layer
     pub fn finish_api_with_extension(self, api: aide::openapi::OpenApi) -> ::axum::Router<S>
     where
         S: Clone + Send + Sync + 'static,
@@ -135,7 +341,7 @@ where
             .layer(Extension(api_mut))
     }
 
-    /// Convert into the underlying aide ApiRouter
+    /// Convert into the underlying aide `ApiRouter`
     pub fn into_inner(self) -> AideApiRouter<S> {
         self.inner
     }
@@ -177,12 +383,27 @@ pub trait IntoApiMethodRouter<S = ()> {
 /// accepting documented handlers decorated with `#[rovo]`.
 ///
 /// # Example
-/// ```ignore
-/// use rovo::routing::get;
+/// ```no_run
+/// use rovo::{Router, rovo, routing::{get, post, patch, delete}, aide::axum::IntoApiResponse};
+/// use axum::response::Json;
 ///
+/// #[rovo]
+/// async fn list_items() -> impl IntoApiResponse { Json(()) }
+/// #[rovo]
+/// async fn create_item() -> impl IntoApiResponse { Json(()) }
+/// #[rovo]
+/// async fn get_item() -> impl IntoApiResponse { Json(()) }
+/// #[rovo]
+/// async fn update_item() -> impl IntoApiResponse { Json(()) }
+/// #[rovo]
+/// async fn delete_item() -> impl IntoApiResponse { Json(()) }
+///
+/// # #[tokio::main]
+/// # async fn main() {
 /// Router::new()
 ///     .route("/items", get(list_items).post(create_item))
-///     .route("/items/{id}", get(get_item).patch(update_item).delete(delete_item))
+///     .route("/items/{id}", get(get_item).patch(update_item).delete(delete_item));
+/// # }
 /// ```
 pub struct ApiMethodRouter<S = ()> {
     inner: aide::axum::routing::ApiMethodRouter<S>,
@@ -192,8 +413,9 @@ impl<S> ApiMethodRouter<S>
 where
     S: Clone + Send + Sync + 'static,
 {
-    /// Create a new ApiMethodRouter from aide's ApiMethodRouter
-    pub fn new(inner: aide::axum::routing::ApiMethodRouter<S>) -> Self {
+    /// Create a new `ApiMethodRouter` from aide's `ApiMethodRouter`
+    #[must_use]
+    pub const fn new(inner: aide::axum::routing::ApiMethodRouter<S>) -> Self {
         Self { inner }
     }
 
@@ -260,15 +482,30 @@ impl<S> From<ApiMethodRouter<S>> for aide::axum::routing::ApiMethodRouter<S> {
 /// handlers decorated with `#[rovo]` and automatically include their documentation.
 ///
 /// # Example
-/// ```ignore
-/// use rovo::routing::{get, post};
+/// ```no_run
+/// use rovo::{Router, rovo, routing::{get, post, patch, delete}, aide::axum::IntoApiResponse};
+/// use axum::response::Json;
 ///
+/// #[rovo]
+/// async fn list_items() -> impl IntoApiResponse { Json(()) }
+/// #[rovo]
+/// async fn create_item() -> impl IntoApiResponse { Json(()) }
+/// #[rovo]
+/// async fn get_item() -> impl IntoApiResponse { Json(()) }
+/// #[rovo]
+/// async fn update_item() -> impl IntoApiResponse { Json(()) }
+/// #[rovo]
+/// async fn delete_item() -> impl IntoApiResponse { Json(()) }
+///
+/// # #[tokio::main]
+/// # async fn main() {
 /// Router::new()
 ///     .route("/items", get(list_items).post(create_item))
-///     .route("/items/{id}", get(get_item).patch(update_item).delete(delete_item))
+///     .route("/items/{id}", get(get_item).patch(update_item).delete(delete_item));
+/// # }
 /// ```
 pub mod routing {
-    use super::*;
+    use super::{ApiMethodRouter, IntoApiMethodRouter};
 
     /// Create a GET route with documentation from a `#[rovo]` decorated handler.
     pub fn get<S, H>(handler: H) -> ApiMethodRouter<S>
@@ -316,6 +553,7 @@ pub mod routing {
     }
 }
 
+/// Re-exports from aide's axum integration for convenience.
 pub mod axum {
     pub use aide::axum::{ApiRouter, IntoApiResponse};
 }

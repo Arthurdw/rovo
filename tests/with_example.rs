@@ -1,8 +1,8 @@
-use aide::axum::IntoApiResponse;
 use axum::extract::{Path, State};
 use axum::response::Json;
+use rovo::aide::axum::IntoApiResponse;
+use rovo::schemars::JsonSchema;
 use rovo::{routing::get, rovo, Router};
-use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -48,7 +48,7 @@ async fn get_user(State(_state): State<AppState>, Path(_id): Path<UserId>) -> im
 fn test_with_example() {
     let _state = AppState {};
 
-    let _router: Router<()> = Router::<AppState>::new()
+    let _router: ::axum::Router = Router::<AppState>::new()
         .route("/users/{id}", get(get_user))
         .with_state(_state);
 }

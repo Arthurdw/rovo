@@ -1,8 +1,8 @@
-use aide::axum::IntoApiResponse;
 use axum::extract::{Path, State};
 use axum::response::Json;
+use rovo::aide::axum::IntoApiResponse;
+use rovo::schemars::JsonSchema;
 use rovo::{routing::get, rovo, Router};
-use schemars::JsonSchema;
 use serde::Deserialize;
 use uuid::Uuid;
 
@@ -55,7 +55,7 @@ fn test_macro_compiles() {
     let _state = AppState {};
 
     // Use the new drop-in replacement routing function with our Router
-    let _router: Router<()> = Router::<AppState>::new()
+    let _router: ::axum::Router = Router::<AppState>::new()
         .route("/todo/{id}", get(get_todo))
         .with_state(_state);
 }

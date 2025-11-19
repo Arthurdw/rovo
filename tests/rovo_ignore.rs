@@ -1,5 +1,5 @@
-use aide::axum::IntoApiResponse;
 use axum::response::Json;
+use rovo::aide::axum::IntoApiResponse;
 use rovo::rovo;
 
 /// Test handler for rovo-ignore

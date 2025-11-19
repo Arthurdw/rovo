@@ -5,7 +5,7 @@ resolver = "2"
 [workspace.package]
 version = "0.1.3"
 edition = "2021"
-license = "GPL-3.0"
+license = "MIT"
 repository = "https://github.com/a-line/rovo"
 
 [package]
@@ -28,16 +28,17 @@ scalar = ["aide/scalar"]
 [dependencies]
 rovo-macros = { version = "0.1.3", path = "rovo-macros" }
 aide = { version = "0.15", features = ["axum", "axum-json"] }
-paste = "1.0"
 axum = "0.8.7"
+serde_yaml = "0.9"
+schemars = { version = "0.9", features = ["uuid1"] }
 
 [dev-dependencies]
 axum = "0.8.7"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-schemars = { version = "0.9", features = ["uuid1"] }
 tokio = { version = "1", features = ["full"] }
 uuid = { version = "1", features = ["serde", "v4"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 trybuild = "1.0"
+tower = "0.5"

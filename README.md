@@ -1,64 +1,25 @@
-# rovo
+# Rovo
 
-A drop-in replacement for axum's Router that adds automatic OpenAPI documentation using doc comments.
+OpenAPI documentation for Axum using doc comments and macros.
 
-Built on top of [aide](https://github.com/tamasfe/aide), rovo provides a seamless way to document your axum APIs without writing separate documentation functions.
+Built on [aide](https://github.com/tamasfe/aide), Rovo provides a declarative approach to API documentation through special annotations in doc comments.
 
 ## Features
 
-- 🎯 **Drop-in replacement**: Use `rovo::Router` instead of `axum::Router` with the exact same API
-- 📝 **Doc-comment driven**: Write API docs as Rust doc comments with special annotations
-- ✅ **Compile-time validation**: Catches documentation errors at compile time, not runtime
-- 🔄 **Method chaining**: Supports `.post()`, `.patch()`, `.delete()` just like axum
-- 🚀 **Simplified setup**: Helper methods for Swagger UI and OpenAPI JSON endpoints
-- 🏷️ **Rich annotations**: Support for tags, security, deprecation, examples, and more
-- ⚡ **Type-safe**: Full type checking for response types and examples
-- 🪶 **Lightweight**: Minimal overhead over plain axum
-
-## Installation
-
-```toml
-[dependencies]
-rovo = { version = "0.1", features = ["swagger"] }  # Choose your UI: swagger, redoc, or scalar
-aide = { version = "0.15", features = ["axum"] }
-axum = "0.8"
-schemars = "0.8"
-serde = { version = "1.0", features = ["derive"] }
-```
-
-### Feature Flags
-
-Rovo supports multiple OpenAPI documentation UIs through feature flags. **Note: No UI is enabled by default** - you must explicitly choose which UI(s) to use:
-
-- **`swagger`** - Enables Swagger UI support
-- **`redoc`** - Enables Redoc UI support
-- **`scalar`** - Enables Scalar UI support
-
-You can enable one or multiple UIs:
-
-```toml
-[dependencies]
-# Use Swagger UI
-rovo = { version = "0.1", features = ["swagger"] }
-
-# Use Redoc
-rovo = { version = "0.1", features = ["redoc"] }
-
-# Use Scalar
-rovo = { version = "0.1", features = ["scalar"] }
-
-# Use all three UIs
-rovo = { version = "0.1", features = ["swagger", "redoc", "scalar"] }
-```
+- Drop-in replacement for `axum::Router`
+- Doc-comment driven documentation
+- Compile-time validation of annotations
+- Method chaining support (`.post()`, `.patch()`, `.delete()`)
+- Built-in Swagger/Redoc/Scalar UI integration
+- Type-safe response definitions
+- Minimal runtime overhead
 
 ## Quick Start
 
 ```rust
-use aide::axum::IntoApiResponse;
-use aide::openapi::OpenApi;
-use axum::{extract::State, response::Json, Extension};
-use rovo::{rovo, Router, routing::get};
-use schemars::JsonSchema;
+use rovo::{rovo, Router, routing::get, schemars::JsonSchema};
+use rovo::aide::{axum::IntoApiResponse, openapi::OpenApi};
+use axum::{extract::State, response::Json};
 use serde::Serialize;
 
 #[derive(Clone)]
@@ -84,10 +45,6 @@ async fn get_user(State(_state): State<AppState>) -> impl IntoApiResponse {
     })
 }
 
-async fn serve_api(Extension(api): Extension<OpenApi>) -> axum::Json<OpenApi> {
-    axum::Json(api)
-}
-
 #[tokio::main]
 async fn main() {
     let state = AppState {};
@@ -97,10 +54,9 @@ async fn main() {
 
     let app = Router::new()
         .route("/user", get(get_user))
-        .with_swagger("/", "/api.json")
-        .with_api_json("/api.json", serve_api)
-        .with_state(state)
-        .finish_api_with_extension(api);
+        .with_oas(api)
+        .with_swagger("/")
+        .with_state(state);
 
     let listener = tokio::net::TcpListener::bind("127.0.0.1:3000")
         .await
@@ -110,30 +66,29 @@ async fn main() {
 }
 ```
 
-Visit `http://127.0.0.1:3000` to see your interactive Swagger UI documentation!
+## Installation
 
-## Documentation Annotations
-
-### Basic Structure
-
-```rust
-/// Title (first line becomes the summary)
-///
-/// Description paragraph can span multiple lines
-/// and provides detailed information about the endpoint.
-///
-/// @tag category_name
-/// @response 200 Json<ResponseType> Success description
-/// @response 404 () Not found description
-#[rovo]
-async fn handler() -> impl IntoApiResponse {
-    // ...
-}
+```toml
+[dependencies]
+rovo = { version = "0.1", features = ["swagger"] }
+axum = "0.8"
+serde = { version = "1.0", features = ["derive"] }
+tokio = { version = "1", features = ["full"] }
 ```
 
-### Available Annotations
+> **Note:** Rovo re-exports `aide` and `schemars`, so you don't need to add them as separate dependencies. Access them via `rovo::aide` and `rovo::schemars`.
 
-#### `@response <code> <type> <description>`
+### Feature Flags
+
+Choose one or more documentation UIs (none enabled by default):
+
+- `swagger` - Swagger UI
+- `redoc` - Redoc UI
+- `scalar` - Scalar UI
+
+## Annotations
+
+### `@response <code> <type> <description>`
 
 Document response status codes:
 
@@ -143,22 +98,16 @@ Document response status codes:
 /// @response 500 Json<ErrorResponse> Internal server error
 ```
 
-#### `@example <code> <expression>`
+### `@example <code> <expression>`
 
 Provide example responses:
 
 ```rust
 /// @response 200 Json<User> User information
-/// @example 200 User::default()
-```
-
-Or with custom values:
-
-```rust
 /// @example 200 User { id: 1, name: "Alice".into(), email: "alice@example.com".into() }
 ```
 
-#### `@tag <tag_name>`
+### `@tag <tag_name>`
 
 Group operations by tags (can be used multiple times):
 
@@ -167,41 +116,37 @@ Group operations by tags (can be used multiple times):
 /// @tag authentication
 ```
 
-Tags help organize your API in Swagger UI by grouping related endpoints together.
-
-#### `@security <scheme_name>`
+### `@security <scheme_name>`
 
 Specify security requirements (can be used multiple times):
 
 ```rust
 /// @security bearer_auth
-/// @security api_key
 ```
 
-Note: You need to define security schemes in your OpenAPI spec separately.
+Security schemes must be defined in your OpenAPI spec. See [Tips](#tips) for details.
 
-#### `@id <operation_id>`
+### `@id <operation_id>`
 
-Set a custom operation ID (defaults to function name):
+Set custom operation ID (defaults to function name):
 
 ```rust
 /// @id getUserById
 ```
 
-#### `@hidden`
+### `@hidden`
 
-Hide an operation from the documentation:
+Hide an operation from documentation:
 
 ```rust
 /// @hidden
 ```
 
-#### `#[deprecated]`
+### `#[deprecated]`
 
-Use Rust's built-in deprecation attribute to mark endpoints as deprecated:
+Mark endpoints as deprecated using Rust's built-in attribute:
 
 ```rust
-/// Old endpoint, use /v2/users instead
 #[deprecated]
 #[rovo]
 async fn old_handler() -> impl IntoApiResponse {
@@ -209,32 +154,27 @@ async fn old_handler() -> impl IntoApiResponse {
 }
 ```
 
-#### `@rovo-ignore`
+### `@rovo-ignore`
 
-Stop processing doc comment annotations after this point:
+Stop processing annotations after this point:
 
 ```rust
 /// Get user information.
 ///
-/// Returns the current user's profile information.
-///
 /// @tag users
 /// @response 200 Json<User> User found successfully
 /// @rovo-ignore
-/// Everything after this line is treated as regular documentation
-/// and won't be processed for OpenAPI annotations.
-/// You can write @anything here and it won't cause errors.
+/// Additional documentation here won't be processed.
+/// You can write @anything without causing errors.
 #[rovo]
 async fn handler() -> impl IntoApiResponse {
     // ...
 }
 ```
 
-This is useful when you want to include additional developer documentation that shouldn't be part of the API specification.
-
 ## Router API
 
-### Creating a Router
+### Basic Usage
 
 ```rust
 use rovo::Router;
@@ -245,8 +185,6 @@ let app = Router::new()
 ```
 
 ### Method Chaining
-
-Rovo supports the same method chaining as axum:
 
 ```rust
 use rovo::routing::{get, post, patch, delete};
@@ -268,228 +206,101 @@ Router::new()
     )
 ```
 
-### Adding Documentation UI
-
-#### Swagger UI
+### Documentation UIs
 
 ```rust
 Router::new()
     .route("/users", get(list_users))
-    .with_swagger("/docs", "/api.json")  // Swagger UI at /docs
-    .with_api_json("/api.json", serve_api)
+    .with_oas(api)
+    .with_swagger("/swagger")
+    .with_redoc("/redoc")
+    .with_scalar("/scalar")
     .with_state(state)
-    .finish_api_with_extension(api)
 ```
 
-#### Redoc UI
+Use custom OAS route:
 
 ```rust
 Router::new()
     .route("/users", get(list_users))
-    .with_redoc("/docs", "/api.json")  // Redoc UI at /docs
-    .with_api_json("/api.json", serve_api)
+    .with_oas_route(api, "/openapi")
+    .with_swagger("/")
     .with_state(state)
-    .finish_api_with_extension(api)
 ```
 
-#### Scalar UI
+## OpenAPI Formats
 
-```rust
-Router::new()
-    .route("/users", get(list_users))
-    .with_scalar("/docs", "/api.json")  // Scalar UI at /docs
-    .with_api_json("/api.json", serve_api)
-    .with_state(state)
-    .finish_api_with_extension(api)
-```
+Rovo automatically serves your OpenAPI specification in multiple formats:
 
-#### Multiple UIs
+- **JSON** - `/api.json` (default)
+- **YAML** - `/api.yaml` or `/api.yml`
 
-You can serve multiple UIs at different paths:
+All formats are automatically available when you use `.with_oas()` or `.with_oas_route()`.
 
-```rust
-Router::new()
-    .route("/users", get(list_users))
-    .with_swagger("/swagger", "/api.json")  // Swagger UI at /swagger
-    .with_redoc("/redoc", "/api.json")      // Redoc UI at /redoc
-    .with_scalar("/scalar", "/api.json")    // Scalar UI at /scalar
-    .with_api_json("/api.json", serve_api)
-    .with_state(state)
-    .finish_api_with_extension(api)
-```
+## Examples
 
-## Complete Example
+See [examples/todo_api.rs](./examples/todo_api.rs) for a complete CRUD API.
 
-See [examples/todo_api.rs](./examples/todo_api.rs) for a full CRUD API with:
-- Create, Read, Update, Delete operations
-- Swagger UI integration
-- Proper error handling
-- Request/response validation
-- Nested routing
-
-Run it with:
+Run with:
 
 ```bash
 cargo run -F swagger --example todo_api
-# Visit http://127.0.0.1:3000 for Swagger UI
 ```
 
-## Migration Guide
+## Migration from Axum
 
-### From Axum 0.8+
-
-Migrating an existing axum project to rovo is straightforward:
-
-#### Step 1: Update Dependencies
-
-```toml
-[dependencies]
-# Add these
-rovo = "0.1"
-aide = { version = "0.15", features = ["axum"] }
-schemars = "0.8"
-
-# Keep your existing axum
-axum = "0.8"
-```
-
-#### Step 2: Replace Router Import
+Replace imports and add documentation:
 
 ```rust
 // Before
-use axum::Router;
+use axum::{Router, response::IntoResponse, routing::get};
 
-// After
-use rovo::Router;
-```
-
-#### Step 3: Update Handler Return Types
-
-```rust
-// Before
-use axum::response::IntoResponse;
 async fn handler() -> impl IntoResponse {
     Json(data)
 }
 
 // After
-use aide::axum::IntoApiResponse;
+use rovo::{Router, routing::get, schemars::JsonSchema};
+use rovo::aide::axum::IntoApiResponse;
+
+/// Handler description
+///
+/// @tag category
+/// @response 200 Json<Data> Success
+#[rovo]
 async fn handler() -> impl IntoApiResponse {
     Json(data)
 }
 ```
 
-#### Step 4: Add the #[rovo] Macro and Docs
+Add OpenAPI setup in `main()`:
 
 ```rust
-// Before
-async fn get_user(State(state): State<AppState>) -> impl IntoApiResponse {
-    Json(user)
-}
+use rovo::aide::openapi::OpenApi;
 
-// After
-/// Get user by ID
-///
-/// @tag users
-/// @response 200 Json<User> User found
-/// @response 404 () User not found
-#[rovo]
-async fn get_user(State(state): State<AppState>) -> impl IntoApiResponse {
-    Json(user)
-}
+let mut api = OpenApi::default();
+api.info.title = "My API".to_string();
+
+let app = Router::new()
+    .route("/path", get(handler))
+    .with_oas(api)
+    .with_swagger("/")
+    .with_state(state);
 ```
 
-#### Step 5: Update Routing Imports
-
-```rust
-// Before
-use axum::routing::{get, post};
-
-// After
-use rovo::routing::{get, post};
-```
-
-#### Step 6: Add OpenAPI Setup
-
-```rust
-use aide::openapi::OpenApi;
-use axum::Extension;
-
-async fn serve_api(Extension(api): Extension<OpenApi>) -> axum::Json<OpenApi> {
-    axum::Json(api)
-}
-
-#[tokio::main]
-async fn main() {
-    let state = AppState::new();
-
-    let mut api = OpenApi::default();
-    api.info.title = "My API".to_string();
-    api.info.description = Some("API description".to_string());
-
-    let app = Router::new()
-        .route("/users", get(list_users))
-        // ... your other routes
-        .with_swagger("/", "/api.json")
-        .with_api_json("/api.json", serve_api)
-        .with_state(state)
-        .finish_api_with_extension(api);
-
-    let listener = tokio::net::TcpListener::bind("127.0.0.1:3000")
-        .await
-        .unwrap();
-
-    axum::serve(listener, app).await.unwrap();
-}
-```
-
-### Migration Checklist
-
-- [ ] Add `rovo` and `aide` dependencies
-- [ ] Change `axum::Router` to `rovo::Router`
-- [ ] Change `IntoResponse` to `IntoApiResponse`
-- [ ] Add `#[rovo]` macro to handlers
-- [ ] Add doc comments with `@response` annotations
-- [ ] Change `axum::routing::*` to `rovo::routing::*`
-- [ ] Add OpenAPI configuration
-- [ ] Add Swagger UI setup
-- [ ] Test all endpoints
-
-### Incremental Migration
-
-You can migrate gradually by mixing rovo and aide routing:
-
-```rust
-use rovo::routing::get as rovo_get;
-use aide::axum::routing::get as aide_get;
-
-Router::new()
-    .route("/documented", rovo_get(documented_handler))  // Migrated with #[rovo]
-    .route("/legacy", aide_get(legacy_handler))          // Not yet migrated
-```
-
-However, we recommend fully migrating to `#[rovo]` for all endpoints to maintain consistency.
-
-## Comparison with aide
-
-| Feature | aide | rovo |
-|---------|------|------|
-| Documentation location | Separate `_docs` function | With handler (doc comments) |
-| Routing API | aide's `api_route()` | Drop-in axum replacement |
-| Method chaining | Custom implementation | Native axum syntax |
-| Setup complexity | Manual | Helper methods |
-| Lines of code per endpoint | ~15-20 | ~5-10 |
-
-## Tips and Best Practices
+## Tips
 
 ### Path Parameters
 
-Use structs with `JsonSchema` for proper documentation:
+Use structs with `JsonSchema`:
 
 ```rust
+use rovo::schemars::JsonSchema;
+use serde::Deserialize;
+use uuid::Uuid;
+
 #[derive(Deserialize, JsonSchema)]
 struct UserId {
-    /// The unique user identifier
     id: Uuid,
 }
 
@@ -499,38 +310,13 @@ async fn get_user(Path(UserId { id }): Path<UserId>) -> impl IntoApiResponse {
 }
 ```
 
-### Complex Response Types
+### Security Schemes
 
-For handlers that return multiple types, use `impl IntoApiResponse`:
-
-```rust
-#[rovo]
-async fn handler() -> impl IntoApiResponse {
-    if condition {
-        (StatusCode::OK, Json(data)).into_response()
-    } else {
-        StatusCode::NOT_FOUND.into_response()
-    }
-}
-```
-
-### Tags for Organization
-
-Use consistent tags to organize your API:
+Define in OpenAPI object:
 
 ```rust
-/// @tag users
-/// @tag admin
-```
+use rovo::aide::openapi::{SecurityScheme, SecuritySchemeData};
 
-### Security Documentation
-
-Define security schemes in your OpenAPI object:
-
-```rust
-use aide::openapi::{SecurityScheme, SecuritySchemeData};
-
-let mut api = OpenApi::default();
 api.components.get_or_insert_default()
     .security_schemes
     .insert(
@@ -545,7 +331,7 @@ api.components.get_or_insert_default()
     );
 ```
 
-Then reference it in handlers:
+Reference in handlers:
 
 ```rust
 /// @security bearer_auth
@@ -559,22 +345,18 @@ async fn protected_handler() -> impl IntoApiResponse {
 
 ### Handler doesn't implement required traits
 
-**Error**: "doesn't implement `IntoApiMethodRouter`"
-
-**Solution**: Make sure you added the `#[rovo]` macro to your handler:
+Add the `#[rovo]` macro:
 
 ```rust
-#[rovo]  // Don't forget this!
+#[rovo]
 async fn handler() -> impl IntoApiResponse {
     // ...
 }
 ```
 
-### Type mismatch errors with `.with_state()`
+### Type mismatch with `.with_state()`
 
-**Error**: Type mismatch when calling `.with_state()`
-
-**Solution**: Add explicit type annotation:
+Add explicit type annotation:
 
 ```rust
 let router: Router<()> = Router::<AppState>::new()
@@ -582,10 +364,74 @@ let router: Router<()> = Router::<AppState>::new()
     .with_state(state);
 ```
 
+## Comparison with aide
+
+| Feature | aide | rovo |
+|---------|------|------|
+| Documentation | Separate `_docs` function | Doc comments |
+| Routing | `api_route()` | Native axum syntax |
+| Method chaining | Custom | Standard axum |
+| Lines per endpoint | ~15-20 | ~5-10 |
+
+## Development
+
+This project uses [just](https://github.com/casey/just) for common development tasks.
+
+### Quick Start
+
+```bash
+# List all available commands
+just
+
+# Run all checks (format, clippy, tests)
+just check
+
+# Fix formatting and clippy issues
+just fix
+
+# Run tests
+just test
+
+# Check for outdated dependencies
+just outdated
+
+# Check for unused dependencies
+just unused-deps
+
+# Check for security vulnerabilities
+just audit
+```
+
+### Pre-commit Hooks
+
+Uses prek for git hooks:
+
+```bash
+prek install
+prek run  # Run manually
+```
+
+### Available Commands
+
+- `just test` - Run all tests
+- `just lint` - Run clippy lints
+- `just fmt` - Format code
+- `just check` - Run all checks (fmt, clippy, test)
+- `just fix` - Run all checks and fixes
+- `just build` - Build the project
+- `just example` - Run the todo_api example
+- `just outdated` - Check for outdated dependencies
+- `just unused-deps` - Check for unused dependencies
+- `just audit` - Check for security vulnerabilities
+- `just docs` - Build and open documentation
+- `just pre-release` - Run all pre-release checks
+
+See `just --list` for all available commands.
+
 ## Contributing
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+Contributions are welcome. Please submit a Pull Request.
 
 ## License
 
-GPL-3.0
+MIT

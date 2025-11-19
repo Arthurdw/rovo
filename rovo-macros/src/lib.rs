@@ -1,12 +1,29 @@
+#![warn(clippy::all)]
+#![warn(clippy::nursery)]
+#![warn(clippy::pedantic)]
+#![warn(missing_docs)]
+#![warn(rust_2018_idioms)]
+#![deny(unsafe_code)]
+// Allow some overly strict pedantic lints
+#![allow(clippy::too_many_lines)]
+#![allow(clippy::similar_names)]
+
+//! Procedural macros for the Rovo `OpenAPI` documentation framework.
+//!
+//! This crate provides the `#[rovo]` attribute macro that processes doc comments
+//! with special annotations to generate `OpenAPI` documentation automatically.
+
 use proc_macro::TokenStream;
 use quote::{quote, quote_spanned};
 
 mod parser;
+mod utils;
+
 use parser::parse_rovo_function;
 
-/// Macro that generates OpenAPI documentation from doc comments.
+/// Macro that generates `OpenAPI` documentation from doc comments.
 ///
-/// This macro automatically generates OpenAPI documentation for your handlers
+/// This macro automatically generates `OpenAPI` documentation for your handlers
 /// using doc comments with special annotations.
 ///
 /// # Supported Annotations
@@ -19,11 +36,11 @@ use parser::parse_rovo_function;
 /// - `@hidden` - Hide this operation from documentation
 ///
 /// Additionally, the Rust `#[deprecated]` attribute is automatically detected
-/// and will mark the operation as deprecated in the OpenAPI spec.
+/// and will mark the operation as deprecated in the `OpenAPI` spec.
 ///
 /// # Example
 ///
-/// ```ignore
+/// ```rust,ignore
 /// /// Get a single Todo item.
 /// ///
 /// /// Retrieve a Todo item by its ID from the database.
@@ -52,7 +69,7 @@ use parser::parse_rovo_function;
 /// ```
 #[proc_macro_attribute]
 pub fn rovo(_attr: TokenStream, item: TokenStream) -> TokenStream {
-    let input = item.clone();
+    let input = item;
 
     match parse_rovo_function(input.into()) {
         Ok((func_item, doc_info)) => {
@@ -75,24 +92,29 @@ pub fn rovo(_attr: TokenStream, item: TokenStream) -> TokenStream {
                         let desc = &resp.description;
 
                         // Check if there's an explicit example for this status code
-                        if let Some(example) =
-                            doc_info.examples.iter().find(|e| e.status_code == code)
-                        {
-                            let example_code = &example.example_code;
-                            quote! {
-                                .response_with::<#code, #response_type, _>(|res| {
-                                    res.description(#desc)
-                                        .example(#example_code)
-                                })
-                            }
-                        } else {
-                            // No explicit example, just add the description
-                            quote! {
-                                .response_with::<#code, #response_type, _>(|res| {
-                                    res.description(#desc)
-                                })
-                            }
-                        }
+                        doc_info
+                            .examples
+                            .iter()
+                            .find(|e| e.status_code == code)
+                            .map_or_else(
+                                || {
+                                    // No explicit example, just add the description
+                                    quote! {
+                                        .response_with::<#code, #response_type, _>(|res| {
+                                            res.description(#desc)
+                                        })
+                                    }
+                                },
+                                |example| {
+                                    let example_code = &example.example_code;
+                                    quote! {
+                                        .response_with::<#code, #response_type, _>(|res| {
+                                            res.description(#desc)
+                                                .example(#example_code)
+                                        })
+                                    }
+                                },
+                            )
                     })
                     .collect()
             };
@@ -116,17 +138,18 @@ pub fn rovo(_attr: TokenStream, item: TokenStream) -> TokenStream {
                 .collect();
 
             // Generate operation ID setter
-            let operation_id_setter = if let Some(id) = &doc_info.operation_id {
-                quote! { .id(#id) }
-            } else {
-                // Default to function name if no custom ID provided
-                let default_id = func_name.to_string();
-                quote! { .id(#default_id) }
-            };
+            let operation_id_setter = doc_info.operation_id.as_ref().map_or_else(
+                || {
+                    // Default to function name if no custom ID provided
+                    let default_id = func_name.to_string();
+                    quote! { .id(#default_id) }
+                },
+                |id| quote! { .id(#id) },
+            );
 
             // Generate deprecated setter
             let deprecated_setter = if doc_info.deprecated {
-                quote! { .deprecated(true) }
+                quote! { .with(|mut op| { op.inner_mut().deprecated = true; op }) }
             } else {
                 quote! {}
             };
@@ -151,8 +174,7 @@ pub fn rovo(_attr: TokenStream, item: TokenStream) -> TokenStream {
             let state_type = func_item
                 .state_type
                 .as_ref()
-                .map(|st| quote! { #st })
-                .unwrap_or(quote! { () });
+                .map_or_else(|| quote! { () }, |st| quote! { #st });
 
             let output = quote! {
                 // Internal implementation with renamed function
@@ -212,15 +234,18 @@ pub fn rovo(_attr: TokenStream, item: TokenStream) -> TokenStream {
         Err(err) => {
             let err_msg = err.to_string();
             // Use the span from the error if available, otherwise use call_site
-            let error_tokens = if let Some(span) = err.span() {
-                quote_spanned! {span=>
-                    compile_error!(#err_msg);
-                }
-            } else {
-                quote! {
-                    compile_error!(#err_msg);
-                }
-            };
+            let error_tokens = err.span().map_or_else(
+                || {
+                    quote! {
+                        compile_error!(#err_msg);
+                    }
+                },
+                |span| {
+                    quote_spanned! {span=>
+                        compile_error!(#err_msg);
+                    }
+                },
+            );
             error_tokens.into()
         }
     }

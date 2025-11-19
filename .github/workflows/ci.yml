@@ -67,10 +67,10 @@ jobs:
         uses: taiki-e/install-action@nextest
 
       - name: Run tests
-        run: cargo nextest run --all-features --all
+        run: cargo nextest run --all-features --workspace
 
       - name: Run doc tests
-        run: cargo test --doc --all-features --all
+        run: cargo test --doc --all-features --workspace
 
   check:
     name: Cargo Check
@@ -84,7 +84,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
 
       - name: Check compilation
-        run: cargo check --all --all-features
+        run: cargo check --workspace --all-features
 
   coverage:
     name: Code Coverage
@@ -110,3 +110,4 @@ jobs:
         with:
           files: lcov.info
           fail_ci_if_error: false
+          token: ${{ secrets.CODECOV_TOKEN }}

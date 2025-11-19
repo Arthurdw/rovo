@@ -31,15 +31,42 @@ repos:
 
       - id: cargo-nextest
         name: cargo nextest
-        entry: cargo nextest run --all
+        entry: cargo nextest run --workspace --all-features
         language: system
         types: [rust]
         pass_filenames: false
-        stages: [push]
+        stages: [commit]
+
+      - id: cargo-machete
+        name: cargo machete
+        entry: cargo machete
+        language: system
+        types: [toml]
+        files: Cargo.toml
+        pass_filenames: false
+        stages: [commit]
+
+      - id: cargo-audit
+        name: cargo audit
+        entry: cargo audit
+        language: system
+        types: [toml]
+        files: Cargo.lock
+        pass_filenames: false
+        stages: [commit]
+
+      - id: cargo-deny
+        name: cargo deny check
+        entry: cargo deny check
+        language: system
+        types: [toml]
+        files: (Cargo.toml|Cargo.lock|deny.toml)
+        pass_filenames: false
+        stages: [commit]
 
       - id: cargo-check
         name: cargo check
-        entry: cargo check --all --all-features
+        entry: cargo check --workspace --all-features
         language: system
         types: [rust]
         pass_filenames: false
@@ -59,5 +86,5 @@ repos:
       - id: check-merge-conflict
         stages: [commit]
       - id: mixed-line-ending
-        args: ['--fix=lf']
+        args: ["--fix=lf"]
         stages: [commit]
