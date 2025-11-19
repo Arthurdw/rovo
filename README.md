@@ -395,6 +395,9 @@ just test
 # Check for outdated dependencies
 just outdated
 
+# Check for unused dependencies
+just unused-deps
+
 # Check for security vulnerabilities
 just audit
 ```
@@ -409,6 +412,7 @@ just audit
 - `just build` - Build the project
 - `just example` - Run the todo_api example
 - `just outdated` - Check for outdated dependencies
+- `just unused-deps` - Check for unused dependencies
 - `just audit` - Check for security vulnerabilities
 - `just docs` - Build and open documentation
 - `just pre-release` - Run all pre-release checks

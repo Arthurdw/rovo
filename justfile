@@ -63,6 +63,10 @@ outdated:
 audit:
     cargo audit
 
+# Check for unused dependencies
+unused-deps:
+    cargo machete
+
 # Update dependencies
 update:
     cargo update
@@ -84,6 +88,7 @@ install-tools:
     cargo install cargo-outdated
     cargo install cargo-audit
     cargo install cargo-edit
+    cargo install cargo-machete
 
 # Prepare for release (run all checks)
 pre-release: fmt lint test

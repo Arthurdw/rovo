@@ -77,6 +77,24 @@ jobs:
           name: outdated-dependencies-report
           path: outdated-report.md
 
+  unused:
+    name: Check Unused Dependencies
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Install cargo-machete
+        run: cargo install cargo-machete
+
+      - name: Check for unused dependencies
+        run: cargo machete
+
   dependency-review:
     name: Dependency Review
     runs-on: ubuntu-latest
