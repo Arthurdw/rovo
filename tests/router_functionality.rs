@@ -1,10 +1,10 @@
-use aide::openapi::OpenApi;
+use rovo::aide::openapi::OpenApi;
 use axum::extract::State;
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Json, Response};
 use rovo::routing::{delete, get, patch};
 use rovo::{rovo, Router};
-use schemars::JsonSchema;
+use rovo::schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone)]

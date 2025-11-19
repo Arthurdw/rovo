@@ -142,6 +142,14 @@ jobs:
         if: steps.check_release.outputs.needs_release == 'true'
         run: echo "VERSION=$(grep -m 1 '^version =' Cargo.toml | cut -d '"' -f 2)" >> $GITHUB_ENV
 
+      - name: Update README version references
+        if: steps.check_release.outputs.needs_release == 'true'
+        run: |
+          # Update version references in README.md
+          sed -i 's/rovo = { version = "[^"]*"/rovo = { version = "'"${{ env.VERSION }}"'"/g' README.md
+          sed -i 's/rovo = "[^"]*"/rovo = "'"${{ env.VERSION }}"'"/g' README.md
+          git add README.md
+
       - name: Commit version bump
         if: steps.check_release.outputs.needs_release == 'true'
         run: |

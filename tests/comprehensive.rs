@@ -1,11 +1,11 @@
-use aide::axum::IntoApiResponse;
+use rovo::aide::axum::IntoApiResponse;
 use axum::{
     extract::{Path, State},
     http::StatusCode,
     response::{IntoResponse, Json},
 };
 use rovo::{routing::get, rovo, Router};
-use schemars::JsonSchema;
+use rovo::schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -90,8 +90,8 @@ fn test_macro_generates_docs_function() {
 
 #[test]
 fn test_docs_function_callable() {
-    use aide::openapi::Operation;
-    use aide::transform::TransformOperation;
+    use rovo::aide::openapi::Operation;
+    use rovo::aide::transform::TransformOperation;
 
     // Create a mock operation
     let mut operation = Operation::default();

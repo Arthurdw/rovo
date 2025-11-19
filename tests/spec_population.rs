@@ -1,10 +1,10 @@
-use aide::openapi::OpenApi;
+use rovo::aide::openapi::OpenApi;
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Json, Response};
 use rovo::routing::get;
 use rovo::{rovo, Router};
-use schemars::JsonSchema;
+use rovo::schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone)]
@@ -247,7 +247,7 @@ fn test_spec_contains_operation_id() {
 
 #[test]
 fn test_spec_contains_request_body() {
-    use aide::axum::IntoApiResponse;
+    use rovo::aide::axum::IntoApiResponse;
     use axum::response::Json;
 
     #[derive(Deserialize, JsonSchema)]

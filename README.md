@@ -14,42 +14,12 @@ Built on [aide](https://github.com/tamasfe/aide), Rovo provides a declarative ap
 - Type-safe response definitions
 - Minimal runtime overhead
 
-## Installation
-
-```toml
-[dependencies]
-rovo = { version = "0.1", features = ["swagger"] }
-aide = { version = "0.15", features = ["axum"] }
-axum = "0.8"
-schemars = "0.8"
-serde = { version = "1.0", features = ["derive"] }
-```
-
-### Feature Flags
-
-Choose one or more documentation UIs (none enabled by default):
-
-- `swagger` - Swagger UI
-- `redoc` - Redoc UI
-- `scalar` - Scalar UI
-
-## OpenAPI Formats
-
-Rovo automatically serves your OpenAPI specification in multiple formats:
-
-- **JSON** - `/api.json` (default)
-- **YAML** - `/api.yaml` or `/api.yml`
-
-All formats are automatically available when you use `.with_oas()`.
-
 ## Quick Start
 
 ```rust
-use aide::axum::IntoApiResponse;
-use aide::openapi::OpenApi;
-use axum::{extract::State, response::Json, Extension};
-use rovo::{rovo, Router, routing::get};
-use schemars::JsonSchema;
+use rovo::{rovo, Router, routing::get, schemars::JsonSchema};
+use rovo::aide::{axum::IntoApiResponse, openapi::OpenApi};
+use axum::{extract::State, response::Json};
 use serde::Serialize;
 
 #[derive(Clone)]
@@ -96,6 +66,26 @@ async fn main() {
 }
 ```
 
+## Installation
+
+```toml
+[dependencies]
+rovo = { version = "0.1", features = ["swagger"] }
+axum = "0.8"
+serde = { version = "1.0", features = ["derive"] }
+tokio = { version = "1", features = ["full"] }
+```
+
+> **Note:** Rovo re-exports `aide` and `schemars`, so you don't need to add them as separate dependencies. Access them via `rovo::aide` and `rovo::schemars`.
+
+### Feature Flags
+
+Choose one or more documentation UIs (none enabled by default):
+
+- `swagger` - Swagger UI
+- `redoc` - Redoc UI
+- `scalar` - Scalar UI
+
 ## Annotations
 
 ### `@response <code> <type> <description>`
@@ -119,7 +109,7 @@ Provide example responses:
 
 ### `@tag <tag_name>`
 
-Group operations by tags:
+Group operations by tags (can be used multiple times):
 
 ```rust
 /// @tag users
@@ -128,13 +118,13 @@ Group operations by tags:
 
 ### `@security <scheme_name>`
 
-Specify security requirements:
+Specify security requirements (can be used multiple times):
 
 ```rust
 /// @security bearer_auth
 ```
 
-Security schemes must be defined in your OpenAPI spec.
+Security schemes must be defined in your OpenAPI spec. See [Tips](#tips) for details.
 
 ### `@id <operation_id>`
 
@@ -233,14 +223,19 @@ Use custom OAS route:
 ```rust
 Router::new()
     .route("/users", get(list_users))
-    .with_oas_route(api, "/openapi")  // Creates /openapi.json, /openapi.yaml, and /openapi.yml
+    .with_oas_route(api, "/openapi")
     .with_swagger("/")
     .with_state(state)
 ```
 
-The OpenAPI spec is automatically available in multiple formats:
-- JSON: `/api.json` (or `/openapi.json` with custom route)
-- YAML: `/api.yaml` or `/api.yml` (or `/openapi.yaml`/`/openapi.yml` with custom route)
+## OpenAPI Formats
+
+Rovo automatically serves your OpenAPI specification in multiple formats:
+
+- **JSON** - `/api.json` (default)
+- **YAML** - `/api.yaml` or `/api.yml`
+
+All formats are automatically available when you use `.with_oas()` or `.with_oas_route()`.
 
 ## Examples
 
@@ -265,8 +260,8 @@ async fn handler() -> impl IntoResponse {
 }
 
 // After
-use rovo::{Router, routing::get};
-use aide::axum::IntoApiResponse;
+use rovo::{Router, routing::get, schemars::JsonSchema};
+use rovo::aide::axum::IntoApiResponse;
 
 /// Handler description
 ///
@@ -281,7 +276,7 @@ async fn handler() -> impl IntoApiResponse {
 Add OpenAPI setup in `main()`:
 
 ```rust
-use aide::openapi::OpenApi;
+use rovo::aide::openapi::OpenApi;
 
 let mut api = OpenApi::default();
 api.info.title = "My API".to_string();
@@ -293,15 +288,6 @@ let app = Router::new()
     .with_state(state);
 ```
 
-## Comparison with aide
-
-| Feature | aide | rovo |
-|---------|------|------|
-| Documentation | Separate `_docs` function | Doc comments |
-| Routing | `api_route()` | Native axum syntax |
-| Method chaining | Custom | Standard axum |
-| Lines per endpoint | ~15-20 | ~5-10 |
-
 ## Tips
 
 ### Path Parameters
@@ -309,6 +295,10 @@ let app = Router::new()
 Use structs with `JsonSchema`:
 
 ```rust
+use rovo::schemars::JsonSchema;
+use serde::Deserialize;
+use uuid::Uuid;
+
 #[derive(Deserialize, JsonSchema)]
 struct UserId {
     id: Uuid,
@@ -325,7 +315,7 @@ async fn get_user(Path(UserId { id }): Path<UserId>) -> impl IntoApiResponse {
 Define in OpenAPI object:
 
 ```rust
-use aide::openapi::{SecurityScheme, SecuritySchemeData};
+use rovo::aide::openapi::{SecurityScheme, SecuritySchemeData};
 
 api.components.get_or_insert_default()
     .security_schemes
@@ -373,6 +363,15 @@ let router: Router<()> = Router::<AppState>::new()
     .route("/path", get(handler))
     .with_state(state);
 ```
+
+## Comparison with aide
+
+| Feature | aide | rovo |
+|---------|------|------|
+| Documentation | Separate `_docs` function | Doc comments |
+| Routing | `api_route()` | Native axum syntax |
+| Method chaining | Custom | Standard axum |
+| Lines per endpoint | ~15-20 | ~5-10 |
 
 ## Contributing
 

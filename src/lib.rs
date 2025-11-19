@@ -39,8 +39,9 @@
 
 pub use rovo_macros::rovo;
 
-// Re-export aide for convenience
+// Re-export aide and schemars for convenience
 pub use aide;
+pub use schemars;
 
 use ::axum::{response::IntoResponse, Extension};
 use aide::axum::ApiRouter as AideApiRouter;

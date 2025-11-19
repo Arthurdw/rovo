@@ -1,5 +1,5 @@
 #![allow(unused_imports)]
-use aide::axum::IntoApiResponse;
+use rovo::aide::axum::IntoApiResponse;
 use axum::response::Json;
 use rovo::rovo;
 
