@@ -1,7 +1,13 @@
 [package]
 name = "rovo-lsp"
-version = "0.1.0"
-edition = "2021"
+version.workspace = true
+edition.workspace = true
+description = "Language Server Protocol implementation for Rovo annotation validation and completion"
+license.workspace = true
+repository.workspace = true
+readme = "README.md"
+keywords = ["lsp", "language-server", "rovo", "openapi", "neovim"]
+categories = ["development-tools", "text-editors"]
 
 [[bin]]
 name = "rovo-lsp"

@@ -19,6 +19,8 @@ jobs:
         include:
           - crate: rovo-macros
             path: rovo-macros
+          - crate: rovo-lsp
+            path: rovo-lsp
           - crate: rovo
             path: .
       max-parallel: 1

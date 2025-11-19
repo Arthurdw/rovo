@@ -44,6 +44,12 @@ use {
 
 ### Manual
 
+Install the LSP server from crates.io:
+```bash
+cargo install rovo-lsp
+```
+
+Or from source:
 ```bash
 cargo install --path rovo-lsp
 ```
