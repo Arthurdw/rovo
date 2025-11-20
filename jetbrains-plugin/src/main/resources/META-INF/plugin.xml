@@ -1,0 +1,53 @@
+<idea-plugin>
+    <id>com.rovo.lsp</id>
+    <name>Rovo LSP</name>
+    <vendor email="dev@arthurdw.com" url="https://github.com/Arthurdw/rovo">Rovo</vendor>
+
+    <description><![CDATA[
+    <p>Syntax highlighting for Rovo framework annotations in Rust.</p>
+
+    <h3>Features</h3>
+    <ul>
+        <li><strong>Context-aware syntax highlighting</strong> for Rovo annotations</li>
+        <li>Highlights annotation keywords (@response, @tag, @security, @example, @id, @hidden)</li>
+        <li>Highlights HTTP status codes (200, 404, 500, etc.)</li>
+        <li>Highlights security schemes (bearer, basic, apiKey, oauth2)</li>
+        <li>Only activates near #[rovo] attributes to avoid conflicts</li>
+    </ul>
+
+    <h3>LSP Support</h3>
+    <p>For additional features (completions, hover, code actions), install <code>rovo-lsp</code>:</p>
+    <pre>cargo install rovo-lsp</pre>
+    <p>Then configure it as an external LSP server in your IDE settings.</p>
+    ]]></description>
+
+    <change-notes><![CDATA[
+    <h3>Version 0.1.0</h3>
+    <ul>
+        <li>Initial release</li>
+        <li>Context-aware syntax highlighting for Rovo annotations</li>
+        <li>Support for RustRover, IntelliJ IDEA, and CLion</li>
+    </ul>
+    ]]></change-notes>
+
+    <!-- Compatible with IntelliJ IDEA 2024.3 and later -->
+    <idea-version since-build="243"/>
+
+    <!-- Plugin dependencies -->
+    <depends>com.intellij.modules.platform</depends>
+    <depends optional="true" config-file="rust-support.xml">org.rust.lang</depends>
+    <depends>com.redhat.devtools.lsp4ij</depends>
+
+    <extensions defaultExtensionNs="com.intellij">
+        <notificationGroup id="Rovo" displayType="BALLOON"/>
+    </extensions>
+
+    <extensions defaultExtensionNs="com.redhat.devtools.lsp4ij">
+        <server id="rovoLanguageServer"
+                name="Rovo LSP"
+                factoryClass="com.rovo.lsp.RovoLanguageServerFactory">
+            <description>Language server for Rovo framework annotations</description>
+        </server>
+        <languageMapping language="Rust" serverId="rovoLanguageServer"/>
+    </extensions>
+</idea-plugin>

@@ -1,0 +1,153 @@
+name: JetBrains Plugin CI
+
+on:
+  push:
+    branches: [main, develop, lsp-support]
+    paths:
+      - 'jetbrains-plugin/**'
+      - 'rovo-lsp/**'
+      - '.github/workflows/jetbrains-plugin.yml'
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - 'jetbrains-plugin/**'
+      - 'rovo-lsp/**'
+      - '.github/workflows/jetbrains-plugin.yml'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build Plugin
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+
+      - name: Build Plugin
+        working-directory: jetbrains-plugin
+        run: ./gradlew buildPlugin
+
+      - name: Verify Plugin
+        working-directory: jetbrains-plugin
+        run: ./gradlew verifyPlugin
+
+      - name: Upload Plugin Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: rovo-jetbrains-plugin
+          path: jetbrains-plugin/build/distributions/*.zip
+          retention-days: 30
+
+  test:
+    name: Run Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+
+      - name: Run Tests
+        working-directory: jetbrains-plugin
+        run: ./gradlew test
+
+      - name: Upload Test Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-report
+          path: jetbrains-plugin/build/reports/tests/
+          retention-days: 7
+
+  lint:
+    name: Kotlin Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+
+      - name: Check code style
+        working-directory: jetbrains-plugin
+        run: ./gradlew check
+
+  compatibility:
+    name: Plugin Compatibility
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        ide-version: ['2023.2', '2023.3', '2024.1']
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+
+      - name: Test with IDE ${{ matrix.ide-version }}
+        working-directory: jetbrains-plugin
+        run: ./gradlew verifyPlugin -PplatformVersion=${{ matrix.ide-version }}
+        continue-on-error: true
+
+  build-lsp:
+    name: Build LSP Server
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rovo-lsp
+
+      - name: Build rovo-lsp
+        working-directory: rovo-lsp
+        run: cargo build --release
+
+      - name: Test rovo-lsp
+        working-directory: rovo-lsp
+        run: cargo test --release
+
+      - name: Upload LSP Binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: rovo-lsp-${{ matrix.os }}
+          path: |
+            rovo-lsp/target/release/rovo-lsp
+            rovo-lsp/target/release/rovo-lsp.exe
+          retention-days: 30
+          if-no-files-found: ignore

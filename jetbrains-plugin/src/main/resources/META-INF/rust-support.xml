@@ -1,0 +1,5 @@
+<idea-plugin>
+    <extensions defaultExtensionNs="com.intellij">
+        <annotator language="Rust" implementationClass="com.rovo.lsp.RovoAnnotator"/>
+    </extensions>
+</idea-plugin>
