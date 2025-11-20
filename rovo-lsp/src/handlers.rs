@@ -2,6 +2,14 @@ use crate::completion;
 use crate::diagnostics;
 use tower_lsp::lsp_types::*;
 
+/// Handle completion request for a text document
+///
+/// # Arguments
+/// * `content` - The document content
+/// * `position` - Cursor position where completion was requested
+///
+/// # Returns
+/// Completion suggestions if available
 pub fn text_document_completion(content: &str, position: Position) -> Option<CompletionResponse> {
     // Only provide completions if we're near a #[rovo] attribute
     if !crate::parser::is_near_rovo_attribute(content, position.line as usize) {
@@ -47,6 +55,16 @@ pub fn text_document_completion(content: &str, position: Position) -> Option<Com
     Some(CompletionResponse::Array(lsp_items))
 }
 
+/// Handle hover request for a text document
+///
+/// Provides information when hovering over status codes, security schemes, or types.
+///
+/// # Arguments
+/// * `content` - The document content
+/// * `position` - Cursor position where hover was requested
+///
+/// # Returns
+/// Hover information if available
 pub fn text_document_hover(content: &str, position: Position) -> Option<Hover> {
     let line_idx = position.line as usize;
     let lines: Vec<&str> = content.lines().collect();
@@ -153,6 +171,14 @@ fn get_annotation_at_position(line: &str, char_idx: usize) -> Option<String> {
     None
 }
 
+/// Handle document change and return diagnostics
+///
+/// # Arguments
+/// * `content` - The updated document content
+/// * `_uri` - Document URI (currently unused)
+///
+/// # Returns
+/// A vector of diagnostics for any validation errors
 pub fn text_document_did_change(content: &str, _uri: Url) -> Vec<Diagnostic> {
     let diagnostics_list = diagnostics::validate_annotations(content);
 
@@ -184,6 +210,15 @@ pub fn text_document_did_change(content: &str, _uri: Url) -> Vec<Diagnostic> {
         .collect()
 }
 
+/// Find all references to a tag in the document
+///
+/// # Arguments
+/// * `content` - The document content
+/// * `position` - Cursor position on a tag annotation
+/// * `uri` - Document URI for constructing locations
+///
+/// # Returns
+/// A vector of locations where the tag is referenced
 pub fn find_tag_references(content: &str, position: Position, uri: Url) -> Option<Vec<Location>> {
     let line_idx = position.line as usize;
     let lines: Vec<&str> = content.lines().collect();

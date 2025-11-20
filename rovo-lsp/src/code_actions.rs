@@ -1,6 +1,18 @@
 use crate::parser::{parse_annotations, AnnotationKind};
 use tower_lsp::lsp_types::*;
 
+/// Get available code actions for the given range
+///
+/// Provides quick fixes and refactoring actions like adding #[rovo] attributes,
+/// inserting annotations, or adding JsonSchema derives.
+///
+/// # Arguments
+/// * `content` - The document content
+/// * `range` - The selected range in the document
+/// * `uri` - Document URI for constructing edit locations
+///
+/// # Returns
+/// A vector of available code actions
 pub fn get_code_actions(content: &str, range: Range, uri: Url) -> Vec<CodeActionOrCommand> {
     let mut actions = Vec::new();
 
@@ -191,7 +203,17 @@ fn create_insert_multiple_annotations_action(
     })
 }
 
-// Quick fix for invalid status codes
+/// Get code actions to fix diagnostics
+///
+/// Provides quick fixes for issues like invalid status codes.
+///
+/// # Arguments
+/// * `content` - The document content
+/// * `diagnostic` - The diagnostic to fix
+/// * `uri` - Document URI for constructing edit locations
+///
+/// # Returns
+/// A vector of quick fix actions
 pub fn get_diagnostic_code_actions(
     content: &str,
     diagnostic: &Diagnostic,

@@ -1,26 +1,46 @@
 use serde::{Deserialize, Serialize};
 
+/// Position in a text document
 #[derive(Debug, Clone, PartialEq)]
 pub struct Position {
+    /// Line number (0-indexed)
     pub line: usize,
+    /// Character offset in line (0-indexed)
     pub character: usize,
 }
 
+/// An auto-completion suggestion
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CompletionItem {
+    /// Label shown in completion list
     pub label: String,
+    /// Kind of completion item
     pub kind: CompletionItemKind,
+    /// Short detail shown alongside label
     pub detail: Option<String>,
+    /// Full documentation for this item
     pub documentation: Option<String>,
+    /// Text to insert when selected
     pub insert_text: Option<String>,
 }
 
+/// Type of completion item
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum CompletionItemKind {
+    /// A language keyword
     Keyword,
+    /// A code snippet
     Snippet,
 }
 
+/// Get completion suggestions at the given position
+///
+/// # Arguments
+/// * `content` - The source code content
+/// * `position` - Cursor position where completion was requested
+///
+/// # Returns
+/// A vector of completion suggestions
 pub fn get_completions(content: &str, position: Position) -> Vec<CompletionItem> {
     let lines: Vec<&str> = content.lines().collect();
 

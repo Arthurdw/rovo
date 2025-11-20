@@ -1,5 +1,12 @@
 /// Shared documentation for Rovo annotations
 
+/// Get detailed documentation for a Rovo annotation
+///
+/// # Arguments
+/// * `annotation` - The annotation name (e.g., "@response", "@tag")
+///
+/// # Returns
+/// Markdown-formatted documentation string
 pub fn get_annotation_documentation(annotation: &str) -> String {
     match annotation {
         "@response" => r#"# @response
@@ -165,6 +172,13 @@ Useful for:
     }
 }
 
+/// Get a short summary for a Rovo annotation
+///
+/// # Arguments
+/// * `annotation` - The annotation name (e.g., "@response", "@tag")
+///
+/// # Returns
+/// A brief one-line description
 pub fn get_annotation_summary(annotation: &str) -> &'static str {
     match annotation {
         "@response" => "Define an API response for different status codes",

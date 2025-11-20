@@ -7,8 +7,11 @@ use tower_lsp::{Client, LanguageServer};
 
 use crate::handlers;
 
+/// LSP backend implementation for Rovo language server
 pub struct Backend {
+    /// LSP client for communicating with the editor
     client: Client,
+    /// In-memory cache of document contents
     document_map: Arc<RwLock<HashMap<String, String>>>,
 }
 
@@ -101,13 +104,15 @@ impl LanguageServer for Backend {
         let uri = params.text_document_position.text_document.uri.to_string();
         let position = params.text_document_position.position;
 
-        let document_map = self.document_map.read().await;
-        let content = match document_map.get(&uri) {
-            Some(content) => content,
-            None => return Ok(None),
+        let content = {
+            let document_map = self.document_map.read().await;
+            match document_map.get(&uri) {
+                Some(content) => content.clone(),
+                None => return Ok(None),
+            }
         };
 
-        Ok(handlers::text_document_completion(content, position))
+        Ok(handlers::text_document_completion(&content, position))
     }
 
     async fn hover(&self, params: HoverParams) -> Result<Option<Hover>> {
@@ -118,26 +123,30 @@ impl LanguageServer for Backend {
             .to_string();
         let position = params.text_document_position_params.position;
 
-        let document_map = self.document_map.read().await;
-        let content = match document_map.get(&uri) {
-            Some(content) => content,
-            None => return Ok(None),
+        let content = {
+            let document_map = self.document_map.read().await;
+            match document_map.get(&uri) {
+                Some(content) => content.clone(),
+                None => return Ok(None),
+            }
         };
 
-        Ok(handlers::text_document_hover(content, position))
+        Ok(handlers::text_document_hover(&content, position))
     }
 
     async fn code_action(&self, params: CodeActionParams) -> Result<Option<CodeActionResponse>> {
         let uri = params.text_document.uri.to_string();
 
-        let document_map = self.document_map.read().await;
-        let content = match document_map.get(&uri) {
-            Some(content) => content,
-            None => return Ok(None),
+        let content = {
+            let document_map = self.document_map.read().await;
+            match document_map.get(&uri) {
+                Some(content) => content.clone(),
+                None => return Ok(None),
+            }
         };
 
         let mut actions = crate::code_actions::get_code_actions(
-            content,
+            &content,
             params.range,
             params.text_document.uri.clone(),
         );
@@ -145,7 +154,7 @@ impl LanguageServer for Backend {
         // Add diagnostic-specific code actions
         for diagnostic in &params.context.diagnostics {
             actions.extend(crate::code_actions::get_diagnostic_code_actions(
-                content,
+                &content,
                 diagnostic,
                 params.text_document.uri.clone(),
             ));
@@ -169,10 +178,12 @@ impl LanguageServer for Backend {
             .to_string();
         let position = params.text_document_position_params.position;
 
-        let document_map = self.document_map.read().await;
-        let content = match document_map.get(&uri) {
-            Some(content) => content,
-            None => return Ok(None),
+        let content = {
+            let document_map = self.document_map.read().await;
+            match document_map.get(&uri) {
+                Some(content) => content.clone(),
+                None => return Ok(None),
+            }
         };
 
         let line_idx = position.line as usize;
@@ -183,7 +194,7 @@ impl LanguageServer for Backend {
         }
 
         // Only work near #[rovo]
-        if !crate::parser::is_near_rovo_attribute(content, line_idx) {
+        if !crate::parser::is_near_rovo_attribute(&content, line_idx) {
             return Ok(None);
         }
 
@@ -198,8 +209,14 @@ impl LanguageServer for Backend {
                 crate::type_resolver::extract_type_from_response(&response_type)
             {
                 if let Some(def_line) =
-                    crate::type_resolver::find_type_definition(content, &type_name)
+                    crate::type_resolver::find_type_definition(&content, &type_name)
                 {
+                    // Find the exact position of the type name in the definition line
+                    let def_col = lines
+                        .get(def_line)
+                        .and_then(|l| l.find(&type_name))
+                        .unwrap_or(0);
+
                     let location = Location {
                         uri: params
                             .text_document_position_params
@@ -209,11 +226,11 @@ impl LanguageServer for Backend {
                         range: Range {
                             start: Position {
                                 line: def_line as u32,
-                                character: 0,
+                                character: def_col as u32,
                             },
                             end: Position {
                                 line: def_line as u32,
-                                character: 100,
+                                character: (def_col + type_name.len()) as u32,
                             },
                         },
                     };
@@ -230,14 +247,16 @@ impl LanguageServer for Backend {
         let uri = params.text_document_position.text_document.uri.to_string();
         let position = params.text_document_position.position;
 
-        let document_map = self.document_map.read().await;
-        let content = match document_map.get(&uri) {
-            Some(content) => content,
-            None => return Ok(None),
+        let content = {
+            let document_map = self.document_map.read().await;
+            match document_map.get(&uri) {
+                Some(content) => content.clone(),
+                None => return Ok(None),
+            }
         };
 
         Ok(handlers::find_tag_references(
-            content,
+            &content,
             position,
             params.text_document_position.text_document.uri,
         ))

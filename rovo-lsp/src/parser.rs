@@ -1,35 +1,52 @@
 use regex::Regex;
 
+/// Type of Rovo annotation
 #[derive(Debug, Clone, PartialEq)]
 pub enum AnnotationKind {
+    /// @response - Define API response for a status code
     Response,
+    /// @tag - Group endpoints by tag
     Tag,
+    /// @security - Specify security scheme
     Security,
+    /// @example - Provide example response
     Example,
+    /// @id - Set operation ID
     Id,
+    /// @hidden - Mark endpoint as hidden from docs
     Hidden,
 }
 
+/// Parsed annotation from a doc comment
 #[derive(Debug, Clone)]
 pub struct Annotation {
+    /// Type of annotation
     pub kind: AnnotationKind,
+    /// Line number where annotation appears (0-indexed)
     pub line: usize,
 
     // Response fields
+    /// HTTP status code for @response annotations
     pub status: Option<u16>,
+    /// Response type for @response annotations (e.g., Json<User>)
     pub response_type: Option<String>,
+    /// Description for @response annotations
     pub description: Option<String>,
 
     // Tag fields
+    /// Tag name for @tag annotations
     pub tag_name: Option<String>,
 
     // Security fields
+    /// Security scheme name for @security annotations
     pub security_scheme: Option<String>,
 
     // Example fields
+    /// Example JSON value for @example annotations
     pub example_value: Option<String>,
 
     // ID fields
+    /// Operation ID for @id annotations
     pub operation_id: Option<String>,
 }
 
@@ -70,6 +87,16 @@ pub fn is_near_rovo_attribute(content: &str, target_line: usize) -> bool {
     false
 }
 
+/// Parse all Rovo annotations from source code content
+///
+/// Searches for #[rovo] attributes and extracts all @ annotations from the doc comments
+/// immediately preceding them.
+///
+/// # Arguments
+/// * `content` - The source code to parse
+///
+/// # Returns
+/// A vector of parsed annotations in order of appearance
 pub fn parse_annotations(content: &str) -> Vec<Annotation> {
     let lines: Vec<&str> = content.lines().collect();
     let mut annotations = Vec::new();
@@ -88,6 +115,11 @@ pub fn parse_annotations(content: &str) -> Vec<Annotation> {
         while i > 0 {
             i -= 1;
             let line = lines[i].trim();
+
+            // Skip empty lines
+            if line.is_empty() {
+                continue;
+            }
 
             // Stop if we hit a non-doc-comment line
             if !line.starts_with("///") {
