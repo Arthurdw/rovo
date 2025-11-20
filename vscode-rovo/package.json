@@ -1,0 +1,104 @@
+{
+  "name": "rovo-lsp",
+  "displayName": "Rovo Language Support",
+  "description": "Language Server Protocol support for Rovo annotations in Rust - enables intelligent completions, hover info, diagnostics, and navigation for OpenAPI-style annotations",
+  "version": "0.1.4",
+  "publisher": "arthurdw",
+  "license": "MIT",
+  "author": {
+    "name": "Arthur Deierlein",
+    "email": "dev@arthurdw.com"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/arthurdw/rovo"
+  },
+  "engines": {
+    "vscode": "^1.75.0"
+  },
+  "categories": [
+    "Programming Languages",
+    "Linters"
+  ],
+  "keywords": [
+    "rust",
+    "rovo",
+    "openapi",
+    "axum",
+    "lsp",
+    "annotations"
+  ],
+  "activationEvents": [
+    "onLanguage:rust",
+    "workspaceContains:**/Cargo.toml"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "languages": [
+      {
+        "id": "rovo-annotations",
+        "aliases": ["Rovo Annotations"],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "configuration": {
+      "type": "object",
+      "title": "Rovo",
+      "properties": {
+        "rovo.trace.server": {
+          "type": "string",
+          "enum": [
+            "off",
+            "messages",
+            "verbose"
+          ],
+          "default": "off",
+          "description": "Traces communication between VS Code and the rovo-lsp language server"
+        },
+        "rovo.serverPath": {
+          "type": "string",
+          "default": "rovo-lsp",
+          "description": "Path to the rovo-lsp executable. Leave as 'rovo-lsp' to use PATH, or specify absolute path"
+        },
+        "rovo.autoInstall": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically install rovo-lsp via cargo if not found"
+        }
+      }
+    },
+    "grammars": [
+      {
+        "path": "./syntaxes/rovo.tmLanguage.json",
+        "scopeName": "source.rust.rovo",
+        "injectTo": [
+          "comment.line.documentation.rust"
+        ]
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run esbuild-base -- --minify",
+    "esbuild-base": "esbuild ./client/src/extension.ts --bundle --outfile=out/extension.js --external:vscode --format=cjs --platform=node",
+    "compile": "npm run esbuild-base -- --sourcemap",
+    "watch": "npm run esbuild-base -- --sourcemap --watch",
+    "lint": "eslint client/src --ext ts",
+    "lint:fix": "eslint client/src --ext ts --fix",
+    "package": "vsce package",
+    "publish": "vsce publish",
+    "test": "tsc --noEmit"
+  },
+  "dependencies": {
+    "vscode-languageclient": "^9.0.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/vscode": "^1.75.0",
+    "@typescript-eslint/eslint-plugin": "^6.0.0",
+    "@typescript-eslint/parser": "^6.0.0",
+    "@vscode/vsce": "^2.22.0",
+    "esbuild": "^0.19.0",
+    "eslint": "^8.50.0",
+    "typescript": "^5.3.0"
+  }
+}

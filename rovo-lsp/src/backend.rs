@@ -64,6 +64,26 @@ impl LanguageServer for Backend {
                 definition_provider: Some(OneOf::Left(true)),
                 references_provider: Some(OneOf::Left(true)),
                 rename_provider: Some(OneOf::Left(true)),
+                semantic_tokens_provider: Some(
+                    SemanticTokensServerCapabilities::SemanticTokensOptions(
+                        SemanticTokensOptions {
+                            legend: SemanticTokensLegend {
+                                token_types: vec![
+                                    SemanticTokenType::MACRO,         // For @annotations (better theme support)
+                                    SemanticTokenType::NUMBER,        // For status codes
+                                    SemanticTokenType::ENUM_MEMBER,   // For security schemes
+                                    SemanticTokenType::STRING,        // For tag values
+                                ],
+                                token_modifiers: vec![
+                                    SemanticTokenModifier::DOCUMENTATION,
+                                ],
+                            },
+                            full: Some(SemanticTokensFullOptions::Bool(true)),
+                            range: None,
+                            ..Default::default()
+                        },
+                    ),
+                ),
                 ..Default::default()
             },
         })
@@ -345,5 +365,22 @@ impl LanguageServer for Backend {
             &new_name,
             params.text_document_position.text_document.uri,
         ))
+    }
+
+    async fn semantic_tokens_full(
+        &self,
+        params: SemanticTokensParams,
+    ) -> Result<Option<SemanticTokensResult>> {
+        let uri = params.text_document.uri.to_string();
+
+        let content = {
+            let document_map = self.document_map.read().await;
+            match document_map.get(&uri) {
+                Some(content) => content.clone(),
+                None => return Ok(None),
+            }
+        };
+
+        Ok(handlers::semantic_tokens_full(&content))
     }
 }

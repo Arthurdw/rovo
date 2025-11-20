@@ -1,0 +1,79 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "Rovo Annotations",
+  "scopeName": "source.rust.rovo",
+  "patterns": [
+    {
+      "include": "#rovo-annotations"
+    }
+  ],
+  "repository": {
+    "rovo-annotations": {
+      "patterns": [
+        {
+          "name": "keyword.other.rovo.annotation",
+          "match": "@(response|tag|security|example|id|hidden|rovo-ignore)\\b"
+        },
+        {
+          "name": "constant.numeric.rovo.status-code",
+          "match": "\\b(200|201|204|400|401|403|404|409|422|500|503)\\b"
+        },
+        {
+          "name": "entity.name.type.rovo.security",
+          "match": "\\b(bearer|basic|apiKey|oauth2)\\b"
+        }
+      ]
+    },
+    "status-codes": {
+      "patterns": [
+        {
+          "name": "constant.numeric.status-code.success.rovo",
+          "match": "\\b(200|201|204)\\b"
+        },
+        {
+          "name": "constant.numeric.status-code.client-error.rovo",
+          "match": "\\b(400|401|403|404|409|422)\\b"
+        },
+        {
+          "name": "constant.numeric.status-code.server-error.rovo",
+          "match": "\\b(500|503)\\b"
+        },
+        {
+          "name": "constant.numeric.status-code.rovo",
+          "match": "\\b([1-5][0-9]{2})\\b"
+        }
+      ]
+    },
+    "security-schemes": {
+      "patterns": [
+        {
+          "name": "entity.name.type.security-scheme.rovo",
+          "match": "\\b(bearer|basic|apiKey|oauth2)\\b"
+        }
+      ]
+    },
+    "quoted-strings": {
+      "patterns": [
+        {
+          "name": "string.quoted.double.rovo",
+          "begin": "\"",
+          "end": "\"",
+          "patterns": [
+            {
+              "name": "constant.character.escape.rovo",
+              "match": "\\\\."
+            }
+          ]
+        }
+      ]
+    },
+    "numbers": {
+      "patterns": [
+        {
+          "name": "constant.numeric.rovo",
+          "match": "\\b\\d+\\b"
+        }
+      ]
+    }
+  }
+}

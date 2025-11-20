@@ -548,3 +548,143 @@ fn get_security_scheme_at_position(line: &str, char_idx: usize) -> Option<String
 
     None
 }
+
+/// Generate semantic tokens for the document
+///
+/// Token types (indices in legend):
+/// 0: KEYWORD - for annotations (@response, @tag, etc.)
+/// 1: NUMBER - for status codes (200, 404, etc.)
+/// 2: TYPE - for security schemes (bearer, oauth2, etc.)
+pub fn semantic_tokens_full(content: &str) -> Option<SemanticTokensResult> {
+    eprintln!("[ROVO] semantic_tokens_full called, content length: {}", content.len());
+    let mut tokens = Vec::new();
+    let mut prev_line = 0;
+    let mut prev_start = 0;
+
+    for (line_idx, line) in content.lines().enumerate() {
+        // Only process lines near #[rovo] attributes
+        if !crate::parser::is_near_rovo_attribute(content, line_idx) {
+            continue;
+        }
+
+        // Match annotations: @response, @tag, @security, @example, @id, @hidden, @rovo-ignore
+        let annotation_regex = regex::Regex::new(r"@(response|tag|security|example|id|hidden|rovo-ignore)\b").unwrap();
+        for cap in annotation_regex.captures_iter(line) {
+            if let Some(m) = cap.get(0) {
+                let start_char = m.start();
+                let length = m.as_str().len();
+
+                // Calculate delta encoding
+                let delta_line = (line_idx as u32).saturating_sub(prev_line);
+                let delta_start = if delta_line == 0 {
+                    (start_char as u32).saturating_sub(prev_start)
+                } else {
+                    start_char as u32
+                };
+
+                tokens.push(SemanticToken {
+                    delta_line,
+                    delta_start,
+                    length: length as u32,
+                    token_type: 0, // MACRO
+                    token_modifiers_bitset: 1, // DOCUMENTATION modifier (bit 0)
+                });
+
+                prev_line = line_idx as u32;
+                prev_start = start_char as u32;
+            }
+        }
+
+        // Match tag/id values: text after @tag, @id, etc.
+        let tag_value_regex = regex::Regex::new(r"@(?:tag|id)\s+(\w+)").unwrap();
+        for cap in tag_value_regex.captures_iter(line) {
+            if let Some(m) = cap.get(1) {
+                let start_char = m.start();
+                let length = m.as_str().len();
+
+                let delta_line = (line_idx as u32).saturating_sub(prev_line);
+                let delta_start = if delta_line == 0 {
+                    (start_char as u32).saturating_sub(prev_start)
+                } else {
+                    start_char as u32
+                };
+
+                tokens.push(SemanticToken {
+                    delta_line,
+                    delta_start,
+                    length: length as u32,
+                    token_type: 3, // STRING
+                    token_modifiers_bitset: 1, // DOCUMENTATION modifier (bit 0)
+                });
+
+                prev_line = line_idx as u32;
+                prev_start = start_char as u32;
+            }
+        }
+
+        // Match status codes: 200, 404, etc.
+        let status_regex = regex::Regex::new(r"\b([1-5][0-9]{2})\b").unwrap();
+        for cap in status_regex.captures_iter(line) {
+            if let Some(m) = cap.get(0) {
+                let start_char = m.start();
+                let length = m.as_str().len();
+
+                let delta_line = (line_idx as u32).saturating_sub(prev_line);
+                let delta_start = if delta_line == 0 {
+                    (start_char as u32).saturating_sub(prev_start)
+                } else {
+                    start_char as u32
+                };
+
+                tokens.push(SemanticToken {
+                    delta_line,
+                    delta_start,
+                    length: length as u32,
+                    token_type: 1, // NUMBER
+                    token_modifiers_bitset: 1, // DOCUMENTATION modifier (bit 0)
+                });
+
+                prev_line = line_idx as u32;
+                prev_start = start_char as u32;
+            }
+        }
+
+        // Match security schemes: bearer, basic, apiKey, oauth2
+        let security_regex = regex::Regex::new(r"\b(bearer|basic|apiKey|oauth2)\b").unwrap();
+        for cap in security_regex.captures_iter(line) {
+            if let Some(m) = cap.get(0) {
+                let start_char = m.start();
+                let length = m.as_str().len();
+
+                let delta_line = (line_idx as u32).saturating_sub(prev_line);
+                let delta_start = if delta_line == 0 {
+                    (start_char as u32).saturating_sub(prev_start)
+                } else {
+                    start_char as u32
+                };
+
+                tokens.push(SemanticToken {
+                    delta_line,
+                    delta_start,
+                    length: length as u32,
+                    token_type: 2, // TYPE
+                    token_modifiers_bitset: 1, // DOCUMENTATION modifier (bit 0)
+                });
+
+                prev_line = line_idx as u32;
+                prev_start = start_char as u32;
+            }
+        }
+    }
+
+    eprintln!("[ROVO] Found {} semantic tokens", tokens.len());
+
+    if tokens.is_empty() {
+        None
+    } else {
+        Some(SemanticTokensResult::Tokens(SemanticTokens {
+            result_id: None,
+            data: tokens,
+        }))
+    }
+}

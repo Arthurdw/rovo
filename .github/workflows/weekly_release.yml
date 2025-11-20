@@ -150,6 +150,13 @@ jobs:
           sed -i 's/rovo = "[^"]*"/rovo = "'"${{ env.VERSION }}"'"/g' README.md
           git add README.md
 
+      - name: Update VSCode extension version
+        if: steps.check_release.outputs.needs_release == 'true'
+        run: |
+          cd vscode-rovo
+          npm version ${{ env.VERSION }} --no-git-tag-version --allow-same-version
+          git add package.json package-lock.json
+
       - name: Commit version bump
         if: steps.check_release.outputs.needs_release == 'true'
         run: |
@@ -166,6 +173,24 @@ jobs:
           github_token: ${{ steps.get_token.outputs.token }}
           branch: ${{ github.ref }}
           tags: true
+
+      - name: Setup Node.js for VSCode extension
+        if: steps.check_release.outputs.needs_release == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: vscode-rovo/package-lock.json
+
+      - name: Publish VSCode extension
+        if: steps.check_release.outputs.needs_release == 'true'
+        working-directory: vscode-rovo
+        run: |
+          npm ci
+          npm run package
+          npx vsce publish -p ${{ secrets.VSCE_PAT }}
+        env:
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}
 
       - name: No release needed
         if: steps.check_release.outputs.needs_release == 'false'

@@ -1,0 +1,105 @@
+name: VSCode Extension CI
+
+on:
+  push:
+    branches: [main, develop, lsp-support]
+    paths:
+      - 'vscode-rovo/**'
+      - 'rovo-lsp/**'
+      - '.github/workflows/vscode-extension.yml'
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - 'vscode-rovo/**'
+      - 'rovo-lsp/**'
+      - '.github/workflows/vscode-extension.yml'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build Extension
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: vscode-rovo/package-lock.json
+
+      - name: Install dependencies
+        working-directory: vscode-rovo
+        run: npm ci
+
+      - name: Lint TypeScript
+        working-directory: vscode-rovo
+        run: npm run lint
+
+      - name: Type check
+        working-directory: vscode-rovo
+        run: npm run test
+
+      - name: Compile extension
+        working-directory: vscode-rovo
+        run: npm run compile
+
+      - name: Package extension
+        working-directory: vscode-rovo
+        run: npm run package
+
+      - name: Upload VSIX
+        uses: actions/upload-artifact@v4
+        with:
+          name: vscode-rovo-extension
+          path: vscode-rovo/*.vsix
+          retention-days: 30
+
+  test:
+    name: Run Tests
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: vscode-rovo/package-lock.json
+
+      - name: Install dependencies
+        working-directory: vscode-rovo
+        run: npm ci
+
+      - name: Run tests
+        working-directory: vscode-rovo
+        run: npm test
+
+  typecheck:
+    name: TypeScript Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: vscode-rovo/package-lock.json
+
+      - name: Install dependencies
+        working-directory: vscode-rovo
+        run: npm ci
+
+      - name: Type check
+        working-directory: vscode-rovo
+        run: npx tsc --noEmit

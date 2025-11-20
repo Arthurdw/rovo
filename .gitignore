@@ -6,3 +6,37 @@ lcov.info
 *.profdata
 /target/llvm-cov/
 /target/llvm-cov-target/
+
+# JetBrains IDEs
+.idea/
+*.iml
+*.ipr
+*.iws
+out/
+
+# JetBrains Plugin
+jetbrains-plugin/.gradle/
+jetbrains-plugin/build/
+jetbrains-plugin/.idea/
+jetbrains-plugin/out/
+
+# VSCode Extension
+vscode-rovo/node_modules/
+vscode-rovo/out/
+vscode-rovo/.vscode-test/
+vscode-rovo/.vscode-test*/
+vscode-rovo/*.vsix
+vscode-rovo/npm-debug.log*
+vscode-rovo/yarn-debug.log*
+vscode-rovo/yarn-error.log*
+vscode-rovo/.eslintcache
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Test files
+test_annotation_debug.rs
+test_split
+test_split.rs

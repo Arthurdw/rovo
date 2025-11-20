@@ -176,3 +176,39 @@ check-all: fmt-check lint test coverage-summary
 # Quick check (no coverage)
 quick-check: fmt-check lint test-quiet
     @echo "Quick checks passed!"
+
+# --- VSCode Extension Commands ---
+
+# Install VSCode extension dependencies
+vscode-install:
+    cd vscode-rovo && npm install
+
+# Build VSCode extension
+vscode-build:
+    cd vscode-rovo && npm run compile
+
+# Lint VSCode extension
+vscode-lint:
+    cd vscode-rovo && npm run lint
+
+# Fix VSCode extension lint issues
+vscode-lint-fix:
+    cd vscode-rovo && npm run lint:fix
+
+# Package VSCode extension
+vscode-package:
+    cd vscode-rovo && npm run package
+
+# Publish VSCode extension (requires VSCE_PAT)
+vscode-publish:
+    cd vscode-rovo && npx vsce publish
+
+# Install local VSCode extension for testing
+vscode-install-local: vscode-package
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cd vscode-rovo
+    VSIX=$(ls -t *.vsix | head -1)
+    code --uninstall-extension arthurdw.rovo-lsp || true
+    code --install-extension "$VSIX"
+    echo "Installed $VSIX. Reload VSCode to activate."

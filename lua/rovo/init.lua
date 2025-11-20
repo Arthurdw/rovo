@@ -6,15 +6,24 @@ local setup_done = false
 -- Debounce timers per buffer for proper debouncing
 local debounce_timers = {}
 
--- Setup syntax highlighting for Rovo annotations
+-- Setup syntax highlighting for Rovo annotations using LSP semantic tokens
 local function setup_highlighting()
-  -- Get libuv handle for proper timer management
-  local uv = vim.uv or vim.loop
+  -- Setup LSP semantic token highlight groups for Rovo
+  -- These are applied by the LSP server's semantic tokens
+  vim.api.nvim_set_hl(0, '@lsp.type.macro.rust', { link = 'Macro', default = true })
+  vim.api.nvim_set_hl(0, '@lsp.type.enumMember.rust', { link = 'Constant', default = true })
+  vim.api.nvim_set_hl(0, '@lsp.type.string.rust', { link = 'String', default = true })
 
-  -- Link to standard Vim highlight groups
-  vim.api.nvim_set_hl(0, 'RovoAnnotation', { link = 'Identifier', default = true })
-  vim.api.nvim_set_hl(0, 'RovoStatusCode', { link = 'Number', default = true })
-  vim.api.nvim_set_hl(0, 'RovoSecurityScheme', { link = 'String', default = true })
+  -- Legacy extmarks-based highlighting (kept for backwards compatibility)
+  -- Only used if use_lsp_semantic_tokens option is explicitly set to false
+  local function setup_extmarks_highlighting()
+    -- Get libuv handle for proper timer management
+    local uv = vim.uv or vim.loop
+
+    -- Link to standard Vim highlight groups
+    vim.api.nvim_set_hl(0, 'RovoAnnotation', { link = 'Identifier', default = true })
+    vim.api.nvim_set_hl(0, 'RovoStatusCode', { link = 'Number', default = true })
+    vim.api.nvim_set_hl(0, 'RovoSecurityScheme', { link = 'String', default = true })
 
   -- Namespace for extmarks (allows flash.nvim backdrop to overlay properly)
   local ns_id = vim.api.nvim_create_namespace('rovo_highlights')
@@ -181,6 +190,10 @@ local function setup_highlighting()
       end)
     end,
   })
+  end -- end of setup_extmarks_highlighting
+
+  -- Note: By default, we use LSP semantic tokens for highlighting
+  -- The extmarks-based approach is legacy and not called by default
 end
 
 -- Expose for debugging
@@ -229,24 +242,119 @@ function M.debug_highlight()
   end
 end
 
+-- Check if rovo-lsp is installed, and optionally install it
+local function check_and_install_server(opts)
+  opts = opts or {}
+  local auto_install = opts.auto_install
+  if auto_install == nil then
+    auto_install = true -- Default to auto-install enabled
+  end
+
+  -- Check if rovo-lsp is executable
+  if vim.fn.executable('rovo-lsp') == 1 then
+    return true
+  end
+
+  -- Not found - notify user
+  vim.notify('[rovo] rovo-lsp not found in PATH', vim.log.levels.WARN)
+
+  if not auto_install then
+    vim.notify('[rovo] Please install rovo-lsp: cargo install rovo-lsp', vim.log.levels.INFO)
+    return false
+  end
+
+  -- Check if cargo is available
+  if vim.fn.executable('cargo') == 0 then
+    vim.notify('[rovo] Cargo not found. Please install Rust from https://rustup.rs/', vim.log.levels.ERROR)
+    return false
+  end
+
+  -- Prompt user to install
+  local choice = vim.fn.confirm(
+    'rovo-lsp is not installed. Would you like to install it now via cargo?',
+    "&Yes\n&No",
+    1
+  )
+
+  if choice ~= 1 then
+    vim.notify('[rovo] Installation cancelled. Install manually: cargo install rovo-lsp', vim.log.levels.INFO)
+    return false
+  end
+
+  -- Install rovo-lsp in background
+  vim.notify('[rovo] Installing rovo-lsp via cargo...', vim.log.levels.INFO)
+
+  local output_lines = {}
+  local job_id = vim.fn.jobstart({'cargo', 'install', 'rovo-lsp'}, {
+    on_stdout = function(_, data)
+      if data then
+        for _, line in ipairs(data) do
+          if line ~= '' then
+            table.insert(output_lines, line)
+          end
+        end
+      end
+    end,
+    on_stderr = function(_, data)
+      if data then
+        for _, line in ipairs(data) do
+          if line ~= '' then
+            table.insert(output_lines, line)
+          end
+        end
+      end
+    end,
+    on_exit = function(_, exit_code)
+      if exit_code == 0 then
+        vim.notify('[rovo] rovo-lsp installed successfully!', vim.log.levels.INFO)
+        vim.schedule(function()
+          -- Trigger LSP setup after installation
+          vim.cmd('edit') -- Reload current buffer to trigger LSP
+        end)
+      else
+        vim.notify('[rovo] Failed to install rovo-lsp. Exit code: ' .. exit_code, vim.log.levels.ERROR)
+        -- Show last few lines of output for debugging
+        if #output_lines > 0 then
+          local last_lines = {}
+          for i = math.max(1, #output_lines - 5), #output_lines do
+            table.insert(last_lines, output_lines[i])
+          end
+          vim.notify('[rovo] Output: ' .. table.concat(last_lines, '\n'), vim.log.levels.ERROR)
+        end
+      end
+    end,
+  })
+
+  if job_id <= 0 then
+    vim.notify('[rovo] Failed to start cargo install job', vim.log.levels.ERROR)
+    return false
+  end
+
+  -- Return false for now since installation is in progress
+  -- LSP will start after installation completes
+  return false
+end
+
 --- Setup Rovo LSP and syntax highlighting for Neovim
 ---
 --- This function configures both the syntax highlighting and LSP client for Rovo annotations.
 --- It's designed to work alongside rust-analyzer without conflicts.
 ---
 ---@param opts table|nil Configuration options
----   - enable_highlighting: boolean|nil - Enable syntax highlighting (default: true)
+---   - enable_highlighting: boolean|nil - Setup LSP semantic token highlights (default: true)
+---   - auto_install: boolean|nil - Automatically install rovo-lsp if not found (default: true)
 ---   - on_attach: function|nil - Custom on_attach callback for LSP client
 ---   - cmd: string[]|nil - Override LSP server command (default: { 'rovo-lsp' })
 ---   - root_dir: function|nil - Override root directory detection
 ---   - Any other lspconfig options (filetypes, settings, etc.)
 ---
 --- Note: The on_attach callback is merged with Rovo's internal handler, which:
----   - Disables semanticTokensProvider (delegated to rust-analyzer)
+---   - Enables semantic tokens for annotation highlighting (consistent with VSCode)
 ---   - Calls your custom on_attach if provided
 ---
 --- Example:
 ---   require('rovo').setup({
+---     auto_install = true,  -- Auto-install rovo-lsp if not found
 ---     on_attach = function(client, bufnr)
 ---       -- Your custom LSP keybindings here
 ---     end,
@@ -260,6 +368,17 @@ function M.setup(opts)
   setup_done = true
 
   opts = opts or {}
+
+  -- Check if server is installed and offer to install if not
+  local server_available = check_and_install_server(opts)
+  if not server_available then
+    -- Installation is in progress or user declined
+    -- Setup highlighting anyway, LSP will be available after installation
+    if opts.enable_highlighting ~= false then
+      setup_highlighting()
+    end
+    return
+  end
 
   -- Setup syntax highlighting
   if opts.enable_highlighting ~= false then
@@ -293,8 +412,11 @@ function M.setup(opts)
   -- Merge with user's on_attach if provided
   local user_on_attach = opts.on_attach
   opts.on_attach = function(client, bufnr)
-    -- Rovo LSP should not handle semantic tokens (let rust-analyzer do that)
-    client.server_capabilities.semanticTokensProvider = nil
+    -- Enable semantic tokens from Rovo LSP for annotation highlighting
+    -- This provides consistent highlighting across Neovim and VSCode
+    if client.server_capabilities.semanticTokensProvider then
+      vim.lsp.semantic_tokens.start(bufnr, client.id)
+    end
 
     -- Call user's on_attach if provided
     if user_on_attach then

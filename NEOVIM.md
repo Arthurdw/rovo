@@ -20,6 +20,7 @@ Language Server Protocol support for Rovo annotations in Neovim.
 
 ## Features
 
+- **Auto-Installation** - Automatically installs `rovo-lsp` if not found (requires Cargo)
 - **Completions** - Intelligent suggestions for annotations, status codes, and
   security schemes
 - **Diagnostics** - Real-time validation of annotation syntax
@@ -28,11 +29,28 @@ Language Server Protocol support for Rovo annotations in Neovim.
 - **Code Actions** - Quick fixes for adding annotations and macros
 - **Go-to-Definition** - Navigate to type definitions from annotations
 - **Find References** - Find all usages of tags
-- **Syntax Highlighting** - Context-aware highlighting near `#[rovo]` attributes
+- **Syntax Highlighting** - LSP semantic tokens for consistent highlighting (same as VSCode)
 
 ## Installation
 
+The plugin will automatically offer to install `rovo-lsp` if it's not found (requires Cargo).
+
 ### lazy.nvim
+
+```lua
+{
+  'Arthurdw/rovo',
+  ft = 'rust',
+  config = function()
+    require('rovo').setup({
+      auto_install = true,  -- Auto-install rovo-lsp if not found (default: true)
+    })
+  end,
+  dependencies = { 'neovim/nvim-lspconfig' },
+}
+```
+
+If you prefer to install the LSP server during plugin installation:
 
 ```lua
 {
@@ -130,6 +148,8 @@ The plugin accepts standard LSP configuration options:
 
 ```lua
 require('rovo').setup({
+  auto_install = true,  -- Auto-install rovo-lsp if not found (default: true)
+  enable_highlighting = true,  -- Setup LSP semantic token highlights (default: true)
   on_attach = function(client, bufnr)
     -- Custom on_attach logic
   end,
@@ -137,13 +157,33 @@ require('rovo').setup({
 })
 ```
 
+### Configuration Options
+
+- `auto_install` (boolean, default: `true`) - Automatically install `rovo-lsp` via cargo if not found
+- `enable_highlighting` (boolean, default: `true`) - Setup LSP semantic token highlight groups
+- `on_attach` (function, optional) - Custom LSP on_attach callback
+- `cmd` (table, optional) - Override LSP server command (default: `{ 'rovo-lsp' }`)
+- Plus any other standard `lspconfig` options
+
 ### Highlight Groups
 
-Customize colors by overriding these highlight groups:
+Rovo uses LSP semantic tokens for syntax highlighting. Customize colors by linking these highlight groups:
 
-- `RovoAnnotation` - Annotation keywords
-- `RovoStatusCode` - HTTP status codes
-- `RovoSecurityScheme` - Security schemes
+```lua
+-- Annotation keywords (@tag, @response, etc.)
+vim.api.nvim_set_hl(0, '@lsp.type.macro.rust', { link = 'Macro' })
+
+-- Tag values (e.g., "Users" in @tag Users)
+vim.api.nvim_set_hl(0, '@lsp.type.string.rust', { link = 'String' })
+
+-- Status codes (200, 404, etc.)
+vim.api.nvim_set_hl(0, '@lsp.type.number.rust', { link = 'Number' })
+
+-- Security schemes (bearer, oauth2, etc.)
+vim.api.nvim_set_hl(0, '@lsp.type.enumMember.rust', { link = 'Constant' })
+```
+
+The plugin sets these by default, but you can override them in your config.
 
 ## Troubleshooting
 
