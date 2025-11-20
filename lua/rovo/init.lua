@@ -1,8 +1,14 @@
 local M = {}
 
+-- Track if already set up to prevent duplicate autocmds
+local setup_done = false
+
+-- Debounce timers per buffer for proper debouncing
+local debounce_timers = {}
+
 -- Setup syntax highlighting for Rovo annotations
 local function setup_highlighting()
-  -- Link to standard Vim highlight groups
+  -- Link to standard Vim highlight groups (idempotent - safe to call multiple times)
   vim.api.nvim_set_hl(0, 'RovoAnnotation', { link = 'Identifier' })
   vim.api.nvim_set_hl(0, 'RovoStatusCode', { link = 'Number' })
   vim.api.nvim_set_hl(0, 'RovoSecurityScheme', { link = 'String' })
@@ -72,8 +78,12 @@ local function setup_highlighting()
   -- Store function globally for debugging
   _G._rovo_apply_highlights = apply_rovo_highlights
 
+  -- Create augroup for idempotency (clear=true ensures no duplicates)
+  local augroup = vim.api.nvim_create_augroup('RovoHighlighting', { clear = true })
+
   -- Apply on FileType
   vim.api.nvim_create_autocmd('FileType', {
+    group = augroup,
     pattern = 'rust',
     callback = function(args)
       apply_rovo_highlights(args.buf)
@@ -82,6 +92,7 @@ local function setup_highlighting()
 
   -- Also apply when entering a Rust buffer (for already-opened files)
   vim.api.nvim_create_autocmd('BufEnter', {
+    group = augroup,
     pattern = '*.rs',
     callback = function(args)
       apply_rovo_highlights(args.buf)
@@ -90,13 +101,22 @@ local function setup_highlighting()
 
   -- Recheck when buffer changes (in case user adds/removes #[rovo])
   vim.api.nvim_create_autocmd({'BufWritePost', 'TextChanged', 'TextChangedI'}, {
+    group = augroup,
     pattern = '*.rs',
     callback = function(args)
-      -- Debounce: only check every 500ms
-      vim.defer_fn(function()
-        if vim.api.nvim_buf_is_valid(args.buf) then
-          apply_rovo_highlights(args.buf)
+      local bufnr = args.buf
+
+      -- Cancel existing timer for this buffer to prevent multiple pending calls
+      if debounce_timers[bufnr] then
+        debounce_timers[bufnr]:stop()
+      end
+
+      -- Create new debounced timer (properly debounced - only last call executes)
+      debounce_timers[bufnr] = vim.defer_fn(function()
+        if vim.api.nvim_buf_is_valid(bufnr) then
+          apply_rovo_highlights(bufnr)
         end
+        debounce_timers[bufnr] = nil
       end, 500)
     end,
   })
@@ -154,6 +174,12 @@ function M.debug_highlight()
 end
 
 function M.setup(opts)
+  -- Prevent duplicate setup to avoid creating duplicate autocmds
+  if setup_done then
+    return
+  end
+  setup_done = true
+
   opts = opts or {}
 
   -- Setup syntax highlighting
