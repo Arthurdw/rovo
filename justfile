@@ -30,7 +30,7 @@ lint-fix:
     cargo clippy --fix --allow-dirty --allow-staged --all-targets --all-features
 
 # Lint all projects (Rust + VSCode + JetBrains)
-lint-all: lint vscode-lint
+lint-all: lint vscode-lint jetbrains-lint
     @echo "All linting completed!"
 
 # Fix all lint issues (Rust + VSCode)
@@ -242,6 +242,10 @@ vscode-install-local: vscode-package
 # Build JetBrains plugin
 jetbrains-build:
     cd jetbrains-plugin && ./gradlew build
+
+# Lint JetBrains plugin
+jetbrains-lint:
+    cd jetbrains-plugin && ./gradlew check
 
 # Test JetBrains plugin
 jetbrains-test:

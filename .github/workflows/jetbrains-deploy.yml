@@ -1,10 +1,13 @@
 name: Deploy JetBrains Plugin
 
+# TODO: Temporarily disabled automatic deployment
+# Re-enable by uncommenting workflow_run trigger below
 on:
-  workflow_run:
-    workflows: ["Weekly Release"]
-    types:
-      - completed
+  workflow_dispatch:  # Manual trigger only
+  # workflow_run:
+  #   workflows: ["Weekly Release"]
+  #   types:
+  #     - completed
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}

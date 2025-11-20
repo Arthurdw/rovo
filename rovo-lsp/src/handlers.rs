@@ -565,8 +565,15 @@ pub fn semantic_tokens_full(content: &str) -> Option<SemanticTokensResult> {
         content.len()
     );
     let mut tokens = Vec::new();
-    let mut prev_line = 0;
-    let mut prev_start = 0;
+    let mut prev_line: u32 = 0;
+    let mut prev_start: u32 = 0;
+
+    // Compile regexes once outside the loop for efficiency
+    let annotation_regex =
+        regex::Regex::new(r"@(response|tag|security|example|id|hidden|rovo-ignore)\b").unwrap();
+    let tag_value_regex = regex::Regex::new(r"@(?:tag|id)\s+(\w+)").unwrap();
+    let status_regex = regex::Regex::new(r"\b([1-5][0-9]{2})\b").unwrap();
+    let security_regex = regex::Regex::new(r"\b(bearer|basic|apiKey|oauth2)\b").unwrap();
 
     for (line_idx, line) in content.lines().enumerate() {
         // Only process lines near #[rovo] attributes
@@ -575,112 +582,111 @@ pub fn semantic_tokens_full(content: &str) -> Option<SemanticTokensResult> {
         }
 
         // Match annotations: @response, @tag, @security, @example, @id, @hidden, @rovo-ignore
-        let annotation_regex =
-            regex::Regex::new(r"@(response|tag|security|example|id|hidden|rovo-ignore)\b").unwrap();
         for cap in annotation_regex.captures_iter(line) {
             if let Some(m) = cap.get(0) {
-                let start_char = m.start();
-                let length = m.as_str().len();
+                let start_byte = m.start();
+                let start_col = byte_index_to_utf16_col(line, start_byte) as u32;
+                let length: u32 = m.as_str().chars().map(|ch| ch.len_utf16() as u32).sum();
 
-                // Calculate delta encoding
+                // Calculate delta encoding (UTF-16 units)
                 let delta_line = (line_idx as u32).saturating_sub(prev_line);
                 let delta_start = if delta_line == 0 {
-                    (start_char as u32).saturating_sub(prev_start)
+                    start_col.saturating_sub(prev_start)
                 } else {
-                    start_char as u32
+                    start_col
                 };
 
                 tokens.push(SemanticToken {
                     delta_line,
                     delta_start,
-                    length: length as u32,
+                    length,
                     token_type: 0,             // MACRO
                     token_modifiers_bitset: 1, // DOCUMENTATION modifier (bit 0)
                 });
 
                 prev_line = line_idx as u32;
-                prev_start = start_char as u32;
+                prev_start = start_col;
             }
         }
 
         // Match tag/id values: text after @tag, @id, etc.
-        let tag_value_regex = regex::Regex::new(r"@(?:tag|id)\s+(\w+)").unwrap();
         for cap in tag_value_regex.captures_iter(line) {
             if let Some(m) = cap.get(1) {
-                let start_char = m.start();
-                let length = m.as_str().len();
+                let start_byte = m.start();
+                let start_col = byte_index_to_utf16_col(line, start_byte) as u32;
+                let length: u32 = m.as_str().chars().map(|ch| ch.len_utf16() as u32).sum();
 
                 let delta_line = (line_idx as u32).saturating_sub(prev_line);
                 let delta_start = if delta_line == 0 {
-                    (start_char as u32).saturating_sub(prev_start)
+                    start_col.saturating_sub(prev_start)
                 } else {
-                    start_char as u32
+                    start_col
                 };
 
                 tokens.push(SemanticToken {
                     delta_line,
                     delta_start,
-                    length: length as u32,
+                    length,
                     token_type: 3,             // STRING
                     token_modifiers_bitset: 1, // DOCUMENTATION modifier (bit 0)
                 });
 
                 prev_line = line_idx as u32;
-                prev_start = start_char as u32;
+                prev_start = start_col;
             }
         }
 
         // Match status codes: 200, 404, etc.
-        let status_regex = regex::Regex::new(r"\b([1-5][0-9]{2})\b").unwrap();
         for cap in status_regex.captures_iter(line) {
             if let Some(m) = cap.get(0) {
-                let start_char = m.start();
-                let length = m.as_str().len();
+                let start_byte = m.start();
+                let start_col = byte_index_to_utf16_col(line, start_byte) as u32;
+                let length: u32 = m.as_str().chars().map(|ch| ch.len_utf16() as u32).sum();
 
                 let delta_line = (line_idx as u32).saturating_sub(prev_line);
                 let delta_start = if delta_line == 0 {
-                    (start_char as u32).saturating_sub(prev_start)
+                    start_col.saturating_sub(prev_start)
                 } else {
-                    start_char as u32
+                    start_col
                 };
 
                 tokens.push(SemanticToken {
                     delta_line,
                     delta_start,
-                    length: length as u32,
+                    length,
                     token_type: 1,             // NUMBER
                     token_modifiers_bitset: 1, // DOCUMENTATION modifier (bit 0)
                 });
 
                 prev_line = line_idx as u32;
-                prev_start = start_char as u32;
+                prev_start = start_col;
             }
         }
 
         // Match security schemes: bearer, basic, apiKey, oauth2
-        let security_regex = regex::Regex::new(r"\b(bearer|basic|apiKey|oauth2)\b").unwrap();
         for cap in security_regex.captures_iter(line) {
             if let Some(m) = cap.get(0) {
-                let start_char = m.start();
-                let length = m.as_str().len();
+                let start_byte = m.start();
+                let start_col = byte_index_to_utf16_col(line, start_byte) as u32;
+                let length: u32 = m.as_str().chars().map(|ch| ch.len_utf16() as u32).sum();
 
                 let delta_line = (line_idx as u32).saturating_sub(prev_line);
                 let delta_start = if delta_line == 0 {
-                    (start_char as u32).saturating_sub(prev_start)
+                    start_col.saturating_sub(prev_start)
                 } else {
-                    start_char as u32
+                    start_col
                 };
 
                 tokens.push(SemanticToken {
                     delta_line,
                     delta_start,
-                    length: length as u32,
+                    length,
                     token_type: 2,             // TYPE
                     token_modifiers_bitset: 1, // DOCUMENTATION modifier (bit 0)
                 });
 
                 prev_line = line_idx as u32;
-                prev_start = start_char as u32;
+                prev_start = start_col;
             }
         }
     }
