@@ -241,13 +241,15 @@ pub fn find_tag_references(content: &str, position: Position, uri: Url) -> Optio
         // Look for @tag annotations
         if let Some(pos) = line.find("@tag") {
             // Extract the tag name from this line
-            let after_tag = &line[pos + 4..].trim_start();
-            let tag_in_line = after_tag.split_whitespace().next().unwrap_or("");
+            let raw_after_tag = &line[pos + 4..];
+            let trimmed_after_tag = raw_after_tag.trim_start();
+            let tag_in_line = trimmed_after_tag.split_whitespace().next().unwrap_or("");
 
             if tag_in_line == tag_name {
                 // Found a reference!
+                let whitespace = raw_after_tag.len() - trimmed_after_tag.len();
                 let start_char = pos;
-                let end_char = pos + 4 + after_tag.find(tag_in_line).unwrap_or(0) + tag_name.len();
+                let end_char = pos + 4 + whitespace + tag_name.len();
 
                 locations.push(Location {
                     uri: uri.clone(),
@@ -282,14 +284,20 @@ fn extract_tag_at_position(line: &str, char_idx: usize) -> Option<String> {
     // Find @tag in the line
     let tag_pos = line.find("@tag")?;
 
-    // Get the part after @tag
-    let after_tag = &line[tag_pos + 4..].trim_start();
+    // Get the part after @tag (untrimmed)
+    let raw_after_tag = &line[tag_pos + 4..];
+
+    // Trim to get the tag name part
+    let trimmed_after_tag = raw_after_tag.trim_start();
 
     // Extract the tag name (first word)
-    let tag_name = after_tag.split_whitespace().next()?;
+    let tag_name = trimmed_after_tag.split_whitespace().next()?;
+
+    // Calculate whitespace before tag name
+    let whitespace = raw_after_tag.len() - trimmed_after_tag.len();
 
     // Check if cursor is on the @tag keyword or the tag name
-    let tag_start = tag_pos + 4 + (after_tag.len() - after_tag.trim_start().len());
+    let tag_start = tag_pos + 4 + whitespace;
     let tag_end = tag_start + tag_name.len();
 
     if char_idx >= tag_pos && char_idx <= tag_end {
