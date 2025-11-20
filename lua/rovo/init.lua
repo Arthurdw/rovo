@@ -59,13 +59,13 @@ local function setup_highlighting()
 
       -- Highlight annotation keywords (like macros: @response, @tag, etc.)
       -- Priority 10 for compatibility with plugins like Leap
-      vim.fn.matchadd('RovoAnnotation', line_pattern .. '^\\/\\/\\/.*\\zs@\\(response\\|tag\\|security\\|example\\|id\\|hidden\\)\\ze', 10)
+      vim.fn.matchadd('RovoAnnotation', line_pattern .. '^\\s*\\/\\/\\/.*\\zs@\\(response\\|tag\\|security\\|example\\|id\\|hidden\\)\\ze', 10)
 
       -- Highlight status codes (100-599)
-      vim.fn.matchadd('RovoStatusCode', line_pattern .. '^\\/\\/\\/ @\\w\\+\\s\\+\\zs[1-5][0-9]\\{2\\}\\ze', 10)
+      vim.fn.matchadd('RovoStatusCode', line_pattern .. '^\\s*\\/\\/\\/ @\\w\\+\\s\\+\\zs[1-5][0-9]\\{2\\}\\ze', 10)
 
       -- Highlight security schemes
-      vim.fn.matchadd('RovoSecurityScheme', line_pattern .. '^\\/\\/\\/ @security\\s\\+\\zs\\(bearer\\|basic\\|apiKey\\|oauth2\\)\\ze', 10)
+      vim.fn.matchadd('RovoSecurityScheme', line_pattern .. '^\\s*\\/\\/\\/ @security\\s\\+\\zs\\(bearer\\|basic\\|apiKey\\|oauth2\\)\\ze', 10)
     end
   end
 
