@@ -1,4 +1,13 @@
+use once_cell::sync::Lazy;
 use regex::Regex;
+
+// Static regex patterns to avoid recompilation
+static RESPONSE_RE: Lazy<Regex> =
+    Lazy::new(|| Regex::new(r"@response\s+(\d+)\s+(\S+)(?:\s+(.+))?").unwrap());
+static TAG_RE: Lazy<Regex> = Lazy::new(|| Regex::new(r"@tag\s+(\S+)").unwrap());
+static SECURITY_RE: Lazy<Regex> = Lazy::new(|| Regex::new(r"@security\s+(\S+)").unwrap());
+static EXAMPLE_RE: Lazy<Regex> = Lazy::new(|| Regex::new(r"@example\s+(\d+)\s+(.+)").unwrap());
+static ID_RE: Lazy<Regex> = Lazy::new(|| Regex::new(r"@id\s+(\S+)").unwrap());
 
 /// Type of Rovo annotation
 #[derive(Debug, Clone, PartialEq)]
@@ -126,6 +135,12 @@ pub fn parse_annotations(content: &str) -> Vec<Annotation> {
                 break;
             }
 
+            // Check for @rovo-ignore directive - stops scanning this doc block
+            let content = line.trim_start_matches("///").trim();
+            if content.starts_with("@rovo-ignore") {
+                break;
+            }
+
             // Parse annotation
             if let Some(ann) = parse_annotation_line(line, i) {
                 annotations.insert(0, ann);
@@ -164,13 +179,16 @@ fn parse_annotation_line(line: &str, line_num: usize) -> Option<Annotation> {
 }
 
 fn parse_response(content: &str, line_num: usize) -> Option<Annotation> {
-    // Format: @response STATUS TYPE DESCRIPTION
-    let re = Regex::new(r"@response\s+(\d+)\s+(\S+)\s*(.*)").unwrap();
-
-    if let Some(captures) = re.captures(content) {
+    // Format: @response STATUS TYPE [DESCRIPTION]
+    if let Some(captures) = RESPONSE_RE.captures(content) {
         let status: u16 = captures.get(1)?.as_str().parse().ok()?;
         let response_type = captures.get(2)?.as_str().to_string();
-        let description = captures.get(3).map(|m| m.as_str().to_string());
+        // Only set description if it's non-empty
+        let description = captures
+            .get(3)
+            .map(|m| m.as_str())
+            .filter(|s| !s.is_empty())
+            .map(|s| s.to_string());
 
         let mut ann = Annotation::new(AnnotationKind::Response, line_num);
         ann.status = Some(status);
@@ -185,9 +203,7 @@ fn parse_response(content: &str, line_num: usize) -> Option<Annotation> {
 
 fn parse_tag(content: &str, line_num: usize) -> Option<Annotation> {
     // Format: @tag NAME
-    let re = Regex::new(r"@tag\s+(\S+)").unwrap();
-
-    if let Some(captures) = re.captures(content) {
+    if let Some(captures) = TAG_RE.captures(content) {
         let tag_name = captures.get(1)?.as_str().to_string();
 
         let mut ann = Annotation::new(AnnotationKind::Tag, line_num);
@@ -201,9 +217,7 @@ fn parse_tag(content: &str, line_num: usize) -> Option<Annotation> {
 
 fn parse_security(content: &str, line_num: usize) -> Option<Annotation> {
     // Format: @security SCHEME
-    let re = Regex::new(r"@security\s+(\S+)").unwrap();
-
-    if let Some(captures) = re.captures(content) {
+    if let Some(captures) = SECURITY_RE.captures(content) {
         let security_scheme = captures.get(1)?.as_str().to_string();
 
         let mut ann = Annotation::new(AnnotationKind::Security, line_num);
@@ -217,9 +231,7 @@ fn parse_security(content: &str, line_num: usize) -> Option<Annotation> {
 
 fn parse_example(content: &str, line_num: usize) -> Option<Annotation> {
     // Format: @example STATUS JSON
-    let re = Regex::new(r"@example\s+(\d+)\s+(.+)").unwrap();
-
-    if let Some(captures) = re.captures(content) {
+    if let Some(captures) = EXAMPLE_RE.captures(content) {
         let status: u16 = captures.get(1)?.as_str().parse().ok()?;
         let example_value = captures.get(2)?.as_str().to_string();
 
@@ -235,9 +247,7 @@ fn parse_example(content: &str, line_num: usize) -> Option<Annotation> {
 
 fn parse_id(content: &str, line_num: usize) -> Option<Annotation> {
     // Format: @id OPERATION_ID
-    let re = Regex::new(r"@id\s+(\S+)").unwrap();
-
-    if let Some(captures) = re.captures(content) {
+    if let Some(captures) = ID_RE.captures(content) {
         let operation_id = captures.get(1)?.as_str().to_string();
 
         let mut ann = Annotation::new(AnnotationKind::Id, line_num);
@@ -316,5 +326,33 @@ async fn handler() {}
         assert_eq!(annotations.len(), 2);
         assert_eq!(annotations[0].kind, AnnotationKind::Response);
         assert_eq!(annotations[1].kind, AnnotationKind::Tag);
+    }
+
+    #[test]
+    fn test_rovo_ignore_stops_parsing() {
+        let content = r#"
+/// @response 200 Json<User> Success
+/// @tag users
+/// @rovo-ignore
+/// @response 404 Json<Error> Not found
+#[rovo]
+async fn handler() {}
+"#;
+        let annotations = parse_annotations(content);
+        // Should only parse annotations after @rovo-ignore (404 response)
+        // Everything before @rovo-ignore should be ignored
+        assert_eq!(annotations.len(), 1);
+        assert_eq!(annotations[0].kind, AnnotationKind::Response);
+        assert_eq!(annotations[0].status, Some(404));
+    }
+
+    #[test]
+    fn test_response_without_description() {
+        let line = "/// @response 200 Json<User>";
+        let ann = parse_annotation_line(line, 0).unwrap();
+        assert_eq!(ann.kind, AnnotationKind::Response);
+        assert_eq!(ann.status, Some(200));
+        assert_eq!(ann.response_type, Some("Json<User>".to_string()));
+        assert_eq!(ann.description, None); // Should be None, not Some("")
     }
 }
