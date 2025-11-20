@@ -69,14 +69,12 @@ impl LanguageServer for Backend {
                         SemanticTokensOptions {
                             legend: SemanticTokensLegend {
                                 token_types: vec![
-                                    SemanticTokenType::MACRO,         // For @annotations (better theme support)
-                                    SemanticTokenType::NUMBER,        // For status codes
-                                    SemanticTokenType::ENUM_MEMBER,   // For security schemes
-                                    SemanticTokenType::STRING,        // For tag values
+                                    SemanticTokenType::MACRO,       // For @annotations (better theme support)
+                                    SemanticTokenType::NUMBER,      // For status codes
+                                    SemanticTokenType::ENUM_MEMBER, // For security schemes
+                                    SemanticTokenType::STRING,      // For tag values
                                 ],
-                                token_modifiers: vec![
-                                    SemanticTokenModifier::DOCUMENTATION,
-                                ],
+                                token_modifiers: vec![SemanticTokenModifier::DOCUMENTATION],
                             },
                             full: Some(SemanticTokensFullOptions::Bool(true)),
                             range: None,

@@ -556,7 +556,10 @@ fn get_security_scheme_at_position(line: &str, char_idx: usize) -> Option<String
 /// 1: NUMBER - for status codes (200, 404, etc.)
 /// 2: TYPE - for security schemes (bearer, oauth2, etc.)
 pub fn semantic_tokens_full(content: &str) -> Option<SemanticTokensResult> {
-    eprintln!("[ROVO] semantic_tokens_full called, content length: {}", content.len());
+    eprintln!(
+        "[ROVO] semantic_tokens_full called, content length: {}",
+        content.len()
+    );
     let mut tokens = Vec::new();
     let mut prev_line = 0;
     let mut prev_start = 0;
@@ -568,7 +571,8 @@ pub fn semantic_tokens_full(content: &str) -> Option<SemanticTokensResult> {
         }
 
         // Match annotations: @response, @tag, @security, @example, @id, @hidden, @rovo-ignore
-        let annotation_regex = regex::Regex::new(r"@(response|tag|security|example|id|hidden|rovo-ignore)\b").unwrap();
+        let annotation_regex =
+            regex::Regex::new(r"@(response|tag|security|example|id|hidden|rovo-ignore)\b").unwrap();
         for cap in annotation_regex.captures_iter(line) {
             if let Some(m) = cap.get(0) {
                 let start_char = m.start();
@@ -586,7 +590,7 @@ pub fn semantic_tokens_full(content: &str) -> Option<SemanticTokensResult> {
                     delta_line,
                     delta_start,
                     length: length as u32,
-                    token_type: 0, // MACRO
+                    token_type: 0,             // MACRO
                     token_modifiers_bitset: 1, // DOCUMENTATION modifier (bit 0)
                 });
 
@@ -613,7 +617,7 @@ pub fn semantic_tokens_full(content: &str) -> Option<SemanticTokensResult> {
                     delta_line,
                     delta_start,
                     length: length as u32,
-                    token_type: 3, // STRING
+                    token_type: 3,             // STRING
                     token_modifiers_bitset: 1, // DOCUMENTATION modifier (bit 0)
                 });
 
@@ -640,7 +644,7 @@ pub fn semantic_tokens_full(content: &str) -> Option<SemanticTokensResult> {
                     delta_line,
                     delta_start,
                     length: length as u32,
-                    token_type: 1, // NUMBER
+                    token_type: 1,             // NUMBER
                     token_modifiers_bitset: 1, // DOCUMENTATION modifier (bit 0)
                 });
 
@@ -667,7 +671,7 @@ pub fn semantic_tokens_full(content: &str) -> Option<SemanticTokensResult> {
                     delta_line,
                     delta_start,
                     length: length as u32,
-                    token_type: 2, // TYPE
+                    token_type: 2,             // TYPE
                     token_modifiers_bitset: 1, // DOCUMENTATION modifier (bit 0)
                 });
 
