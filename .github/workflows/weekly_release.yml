@@ -157,6 +157,13 @@ jobs:
           npm version ${{ env.VERSION }} --no-git-tag-version --allow-same-version
           git add package.json package-lock.json
 
+      - name: Update JetBrains plugin version
+        if: steps.check_release.outputs.needs_release == 'true'
+        run: |
+          cd jetbrains-plugin
+          sed -i 's/^version = ".*"/version = "'"${{ env.VERSION }}"'"/' build.gradle.kts
+          git add build.gradle.kts
+
       - name: Commit version bump
         if: steps.check_release.outputs.needs_release == 'true'
         run: |

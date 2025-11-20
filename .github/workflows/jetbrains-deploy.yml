@@ -1,0 +1,53 @@
+name: Deploy JetBrains Plugin
+
+on:
+  workflow_run:
+    workflows: ["Weekly Release"]
+    types:
+      - completed
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  deploy-jetbrains:
+    name: Deploy to JetBrains Marketplace
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+
+      - name: Build Plugin
+        working-directory: jetbrains-plugin
+        run: ./gradlew buildPlugin
+
+      - name: Verify Plugin
+        working-directory: jetbrains-plugin
+        run: ./gradlew verifyPlugin
+
+      - name: Sign Plugin
+        working-directory: jetbrains-plugin
+        env:
+          CERTIFICATE_CHAIN: ${{ secrets.JETBRAINS_CERTIFICATE_CHAIN }}
+          PRIVATE_KEY: ${{ secrets.JETBRAINS_PRIVATE_KEY }}
+          PRIVATE_KEY_PASSWORD: ${{ secrets.JETBRAINS_PRIVATE_KEY_PASSWORD }}
+        run: ./gradlew signPlugin
+
+      - name: Publish to JetBrains Marketplace
+        working-directory: jetbrains-plugin
+        env:
+          PUBLISH_TOKEN: ${{ secrets.JETBRAINS_PUBLISH_TOKEN }}
+        run: ./gradlew publishPlugin
