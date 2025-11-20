@@ -14,8 +14,12 @@ test-quiet:
     cargo test --all-features --workspace --quiet
 
 # Run tests including ignored ones
-test-all:
+test-rust-all:
     cargo test --all-features --workspace -- --include-ignored
+
+# Run all tests (Rust + VSCode + JetBrains)
+test-all: test vscode-test jetbrains-test
+    @echo "All tests passed!"
 
 # Run clippy lints
 lint:
@@ -24,6 +28,14 @@ lint:
 # Fix clippy warnings automatically
 lint-fix:
     cargo clippy --fix --allow-dirty --allow-staged --all-targets --all-features
+
+# Lint all projects (Rust + VSCode + JetBrains)
+lint-all: lint vscode-lint
+    @echo "All linting completed!"
+
+# Fix all lint issues (Rust + VSCode)
+lint-fix-all: lint-fix vscode-lint-fix
+    @echo "All lint fixes applied!"
 
 # Format code
 fmt:
@@ -40,6 +52,10 @@ build:
 # Build in release mode
 build-release:
     cargo build --release --all-features
+
+# Build all projects (Rust + VSCode + JetBrains)
+build-all: build vscode-build jetbrains-build
+    @echo "All builds completed!"
 
 # Clean build artifacts
 clean:
@@ -170,7 +186,7 @@ watch-lsp:
 # --- Combined Commands ---
 
 # Run all quality checks including coverage
-check-all: fmt-check lint test coverage-summary
+check-all: fmt-check lint-all test-all coverage-summary
     @echo "All quality checks passed!"
 
 # Quick check (no coverage)
@@ -203,6 +219,10 @@ vscode-package:
 vscode-publish:
     cd vscode-rovo && npx vsce publish
 
+# Test VSCode extension (TypeScript type checking)
+vscode-test:
+    cd vscode-rovo && npm test
+
 # Install local VSCode extension for testing
 vscode-install-local: vscode-package
     #!/usr/bin/env bash
@@ -212,3 +232,25 @@ vscode-install-local: vscode-package
     code --uninstall-extension arthurdw.rovo-lsp || true
     code --install-extension "$VSIX"
     echo "Installed $VSIX. Reload VSCode to activate."
+
+# --- JetBrains Plugin Commands ---
+
+# Build JetBrains plugin
+jetbrains-build:
+    cd jetbrains-plugin && ./gradlew build
+
+# Test JetBrains plugin
+jetbrains-test:
+    cd jetbrains-plugin && ./gradlew test
+
+# Build JetBrains plugin for distribution
+jetbrains-package:
+    cd jetbrains-plugin && ./gradlew buildPlugin
+
+# Run JetBrains plugin in IDE sandbox
+jetbrains-run:
+    cd jetbrains-plugin && ./gradlew runIde
+
+# Verify JetBrains plugin
+jetbrains-verify:
+    cd jetbrains-plugin && ./gradlew verifyPlugin

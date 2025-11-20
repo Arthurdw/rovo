@@ -184,6 +184,17 @@ export async function activate(context: vscode.ExtensionContext) {
                         );
                         return;
                     }
+                    // Re-check server path after installation
+                    const installedServerPath = await checkServerAvailable(serverPath);
+                    if (!installedServerPath) {
+                        vscode.window.showErrorMessage(
+                            'rovo-lsp installed but not found in PATH. Please restart VS Code or check your installation.'
+                        );
+                        return;
+                    }
+                    outputChannel.appendLine(`Server installed and found at: ${installedServerPath}`);
+                    await startLanguageServer(installedServerPath, config, outputChannel, context);
+                    return;
                 } else {
                     vscode.window.showInformationMessage(
                         'rovo-lsp not installed. Install it with: cargo install rovo-lsp'
@@ -198,10 +209,8 @@ export async function activate(context: vscode.ExtensionContext) {
             }
         } else {
             outputChannel.appendLine(`Server found at: ${actualServerPath}`);
+            await startLanguageServer(actualServerPath, config, outputChannel, context);
         }
-
-        // Start the language server
-        await startLanguageServer(actualServerPath, config, outputChannel, context);
 
     } catch (error) {
         outputChannel.appendLine(`Error activating extension: ${error}`);
