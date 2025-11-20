@@ -2,7 +2,7 @@ name: JetBrains Plugin CI
 
 on:
   push:
-    branches: [main, develop, lsp-support]
+    branches: [main, develop]
     paths:
       - 'jetbrains-plugin/**'
       - 'rovo-lsp/**'

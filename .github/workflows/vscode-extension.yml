@@ -2,7 +2,7 @@ name: VSCode Extension CI
 
 on:
   push:
-    branches: [main, develop, lsp-support]
+    branches: [main, develop]
     paths:
       - 'vscode-rovo/**'
       - 'rovo-lsp/**'
