@@ -7,7 +7,7 @@ This guide covers using Rovo with JetBrains IDEs (RustRover, IntelliJ IDEA, CLio
 ### Prerequisites
 
 - **Rust toolchain** (cargo) must be installed: https://rustup.rs/
-- **JetBrains IDE** version 2023.2 or later
+- **JetBrains IDE** version 2024.3 or later
 - One of the following IDEs:
   - RustRover (recommended for Rust development)
   - IntelliJ IDEA Ultimate/Community with Rust plugin
@@ -198,7 +198,7 @@ The Rovo LSP is lightweight and context-aware:
 
 ## Compatibility
 
-- **IDE Version**: 2023.2 or later
+- **IDE Version**: 2024.3 or later
 - **Rust Version**: Any version supported by your IDE's Rust plugin
 - **Platform**: Linux, macOS, Windows
 

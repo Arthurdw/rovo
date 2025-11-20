@@ -263,8 +263,12 @@ pub fn find_tag_references(content: &str, position: Position, uri: Url) -> Optio
             if tag_in_line == tag_name {
                 // Found a reference!
                 let whitespace = raw_after_tag.len() - trimmed_after_tag.len();
-                let start_char = pos;
-                let end_char = pos + 4 + whitespace + tag_name.len();
+                let start_byte = pos;
+                let end_byte = pos + 4 + whitespace + tag_name.len();
+
+                // Convert byte offsets to UTF-16 columns for LSP positions
+                let start_char = byte_index_to_utf16_col(line, start_byte);
+                let end_char = byte_index_to_utf16_col(line, end_byte);
 
                 locations.push(Location {
                     uri: uri.clone(),

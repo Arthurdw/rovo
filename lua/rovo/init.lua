@@ -308,8 +308,8 @@ local function check_and_install_server(opts)
       if exit_code == 0 then
         vim.notify('[rovo] rovo-lsp installed successfully!', vim.log.levels.INFO)
         vim.schedule(function()
-          -- Trigger LSP setup after installation
-          vim.cmd('edit') -- Reload current buffer to trigger LSP
+          -- Re-invoke setup with auto_install disabled to complete LSP wiring
+          require('rovo').setup(vim.tbl_extend('keep', opts or {}, { auto_install = false }))
         end)
       else
         vim.notify('[rovo] Failed to install rovo-lsp. Exit code: ' .. exit_code, vim.log.levels.ERROR)
@@ -365,7 +365,6 @@ function M.setup(opts)
   if setup_done then
     return
   end
-  setup_done = true
 
   opts = opts or {}
 
@@ -425,6 +424,9 @@ function M.setup(opts)
   end
 
   lsp.rovo_lsp.setup(opts)
+
+  -- Mark setup as done only after LSP is successfully configured
+  setup_done = true
 end
 
 return M

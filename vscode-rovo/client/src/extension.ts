@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import * as child_process from 'child_process';
 import { promisify } from 'util';
+import * as fs from 'fs/promises';
 import {
     LanguageClient,
     LanguageClientOptions,
@@ -232,7 +233,7 @@ async function checkServerAvailable(serverPath: string): Promise<string | null> 
 
         for (const binPath of cargoBinPaths) {
             try {
-                await execAsync(`test -x ${binPath}`);
+                await fs.access(binPath, fs.constants.F_OK);
                 return binPath;
             } catch {
                 continue;

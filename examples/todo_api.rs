@@ -53,6 +53,26 @@ pub struct UpdateTodoRequest {
     pub complete: Option<bool>,
 }
 
+/// Example http endpoint
+///
+/// Retrieve an item by its ID from the database.
+///
+/// @tag todos
+/// @response 200 Json<TodoItem> Successfully retrieved the item.
+/// @example 200 TodoItem::default()
+/// @response 404 () item was not found.
+#[rovo]
+async fn example_endpoint(
+    State(app): State<AppState>,
+    Path(TodoId { id }): Path<TodoId>,
+) -> impl IntoApiResponse {
+    if let Some(todo) = app.todos.lock().unwrap().get(&id) {
+        (StatusCode::OK, Json(todo.clone())).into_response()
+    } else {
+        StatusCode::NOT_FOUND.into_response()
+    }
+}
+
 /// Get a single Todo item.
 ///
 /// Retrieve a Todo item by its ID from the database.
@@ -66,11 +86,7 @@ async fn get_todo(
     State(app): State<AppState>,
     Path(TodoId { id }): Path<TodoId>,
 ) -> impl IntoApiResponse {
-    if let Some(todo) = app.todos.lock().unwrap().get(&id) {
-        (StatusCode::OK, Json(todo.clone())).into_response()
-    } else {
-        StatusCode::NOT_FOUND.into_response()
-    }
+    todo!("impl")
 }
 
 /// List all Todo items.

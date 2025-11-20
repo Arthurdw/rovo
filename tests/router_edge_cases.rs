@@ -349,38 +349,38 @@ fn test_router_without_oas() {
     });
 }
 
+/// GET handler
+#[rovo]
+async fn handler_get() -> StatusCode {
+    StatusCode::OK
+}
+
+/// POST handler
+#[rovo]
+async fn handler_post() -> StatusCode {
+    StatusCode::OK
+}
+
+/// PUT handler
+#[rovo]
+async fn handler_put() -> StatusCode {
+    StatusCode::OK
+}
+
+/// PATCH handler
+#[rovo]
+async fn handler_patch() -> StatusCode {
+    StatusCode::OK
+}
+
+/// DELETE handler
+#[rovo]
+async fn handler_delete() -> StatusCode {
+    StatusCode::OK
+}
+
 #[test]
 fn test_all_http_methods() {
-    /// GET handler
-    #[rovo]
-    async fn handler_get() -> StatusCode {
-        StatusCode::OK
-    }
-
-    /// POST handler
-    #[rovo]
-    async fn handler_post() -> StatusCode {
-        StatusCode::OK
-    }
-
-    /// PUT handler
-    #[rovo]
-    async fn handler_put() -> StatusCode {
-        StatusCode::OK
-    }
-
-    /// PATCH handler
-    #[rovo]
-    async fn handler_patch() -> StatusCode {
-        StatusCode::OK
-    }
-
-    /// DELETE handler
-    #[rovo]
-    async fn handler_delete() -> StatusCode {
-        StatusCode::OK
-    }
-
     let mut api = OpenApi::default();
     api.info.title = "Test API".to_string();
 

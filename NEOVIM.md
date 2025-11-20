@@ -3,7 +3,7 @@
 Language Server Protocol support for Rovo annotations in Neovim.
 
 <!--toc:start-->
-- [Rovo - Neovim Integration](#rovo-neovim-integration)
+- [Rovo - Neovim Integration](#rovo---neovim-integration)
   - [Features](#features)
   - [Installation](#installation)
     - [lazy.nvim](#lazynvim)

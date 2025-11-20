@@ -236,6 +236,7 @@ impl LanguageServer for Backend {
                 {
                     // Find the exact position of the type name in the definition line
                     // Strip comments to avoid matching inside comments
+                    let def_line_text = lines.get(def_line).unwrap_or(&"");
                     let def_col = lines
                         .get(def_line)
                         .and_then(|l| {
@@ -275,6 +276,13 @@ impl LanguageServer for Backend {
                         })
                         .unwrap_or(0);
 
+                    // Convert byte offsets to UTF-16 columns for LSP positions
+                    let start_char = crate::utils::byte_index_to_utf16_col(def_line_text, def_col);
+                    let end_char = crate::utils::byte_index_to_utf16_col(
+                        def_line_text,
+                        def_col + type_name.len(),
+                    );
+
                     let location = Location {
                         uri: params
                             .text_document_position_params
@@ -284,11 +292,11 @@ impl LanguageServer for Backend {
                         range: Range {
                             start: Position {
                                 line: def_line as u32,
-                                character: def_col as u32,
+                                character: start_char as u32,
                             },
                             end: Position {
                                 line: def_line as u32,
-                                character: (def_col + type_name.len()) as u32,
+                                character: end_char as u32,
                             },
                         },
                     };
