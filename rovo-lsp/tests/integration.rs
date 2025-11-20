@@ -126,3 +126,43 @@ async fn handler2() {}
     // Should only find the annotation near #[rovo]
     assert_eq!(annotations.len(), 1);
 }
+
+#[test]
+fn detects_multiple_rovo_blocks() {
+    let content = r#"
+/// @response 200 Json<User> Success
+/// @tag users
+#[rovo]
+async fn get_user() {}
+
+/// @response 200 Json<Post> Success
+/// @tag posts
+/// @security bearer
+#[rovo]
+async fn get_post() {}
+"#;
+    let annotations = parse_annotations(content);
+    // Should find all annotations from both blocks
+    assert_eq!(annotations.len(), 5);
+
+    // Check both blocks have their annotations
+    let user_response = annotations.iter().find(|a| {
+        a.kind == AnnotationKind::Response && a.response_type.as_ref().map(|t| t.contains("User")).unwrap_or(false)
+    });
+    let user_tag = annotations.iter().find(|a| {
+        a.kind == AnnotationKind::Tag && a.tag_name.as_ref() == Some(&"users".to_string())
+    });
+    let post_response = annotations.iter().find(|a| {
+        a.kind == AnnotationKind::Response && a.response_type.as_ref().map(|t| t.contains("Post")).unwrap_or(false)
+    });
+    let post_tag = annotations.iter().find(|a| {
+        a.kind == AnnotationKind::Tag && a.tag_name.as_ref() == Some(&"posts".to_string())
+    });
+    let security = annotations.iter().find(|a| a.kind == AnnotationKind::Security);
+
+    assert!(user_response.is_some(), "Should find User response");
+    assert!(user_tag.is_some(), "Should find users tag");
+    assert!(post_response.is_some(), "Should find Post response");
+    assert!(post_tag.is_some(), "Should find posts tag");
+    assert!(security.is_some(), "Should find security annotation");
+}

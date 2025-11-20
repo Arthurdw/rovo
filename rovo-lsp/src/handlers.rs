@@ -134,7 +134,7 @@ pub fn text_document_hover(content: &str, position: Position) -> Option<Hover> {
         return Some(Hover {
             contents: HoverContents::Markup(MarkupContent {
                 kind: MarkupKind::Markdown,
-                value: documentation,
+                value: documentation.to_string(),
             }),
             range: None,
         });

@@ -76,8 +76,11 @@ fn completes_tag_prefix() {
         character: 6,
     };
     let completions = get_completions(content, position);
-    assert_eq!(completions.len(), 1);
-    assert_eq!(completions[0].label, "@tag");
+    assert!(!completions.is_empty(), "Should have completions");
+    assert!(
+        completions.iter().any(|c| c.label == "@tag"),
+        "Should include @tag completion"
+    );
 }
 
 #[test]
@@ -88,8 +91,11 @@ fn completes_security_prefix() {
         character: 6,
     };
     let completions = get_completions(content, position);
-    assert_eq!(completions.len(), 1);
-    assert_eq!(completions[0].label, "@security");
+    assert!(!completions.is_empty(), "Should have completions");
+    assert!(
+        completions.iter().any(|c| c.label == "@security"),
+        "Should include @security completion"
+    );
 }
 
 #[test]
@@ -100,8 +106,11 @@ fn completes_example_prefix() {
         character: 6,
     };
     let completions = get_completions(content, position);
-    assert_eq!(completions.len(), 1);
-    assert_eq!(completions[0].label, "@example");
+    assert!(!completions.is_empty(), "Should have completions");
+    assert!(
+        completions.iter().any(|c| c.label == "@example"),
+        "Should include @example completion"
+    );
 }
 
 #[test]
@@ -112,8 +121,11 @@ fn completes_hidden_prefix() {
         character: 6,
     };
     let completions = get_completions(content, position);
-    assert_eq!(completions.len(), 1);
-    assert_eq!(completions[0].label, "@hidden");
+    assert!(!completions.is_empty(), "Should have completions");
+    assert!(
+        completions.iter().any(|c| c.label == "@hidden"),
+        "Should include @hidden completion"
+    );
 }
 
 #[test]

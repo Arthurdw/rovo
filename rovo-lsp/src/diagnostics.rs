@@ -12,7 +12,10 @@ pub enum DiagnosticSeverity {
 /// A diagnostic message indicating an issue with annotations
 #[derive(Debug, Clone)]
 pub struct Diagnostic {
-    /// Line number where the diagnostic applies (0-indexed)
+    /// Line number where the diagnostic applies (0-indexed, matching LSP protocol)
+    ///
+    /// Note: This uses 0-based line indexing to align with the LSP specification.
+    /// Line 0 is the first line of the file.
     pub line: usize,
     /// Human-readable diagnostic message
     pub message: String,

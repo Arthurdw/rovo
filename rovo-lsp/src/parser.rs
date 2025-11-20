@@ -270,4 +270,51 @@ mod tests {
         assert_eq!(ann.kind, AnnotationKind::Tag);
         assert_eq!(ann.tag_name, Some("users".to_string()));
     }
+
+    #[test]
+    fn test_parse_security() {
+        let line = "/// @security bearer";
+        let ann = parse_annotation_line(line, 0).unwrap();
+        assert_eq!(ann.kind, AnnotationKind::Security);
+        assert_eq!(ann.security_scheme, Some("bearer".to_string()));
+    }
+
+    #[test]
+    fn test_parse_example() {
+        let line = r#"/// @example 200 {"id": 1}"#;
+        let ann = parse_annotation_line(line, 0).unwrap();
+        assert_eq!(ann.kind, AnnotationKind::Example);
+        assert_eq!(ann.status, Some(200));
+        assert_eq!(ann.example_value, Some(r#"{"id": 1}"#.to_string()));
+    }
+
+    #[test]
+    fn test_parse_id() {
+        let line = "/// @id getUserById";
+        let ann = parse_annotation_line(line, 0).unwrap();
+        assert_eq!(ann.kind, AnnotationKind::Id);
+        assert_eq!(ann.operation_id, Some("getUserById".to_string()));
+    }
+
+    #[test]
+    fn test_parse_hidden() {
+        let line = "/// @hidden";
+        let ann = parse_annotation_line(line, 0).unwrap();
+        assert_eq!(ann.kind, AnnotationKind::Hidden);
+    }
+
+    #[test]
+    fn test_parse_annotations_with_blank_lines() {
+        let content = r#"
+/// @response 200 Json<User> Success
+///
+/// @tag users
+#[rovo]
+async fn handler() {}
+"#;
+        let annotations = parse_annotations(content);
+        assert_eq!(annotations.len(), 2);
+        assert_eq!(annotations[0].kind, AnnotationKind::Response);
+        assert_eq!(annotations[1].kind, AnnotationKind::Tag);
+    }
 }

@@ -7,7 +7,7 @@
 ///
 /// # Returns
 /// Markdown-formatted documentation string
-pub fn get_annotation_documentation(annotation: &str) -> String {
+pub fn get_annotation_documentation(annotation: &str) -> &'static str {
     match annotation {
         "@response" => r#"# @response
 
@@ -39,7 +39,7 @@ Define an API response for different status codes.
 - `404`: Not Found - Resource doesn't exist
 - `500`: Internal Server Error - Server error
 "#
-        .to_string(),
+        ,
 
         "@tag" => r#"# @tag
 
@@ -63,7 +63,7 @@ async fn list_users() -> Json<Vec<User>> { ... }
 
 Tags help organize your API documentation by grouping related endpoints.
 "#
-        .to_string(),
+        ,
 
         "@security" => r#"# @security
 
@@ -91,7 +91,7 @@ Common schemes:
 - `apiKey`: API key in header/query/cookie
 - `oauth2`: OAuth 2.0 authentication
 "#
-        .to_string(),
+        ,
 
         "@example" => r#"# @example
 
@@ -116,7 +116,7 @@ async fn get_user() -> Json<User> { ... }
 
 Examples appear in the generated API documentation and help users understand the response format.
 "#
-        .to_string(),
+        ,
 
         "@id" => r#"# @id
 
@@ -143,7 +143,7 @@ Operation IDs are used:
 - For linking to specific operations
 - In API documentation navigation
 "#
-        .to_string(),
+        ,
 
         "@hidden" => r#"# @hidden
 
@@ -165,10 +165,9 @@ Useful for:
 - Internal/debug endpoints
 - Deprecated endpoints you want to keep
 - Endpoints not ready for public documentation
-"#
-        .to_string(),
+"#,
 
-        _ => format!("Unknown annotation: {}", annotation),
+        _ => "Unknown annotation - use one of: @response, @tag, @security, @example, @id, @hidden",
     }
 }
 

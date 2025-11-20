@@ -110,7 +110,7 @@ pub fn get_completions(content: &str, position: Position) -> Vec<CompletionItem>
                     label: full_label,
                     kind: CompletionItemKind::Snippet,
                     detail: Some(detail.to_string()),
-                    documentation: Some(documentation),
+                    documentation: Some(documentation.to_string()),
                     insert_text: Some(snippet.to_string()),
                 });
             }
