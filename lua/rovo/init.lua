@@ -244,9 +244,18 @@ function M.setup(opts)
     setup_highlighting()
   end
 
-  -- Ensure both LSPs can coexist
-  local lsp = require('lspconfig')
-  local configs = require('lspconfig.configs')
+  -- Ensure both LSPs can coexist (guard against missing lspconfig)
+  local ok_lsp, lsp = pcall(require, 'lspconfig')
+  if not ok_lsp then
+    vim.notify('[rovo] nvim-lspconfig is required for LSP setup', vim.log.levels.WARN)
+    return
+  end
+
+  local ok_configs, configs = pcall(require, 'lspconfig.configs')
+  if not ok_configs then
+    vim.notify('[rovo] Failed to load lspconfig.configs; skipping LSP setup', vim.log.levels.WARN)
+    return
+  end
 
   if not configs.rovo_lsp then
     configs.rovo_lsp = {
