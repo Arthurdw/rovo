@@ -52,8 +52,28 @@ pub fn get_code_actions(content: &str, range: Range, uri: Url) -> Vec<CodeAction
     // We're in a rovo function - find where to insert annotations (above #[rovo])
     let insert_line = rovo_line.unwrap_or(start_line);
 
-    // Parse existing annotations
-    let annotations = parse_annotations(content);
+    // Parse existing annotations and filter to only those for this #[rovo] block
+    let all_annotations = parse_annotations(content);
+
+    // Find the doc comment range for this specific #[rovo] block
+    let doc_start_line = {
+        let mut start = insert_line;
+        while start > 0 {
+            let prev_line = start - 1;
+            if prev_line < lines.len() && lines[prev_line].trim_start().starts_with("///") {
+                start = prev_line;
+            } else {
+                break;
+            }
+        }
+        start
+    };
+
+    // Filter annotations to only those in the current doc block
+    let filtered_annotations: Vec<_> = all_annotations
+        .iter()
+        .filter(|ann| ann.line >= doc_start_line && ann.line < insert_line)
+        .collect();
 
     // Action 1: Add @response (generic - user fills in details)
     actions.push(create_insert_annotation_action(
@@ -87,8 +107,8 @@ pub fn get_code_actions(content: &str, range: Range, uri: Url) -> Vec<CodeAction
         uri.clone(),
     ));
 
-    // Action 5: Add @id annotation (only if missing)
-    let has_id = annotations.iter().any(|ann| ann.kind == AnnotationKind::Id);
+    // Action 5: Add @id annotation (only if missing in this block)
+    let has_id = filtered_annotations.iter().any(|ann| ann.kind == AnnotationKind::Id);
 
     if !has_id {
         actions.push(create_insert_annotation_action(
@@ -99,8 +119,8 @@ pub fn get_code_actions(content: &str, range: Range, uri: Url) -> Vec<CodeAction
         ));
     }
 
-    // Action 6: Add @hidden annotation (only if missing)
-    let has_hidden = annotations
+    // Action 6: Add @hidden annotation (only if missing in this block)
+    let has_hidden = filtered_annotations
         .iter()
         .any(|ann| ann.kind == AnnotationKind::Hidden);
 
@@ -113,8 +133,8 @@ pub fn get_code_actions(content: &str, range: Range, uri: Url) -> Vec<CodeAction
         ));
     }
 
-    // Action 7: Add full REST response set
-    if annotations.is_empty() {
+    // Action 7: Add full REST response set (only if this block has no annotations yet)
+    if filtered_annotations.is_empty() {
         actions.push(create_insert_multiple_annotations_action(
             "Add common REST responses",
             vec![
