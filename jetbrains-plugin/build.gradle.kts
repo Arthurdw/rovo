@@ -20,7 +20,7 @@ dependencies {
     intellijPlatform {
         intellijIdeaCommunity("2024.3")
         bundledPlugin("com.intellij.java")
-        plugin("com.redhat.devtools.lsp4ij:0.9.0")  // TODO: Upgrade to 0.10.0 once extension point format is fixed
+        plugin("com.redhat.devtools.lsp4ij:0.10.0")
     }
 }
 

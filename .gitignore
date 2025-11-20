@@ -19,6 +19,7 @@ jetbrains-plugin/.gradle/
 jetbrains-plugin/build/
 jetbrains-plugin/.idea/
 jetbrains-plugin/out/
+jetbrains-plugin/.intellijPlatform/
 
 # VSCode Extension
 vscode-rovo/node_modules/

@@ -48,6 +48,8 @@
                 factoryClass="com.rovo.lsp.RovoLanguageServerFactory">
             <description>Language server for Rovo framework annotations</description>
         </server>
-        <languageMapping language="Rust" serverId="rovoLanguageServer"/>
+        <languageMapping language="Rust"
+                         serverId="rovoLanguageServer"
+                         languageId="rust"/>
     </extensions>
 </idea-plugin>
