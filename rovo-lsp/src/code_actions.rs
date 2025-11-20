@@ -1,4 +1,5 @@
 use crate::parser::{parse_annotations, AnnotationKind};
+use syn::{parse_str, Meta};
 use tower_lsp::lsp_types::*;
 
 /// Get available code actions for the given range
@@ -572,24 +573,48 @@ fn create_add_jsonschema_action(
     let lines: Vec<&str> = content.lines().collect();
 
     if has_derive {
-        // Add JsonSchema to existing #[derive(...)]
+        // Add JsonSchema to existing #[derive(...)] using syn for robust parsing
         let line_num = derive_line.unwrap();
         let existing_line = lines.get(line_num).unwrap_or(&"");
 
-        // Parse the existing derive and add JsonSchema
-        let new_line = if let Some(start) = existing_line.find("derive(") {
-            let before = &existing_line[..start + 7]; // "derive("
-            let after_start = start + 7;
+        // Extract the content inside #[...]
+        let new_line = if let Some(start) = existing_line.find("#[") {
+            let after_start = start + 2;
+            if let Some(end) = existing_line[after_start..].find(']') {
+                let meta_str = &existing_line[after_start..after_start + end];
 
-            if let Some(end) = existing_line[after_start..].find(")]") {
-                let derives = &existing_line[after_start..after_start + end];
-                let new_line = format!("{}JsonSchema, {})]", before, derives);
-                new_line
+                // Try to parse as Meta
+                match parse_str::<Meta>(meta_str) {
+                    Ok(Meta::List(meta_list)) if meta_list.path.is_ident("derive") => {
+                        // Successfully parsed as derive attribute
+                        let tokens_str = meta_list.tokens.to_string();
+                        let new_tokens = if tokens_str.trim().is_empty() {
+                            "JsonSchema".to_string()
+                        } else {
+                            format!("JsonSchema, {}", tokens_str)
+                        };
+
+                        // Reconstruct with original indentation
+                        let indentation = existing_line.len() - existing_line.trim_start().len();
+                        let indent = " ".repeat(indentation);
+                        format!("{}#[derive({})]", indent, new_tokens)
+                    }
+                    _ => {
+                        // Parsing failed or not a derive - fall back to new attribute
+                        let indentation = existing_line.len() - existing_line.trim_start().len();
+                        let indent = " ".repeat(indentation);
+                        format!("{}#[derive(JsonSchema)]", indent)
+                    }
+                }
             } else {
-                existing_line.to_string()
+                // Malformed attribute - fall back
+                let indentation = existing_line.len() - existing_line.trim_start().len();
+                let indent = " ".repeat(indentation);
+                format!("{}#[derive(JsonSchema)]", indent)
             }
         } else {
-            existing_line.to_string()
+            // No #[ found - shouldn't happen but fall back
+            "#[derive(JsonSchema)]".to_string()
         };
 
         changes.insert(
