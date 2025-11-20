@@ -70,7 +70,7 @@ local function setup_highlighting()
         -- Highlight annotation keywords (@response, @tag, etc.)
         for _, annotation in ipairs({'@response', '@tag', '@security', '@example', '@id', '@hidden'}) do
           -- Check if line is a doc comment with this annotation
-          if line:match('^%s*///%s*' .. annotation:gsub('[@]', '%%@')) then
+          if line:match('^%s*///%s*' .. annotation) then
             local start_col, end_col = line:find(annotation, 1, true)
             if start_col then
               vim.api.nvim_buf_set_extmark(bufnr, ns_id, line_idx - 1, start_col - 1, {
