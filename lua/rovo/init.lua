@@ -8,6 +8,9 @@ local debounce_timers = {}
 
 -- Setup syntax highlighting for Rovo annotations
 local function setup_highlighting()
+  -- Get libuv handle for proper timer management
+  local uv = vim.uv or vim.loop
+
   -- Link to standard Vim highlight groups
   vim.api.nvim_set_hl(0, 'RovoAnnotation', { link = 'Identifier', default = true })
   vim.api.nvim_set_hl(0, 'RovoStatusCode', { link = 'Number', default = true })
@@ -143,18 +146,35 @@ local function setup_highlighting()
     callback = function(args)
       local bufnr = args.buf
 
-      -- Cancel existing timer for this buffer to prevent multiple pending calls
+      -- Stop and close existing timer to prevent handle leaks
       if debounce_timers[bufnr] then
-        debounce_timers[bufnr]:stop()
-      end
-
-      -- Create new debounced timer (properly debounced - only last call executes)
-      debounce_timers[bufnr] = vim.defer_fn(function()
-        if vim.api.nvim_buf_is_valid(bufnr) then
-          apply_rovo_highlights(bufnr)
+        local old_timer = debounce_timers[bufnr]
+        if not old_timer:is_closing() then
+          old_timer:stop()
+          old_timer:close()
         end
         debounce_timers[bufnr] = nil
-      end, 500)
+      end
+
+      -- Create new libuv timer (properly debounced - only last call executes)
+      local timer = uv.new_timer()
+      debounce_timers[bufnr] = timer
+
+      timer:start(500, 0, function()
+        -- Stop and close timer to prevent leaks
+        if not timer:is_closing() then
+          timer:stop()
+          timer:close()
+        end
+        debounce_timers[bufnr] = nil
+
+        -- Apply highlights if buffer is still valid
+        if vim.api.nvim_buf_is_valid(bufnr) then
+          vim.schedule(function()
+            apply_rovo_highlights(bufnr)
+          end)
+        end
+      end)
     end,
   })
 end
