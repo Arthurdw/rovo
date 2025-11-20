@@ -821,9 +821,11 @@ dependencies = [
 name = "rovo-lsp"
 version = "0.1.4"
 dependencies = [
+ "once_cell",
  "regex",
  "serde",
  "serde_json",
+ "syn",
  "tempfile",
  "tokio",
  "tower-lsp",
