@@ -1,19 +1,27 @@
 use regex::Regex;
 
-/// Extract type name from annotation response type
-/// e.g., "Json<TodoItem>" -> "TodoItem"
+/// Extract innermost type name from annotation response type by recursively unwrapping
+///
+/// Recursively unwraps known wrapper types (Json, Vec, Option, Result, Arc, Box, Rc)
+/// until reaching the innermost non-wrapped type.
+///
+/// # Examples
+/// - `"Json<TodoItem>"` -> `"TodoItem"`
+/// - `"Json<Vec<TodoItem>>"` -> `"TodoItem"`
+/// - `"Vec<Option<User>>"` -> `"User"`
+/// - `"TodoItem"` -> `"TodoItem"`
 pub fn extract_type_from_response(response_type: &str) -> Option<String> {
-    // Remove wrapper types like Json, Vec, Option, Result
-    let re = Regex::new(r"(?:Json|Vec|Option|Result|Arc|Box|Rc)<(.+?)>").unwrap();
+    let re = Regex::new(r"^(?:Json|Vec|Option|Result|Arc|Box|Rc)<(.*)>$").unwrap();
 
-    if let Some(captures) = re.captures(response_type) {
+    let trimmed = response_type.trim();
+    if let Some(captures) = re.captures(trimmed) {
         let inner = captures.get(1)?.as_str();
-        // Handle nested generics, return the outermost type
-        return Some(inner.split('<').next()?.trim().to_string());
+        // Recursively unwrap nested generics
+        extract_type_from_response(inner)
+    } else {
+        // No wrapper found, return the trimmed type
+        Some(trimmed.to_string())
     }
-
-    // If no wrapper, return the type as-is
-    Some(response_type.split('<').next()?.trim().to_string())
 }
 
 /// Find the definition line of a type in the content
@@ -82,6 +90,22 @@ mod tests {
         assert_eq!(
             extract_type_from_response("TodoItem"),
             Some("TodoItem".to_string())
+        );
+    }
+
+    #[test]
+    fn test_extract_type_nested_generics() {
+        assert_eq!(
+            extract_type_from_response("Json<Vec<TodoItem>>"),
+            Some("TodoItem".to_string())
+        );
+    }
+
+    #[test]
+    fn test_extract_type_deeply_nested() {
+        assert_eq!(
+            extract_type_from_response("Option<Result<Arc<User>>>"),
+            Some("User".to_string())
         );
     }
 
