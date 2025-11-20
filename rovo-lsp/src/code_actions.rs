@@ -109,7 +109,9 @@ pub fn get_code_actions(content: &str, range: Range, uri: Url) -> Vec<CodeAction
     ));
 
     // Action 5: Add @id annotation (only if missing in this block)
-    let has_id = filtered_annotations.iter().any(|ann| ann.kind == AnnotationKind::Id);
+    let has_id = filtered_annotations
+        .iter()
+        .any(|ann| ann.kind == AnnotationKind::Id);
 
     if !has_id {
         actions.push(create_insert_annotation_action(

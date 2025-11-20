@@ -9,7 +9,8 @@
 /// Markdown-formatted documentation string
 pub fn get_annotation_documentation(annotation: &str) -> &'static str {
     match annotation {
-        "@response" => r#"# @response
+        "@response" => {
+            r#"# @response
 
 Define an API response for different status codes.
 
@@ -39,9 +40,9 @@ Define an API response for different status codes.
 - `404`: Not Found - Resource doesn't exist
 - `500`: Internal Server Error - Server error
 "#
-        ,
-
-        "@tag" => r#"# @tag
+        }
+        "@tag" => {
+            r#"# @tag
 
 Group related endpoints together in the API documentation.
 
@@ -63,9 +64,9 @@ async fn list_users() -> Json<Vec<User>> { ... }
 
 Tags help organize your API documentation by grouping related endpoints.
 "#
-        ,
-
-        "@security" => r#"# @security
+        }
+        "@security" => {
+            r#"# @security
 
 Specify the security scheme required for this endpoint.
 
@@ -91,9 +92,9 @@ Common schemes:
 - `apiKey`: API key in header/query/cookie
 - `oauth2`: OAuth 2.0 authentication
 "#
-        ,
-
-        "@example" => r#"# @example
+        }
+        "@example" => {
+            r#"# @example
 
 Provide an example response for a specific status code.
 
@@ -116,9 +117,9 @@ async fn get_user() -> Json<User> { ... }
 
 Examples appear in the generated API documentation and help users understand the response format.
 "#
-        ,
-
-        "@id" => r#"# @id
+        }
+        "@id" => {
+            r#"# @id
 
 Set a custom operation ID for this endpoint.
 
@@ -143,9 +144,9 @@ Operation IDs are used:
 - For linking to specific operations
 - In API documentation navigation
 "#
-        ,
-
-        "@hidden" => r#"# @hidden
+        }
+        "@hidden" => {
+            r#"# @hidden
 
 Hide this endpoint from the generated API documentation.
 
@@ -165,7 +166,8 @@ Useful for:
 - Internal/debug endpoints
 - Deprecated endpoints you want to keep
 - Endpoints not ready for public documentation
-"#,
+"#
+        }
 
         _ => "Unknown annotation - use one of: @response, @tag, @security, @example, @id, @hidden",
     }

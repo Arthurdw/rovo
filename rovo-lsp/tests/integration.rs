@@ -147,18 +147,28 @@ async fn get_post() {}
 
     // Check both blocks have their annotations
     let user_response = annotations.iter().find(|a| {
-        a.kind == AnnotationKind::Response && a.response_type.as_ref().map(|t| t.contains("User")).unwrap_or(false)
+        a.kind == AnnotationKind::Response
+            && a.response_type
+                .as_ref()
+                .map(|t| t.contains("User"))
+                .unwrap_or(false)
     });
     let user_tag = annotations.iter().find(|a| {
         a.kind == AnnotationKind::Tag && a.tag_name.as_ref() == Some(&"users".to_string())
     });
     let post_response = annotations.iter().find(|a| {
-        a.kind == AnnotationKind::Response && a.response_type.as_ref().map(|t| t.contains("Post")).unwrap_or(false)
+        a.kind == AnnotationKind::Response
+            && a.response_type
+                .as_ref()
+                .map(|t| t.contains("Post"))
+                .unwrap_or(false)
     });
     let post_tag = annotations.iter().find(|a| {
         a.kind == AnnotationKind::Tag && a.tag_name.as_ref() == Some(&"posts".to_string())
     });
-    let security = annotations.iter().find(|a| a.kind == AnnotationKind::Security);
+    let security = annotations
+        .iter()
+        .find(|a| a.kind == AnnotationKind::Security);
 
     assert!(user_response.is_some(), "Should find User response");
     assert!(user_tag.is_some(), "Should find users tag");
