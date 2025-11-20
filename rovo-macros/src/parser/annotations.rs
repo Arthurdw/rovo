@@ -264,9 +264,7 @@ fn looks_like_description(response_type_str: &str, description: &str) -> bool {
     ];
 
     // Check if it exactly matches a description word (case-sensitive)
-    DESCRIPTION_WORDS
-        .iter()
-        .any(|&word| response_type_str == word)
+    DESCRIPTION_WORDS.contains(&response_type_str)
         || (!response_type_str.contains('<')
             && !response_type_str.contains('(')
             && !response_type_str.contains(')')

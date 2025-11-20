@@ -29,6 +29,8 @@ kotlin {
 }
 
 intellijPlatform {
+    buildSearchableOptions = false  // Disable - causes issues with LSP4IJ initialization
+
     pluginConfiguration {
         ideaVersion {
             sinceBuild = "243"
