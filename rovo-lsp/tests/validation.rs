@@ -3,7 +3,9 @@ use rovo_lsp::diagnostics::{validate_annotations, DiagnosticSeverity};
 #[test]
 fn reports_invalid_status_code() {
     let content = r#"
-/// @response 999 Json<User> Invalid
+/// # Responses
+///
+/// 999: Json<User> - Invalid
 #[rovo]
 async fn handler() {}
 "#;
@@ -16,7 +18,9 @@ async fn handler() {}
 #[test]
 fn reports_status_code_too_low() {
     let content = r#"
-/// @response 99 Json<User> Too low
+/// # Responses
+///
+/// 99: Json<User> - Too low
 #[rovo]
 async fn handler() {}
 "#;
@@ -28,7 +32,9 @@ async fn handler() {}
 #[test]
 fn reports_status_code_too_high() {
     let content = r#"
-/// @response 600 Json<User> Too high
+/// # Responses
+///
+/// 600: Json<User> - Too high
 #[rovo]
 async fn handler() {}
 "#;
@@ -40,9 +46,11 @@ async fn handler() {}
 #[test]
 fn accepts_valid_status_codes() {
     let content = r#"
-/// @response 200 Json<User> OK
-/// @response 404 Json<Error> Not found
-/// @response 500 Json<Error> Server error
+/// # Responses
+///
+/// 200: Json<User> - OK
+/// 404: Json<Error> - Not found
+/// 500: Json<Error> - Server error
 #[rovo]
 async fn handler() {}
 "#;
@@ -53,11 +61,13 @@ async fn handler() {}
 #[test]
 fn accepts_all_standard_ranges() {
     let content = r#"
-/// @response 100 Json<Continue> Informational
-/// @response 200 Json<Success> Success
-/// @response 301 Json<Redirect> Redirection
-/// @response 404 Json<Error> Client error
-/// @response 500 Json<Error> Server error
+/// # Responses
+///
+/// 100: Json<Continue> - Informational
+/// 200: Json<Success> - Success
+/// 301: Json<Redirect> - Redirection
+/// 404: Json<Error> - Client error
+/// 500: Json<Error> - Server error
 #[rovo]
 async fn handler() {}
 "#;
@@ -68,8 +78,10 @@ async fn handler() {}
 #[test]
 fn reports_multiple_errors() {
     let content = r#"
-/// @response 999 Json<User> Invalid
-/// @response 50 Json<Error> Also invalid
+/// # Responses
+///
+/// 999: Json<User> - Invalid
+/// 50: Json<Error> - Also invalid
 #[rovo]
 async fn handler() {}
 "#;

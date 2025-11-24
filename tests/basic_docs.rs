@@ -39,8 +39,10 @@ struct SelectTodo {
 ///
 /// Retrieve a Todo item by its ID.
 ///
-/// @response 200 Json<TodoItem> A single Todo item.
-/// @response 404 () Todo was not found.
+/// # Responses
+///
+/// 200: Json<TodoItem> - A single Todo item
+/// 404: () - Todo was not found
 #[rovo]
 async fn get_todo(
     State(_app): State<AppState>,

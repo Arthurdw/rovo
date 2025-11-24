@@ -1,3 +1,5 @@
+#![allow(clippy::needless_update)]
+
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Json, Response};
@@ -55,8 +57,13 @@ async fn get_user(State(_state): State<AppState>, Path(UserId { id }): Path<User
 ///
 /// Returns a list of all users in the system.
 ///
+/// # Responses
+///
+/// 200: Json<Vec<User>> - List of all users
+///
+/// # Metadata
+///
 /// @tag users
-/// @response 200 Json<Vec<User>> List of all users
 #[rovo]
 async fn list_users(State(_state): State<AppState>) -> Json<Vec<User>> {
     Json(vec![User {
@@ -367,8 +374,13 @@ fn test_spec_contains_request_body() {
 
     /// Create a new user.
     ///
+    /// # Responses
+    ///
+    /// 201: Json<User> - User created successfully
+    ///
+    /// # Metadata
+    ///
     /// @tag users
-    /// @response 201 Json<User> User created successfully
     #[rovo]
     async fn create_user(
         State(_state): State<AppState>,

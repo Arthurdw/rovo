@@ -52,8 +52,9 @@ The Rovo LSP plugin provides intelligent support for Rovo framework annotations:
 
 ### 🎨 Syntax Highlighting
 
-Custom syntax highlighting for Rovo annotations (context-aware, only near `#[rovo]` attributes):
-- **Annotations** (`@response`, `@tag`, `@security`, etc.) - highlighted as keywords
+Custom syntax highlighting for Rovo documentation (context-aware, only near `#[rovo]` attributes):
+- **Section headers** (`# Responses`, `# Examples`, `# Metadata`) - highlighted as headings
+- **Metadata annotations** (`@tag`, `@security`, `@id`, `@hidden`) - highlighted as keywords
 - **HTTP status codes** (200, 404, 500, etc.) - highlighted as numbers
 - **Security schemes** (bearer, basic, apiKey, oauth2) - highlighted as strings
 
@@ -61,11 +62,14 @@ The highlighting is smart and only activates in doc comments above `#[rovo]` fun
 
 ### 🎯 Smart Completions
 
-Type `/// @` to get completions for:
-- `@response` - HTTP response definitions
+Type `/// #` to get completions for section headers:
+- `# Responses` - HTTP response definitions section
+- `# Examples` - Response examples section
+- `# Metadata` - API metadata section
+
+Within the `# Metadata` section, type `@` for annotation completions:
 - `@tag` - Endpoint categorization
 - `@security` - Security requirements
-- `@example` - Usage examples
 - `@id` - Custom operation IDs
 - `@hidden` - Hide from documentation
 
@@ -73,7 +77,8 @@ HTTP status codes and security schemes are also auto-completed.
 
 ### 📖 Hover Documentation
 
-Hover over annotations, status codes, or security schemes to see:
+Hover over section headers, annotations, status codes, or security schemes to see:
+- Section usage and format
 - Annotation usage and syntax
 - HTTP status code meanings
 - Security scheme explanations
@@ -82,7 +87,8 @@ Hover over annotations, status codes, or security schemes to see:
 ### ⚡ Code Actions
 
 Press **Alt+Enter** (or **Option+Return** on macOS) to:
-- Add missing annotations
+- Add missing sections (`# Responses`, `# Examples`, `# Metadata`)
+- Add missing metadata annotations
 - Add `#[rovo]` macro to functions
 - Add `JsonSchema` derive to structs
 - Add common response sets
@@ -90,15 +96,17 @@ Press **Alt+Enter** (or **Option+Return** on macOS) to:
 
 ### 🔍 Navigation
 
-- **Go to Definition**: Navigate from annotation types to their definitions
-- **Find Usages**: Find all references to `@tag` annotations
+- **Go to Definition**: Navigate from types in responses to their definitions
+- **Find Usages**: Find all references to specific tags
 - **Rename**: Rename tags and update all references
 
 ### ✅ Real-time Diagnostics
 
 Get instant feedback on:
 - Invalid HTTP status codes
-- Malformed annotations
+- Malformed response/example syntax
+- Invalid metadata annotations
+- Section format errors
 - Missing required fields
 
 ## Usage Example
@@ -106,11 +114,21 @@ Get instant feedback on:
 ```rust
 use rovo::prelude::*;
 
-/// Get user by ID
+/// Get user by ID.
+///
+/// # Responses
+///
+/// 200: Json<User> - Successfully retrieved user
+/// 404: Json<NotFoundError> - User not found
+///
+/// # Examples
+///
+/// 200: User { id: 1, name: "Alice".into() }
+/// 404: NotFoundError { message: "User not found".into() }
+///
+/// # Metadata
 ///
 /// @tag users
-/// @response 200 User Successfully retrieved user
-/// @response 404 NotFoundError User not found
 /// @security bearer
 #[rovo]
 async fn get_user(id: i32) -> Json<User> {
@@ -171,6 +189,8 @@ Make sure:
 - You're in a Rust file (`.rs` extension)
 - There's a `Cargo.toml` in your project
 - You're working within `#[rovo]` annotated functions
+- Documentation is in doc comments (`///`) above `#[rovo]`
+- Metadata annotations are within the `# Metadata` section
 - The file is properly saved
 
 ## IDE-Specific Notes

@@ -254,6 +254,33 @@ fn find_rovo_function_context(
 ) -> (bool, Option<usize>, Option<usize>) {
     let lines: Vec<&str> = content.lines().collect();
 
+    // Case 0: Check if we're on the #[rovo] line or function signature with #[rovo] above
+    if let Some(line) = lines.get(current_line) {
+        let trimmed = line.trim();
+
+        // On #[rovo] line itself
+        if trimmed.starts_with("#[") && line.contains("rovo") {
+            // Look forward for function
+            for i in (current_line + 1)..std::cmp::min(current_line + 5, lines.len()) {
+                let fwd_line = lines.get(i).unwrap_or(&"");
+                if fwd_line.contains("fn ") && !fwd_line.trim().starts_with("//") {
+                    return (true, Some(current_line), Some(i));
+                }
+            }
+            return (true, Some(current_line), None);
+        }
+
+        // On function signature - check if #[rovo] is above
+        if trimmed.contains("fn ") && !trimmed.starts_with("//") {
+            for i in (current_line.saturating_sub(5)..current_line).rev() {
+                let back_line = lines.get(i).unwrap_or(&"");
+                if back_line.trim().starts_with("#[") && back_line.contains("rovo") {
+                    return (true, Some(i), Some(current_line));
+                }
+            }
+        }
+    }
+
     // Case 1: Check if we're in a doc comment above a #[rovo] function
     if lines
         .get(current_line)

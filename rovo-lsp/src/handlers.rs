@@ -170,10 +170,8 @@ fn get_annotation_at_position(line: &str, char_idx: usize) -> Option<String> {
 
     // Find the annotation keyword at the cursor position (for metadata section)
     let annotations = [
-        "@response",
         "@tag",
         "@security",
-        "@example",
         "@id",
         "@hidden",
     ];
@@ -501,15 +499,12 @@ fn get_status_code_at_position(line: &str, char_idx: usize) -> Option<String> {
     let content = line.trim_start().trim_start_matches("///").trim();
 
     // Check if line contains status code patterns
-    // New format: "200: Type - Description" or "200: example_code"
-    // Old format: "@response 200 ..." or "@example 200 ..."
-    let has_status_context = line.contains("@response")
-        || line.contains("@example")
-        || content
-            .chars()
-            .next()
-            .map(|c| c.is_ascii_digit())
-            .unwrap_or(false);
+    // Format: "200: Type - Description" or "200: example_code"
+    let has_status_context = content
+        .chars()
+        .next()
+        .map(|c| c.is_ascii_digit())
+        .unwrap_or(false);
 
     if !has_status_context {
         return None;
@@ -601,7 +596,7 @@ fn get_security_scheme_at_position(line: &str, char_idx: usize) -> Option<String
 /// Generate semantic tokens for the document
 ///
 /// Token types (indices in legend):
-/// 0: KEYWORD - for annotations (@response, @tag, etc.)
+/// 0: KEYWORD - for annotations (@tag, @security, @id, @hidden, @rovo-ignore)
 /// 1: NUMBER - for status codes (200, 404, etc.)
 /// 2: TYPE - for security schemes (bearer, oauth2, etc.)
 pub fn semantic_tokens_full(content: &str) -> Option<SemanticTokensResult> {
@@ -615,7 +610,7 @@ pub fn semantic_tokens_full(content: &str) -> Option<SemanticTokensResult> {
 
     // Compile regexes once outside the loop for efficiency
     let annotation_regex =
-        regex::Regex::new(r"@(response|tag|security|example|id|hidden|rovo-ignore)\b").unwrap();
+        regex::Regex::new(r"@(tag|security|id|hidden|rovo-ignore)\b").unwrap();
     let tag_value_regex = regex::Regex::new(r"@(?:tag|id)\s+(\w+)").unwrap();
     let status_regex = regex::Regex::new(r"\b([1-5][0-9]{2})\b").unwrap();
     let security_regex = regex::Regex::new(r"\b(bearer|basic|apiKey|oauth2)\b").unwrap();
@@ -659,7 +654,7 @@ pub fn semantic_tokens_full(content: &str) -> Option<SemanticTokensResult> {
             }
         }
 
-        // Match annotations: @response, @tag, @security, @example, @id, @hidden, @rovo-ignore
+        // Match annotations: @tag, @security, @id, @hidden, @rovo-ignore
         for cap in annotation_regex.captures_iter(line) {
             if let Some(m) = cap.get(0) {
                 let start_byte = m.start();

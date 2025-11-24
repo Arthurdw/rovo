@@ -13,21 +13,73 @@ Language Server Protocol implementation for Rovo annotation validation and compl
 - **Snippets**: Smart snippet support for common annotation patterns
 - **Hover Documentation**: Rich markdown documentation for annotations, status codes, and security schemes
 - **Code Actions**: Quick fixes and refactorings
-  - Add missing annotations (@response, @tag, @security, @example, @id, @hidden)
+  - Add missing sections (Responses, Examples, Metadata)
   - Add #[rovo] macro to functions
   - Add JsonSchema derive to structs
-- **Go-to-Definition**: Navigate to type definitions from annotations
+- **Go-to-Definition**: Navigate to type definitions from sections
 - **Find References**: Find all references to a tag across the document
 - **Context-Aware**: Features only activate near #[rovo] attributes
 
-## Supported Annotations
+## Documentation Format
 
-- `@response STATUS TYPE DESCRIPTION` - Define an API response
-- `@tag NAME` - Add an API tag
-- `@security SCHEME` - Specify security scheme
-- `@example STATUS JSON` - Add response example
-- `@id OPERATION_ID` - Set operation ID
-- `@hidden` - Hide from documentation
+Rovo uses Rust-style documentation comments with special sections:
+
+### Responses Section
+Define HTTP response codes, types, and descriptions:
+```rust
+/// # Responses
+///
+/// 200: Json<User> - Successfully retrieved user
+/// 404: () - User not found
+```
+
+### Examples Section
+Provide example response data for each status code:
+```rust
+/// # Examples
+///
+/// 200: User { id: 1, name: "Alice".into() }
+/// 404: ()
+```
+
+### Metadata Section
+Specify tags, security, operation IDs, and visibility:
+```rust
+/// # Metadata
+///
+/// @tag users
+/// @security bearer
+/// @id getUserById
+```
+
+### Complete Example
+```rust
+/// Get a user by ID
+///
+/// # Responses
+///
+/// 200: Json<User> - User found
+/// 404: () - User not found
+///
+/// # Examples
+///
+/// 200: User { id: 1, name: "Alice".into(), email: "alice@example.com".into() }
+///
+/// # Metadata
+///
+/// @tag users
+/// @security bearer
+#[rovo]
+async fn get_user(id: i32) -> Json<User> { ... }
+```
+
+## Supported Metadata Annotations
+
+- `@tag NAME` - Group endpoints in API documentation
+- `@security SCHEME` - Specify security scheme (bearer, basic, apiKey, oauth2)
+- `@id OPERATION_ID` - Set custom operation ID
+- `@hidden` - Hide endpoint from documentation
+- `@rovo-ignore` - Stop processing annotations (for regular doc comments)
 
 ## Installation
 

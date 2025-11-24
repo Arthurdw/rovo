@@ -20,7 +20,9 @@ fn ignores_type_name_in_inline_comment() {
     let content = r#"
 struct RealType { x: i32 } // This mentions RealType in a comment
 
-/// @response 200 Json<RealType> Success
+/// # Responses
+///
+/// 200: Json<RealType> - Success
 #[rovo]
 async fn handler() {}
 "#;
@@ -143,7 +145,9 @@ fn handles_nested_type_in_response() {
 struct Inner { value: i32 }
 struct Outer { inner: Inner }
 
-/// @response 200 Json<Outer> Success
+/// # Responses
+///
+/// 200: Json<Outer> - Success
 #[rovo]
 async fn handler() {}
 "#;
@@ -168,16 +172,16 @@ fn extracts_type_from_complex_generic() {
 
 #[test]
 fn handles_whitespace_in_annotation() {
-    let line = "///   @response   200   Json<User>   Success";
-    let result = type_resolver::get_type_at_position(line, 30);
+    let line = "///   200:   Json<User>   -   Success";
+    let result = type_resolver::get_type_at_position(line, 15);
     assert!(result.is_some());
 }
 
 #[test]
 fn handles_tabs_in_annotation() {
-    let line = "///\t@response\t200\tJson<User>\tSuccess";
+    let line = "///\t200:\tJson<User>\t-\tSuccess";
     // Position calculation might differ with tabs
-    let result = type_resolver::get_type_at_position(line, 20);
+    let result = type_resolver::get_type_at_position(line, 12);
     assert!(result.is_some() || result.is_none()); // Just ensure no panic
 }
 
@@ -214,7 +218,9 @@ fn finds_tuple_struct() {
     let content = r#"
 struct UserId(u64);
 
-/// @response 200 UserId Success
+/// # Responses
+///
+/// 200: UserId - Success
 #[rovo]
 async fn handler() {}
 "#;
@@ -228,7 +234,9 @@ fn finds_unit_struct() {
     let content = r#"
 struct Empty;
 
-/// @response 204 Empty Success
+/// # Responses
+///
+/// 204: Empty - Success
 #[rovo]
 async fn handler() {}
 "#;

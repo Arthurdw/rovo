@@ -31,7 +31,9 @@ fn get_action_titles(actions: &[CodeActionOrCommand]) -> Vec<String> {
 #[test]
 fn offers_annotations_inside_rovo_function() {
     let content = r#"
-/// @response 200 Json<User> Success
+/// # Responses
+///
+/// 200: Json<User> - Success
 #[rovo]
 async fn handler() {
     // cursor here
@@ -59,7 +61,9 @@ async fn handler() {
 #[test]
 fn offers_annotations_in_doc_comment_above_rovo() {
     let content = r#"
-/// @response 200 Json<User> Success
+/// # Responses
+///
+/// 200: Json<User> - Success
 /// cursor here
 #[rovo]
 async fn handler() {}
@@ -153,7 +157,9 @@ async fn handler() {}
 #[test]
 fn no_full_rest_responses_when_annotations_exist() {
     let content = r#"
-/// @response 200 Json<User> Success
+/// # Responses
+///
+/// 200: Json<User> - Success
 #[rovo]
 async fn handler() {}
 "#;
@@ -170,7 +176,9 @@ async fn handler() {}
 #[test]
 fn offers_id_annotation_when_missing() {
     let content = r#"
-/// @response 200 Json<User> Success
+/// # Responses
+///
+/// 200: Json<User> - Success
 #[rovo]
 async fn handler() {}
 "#;
@@ -185,7 +193,12 @@ async fn handler() {}
 #[test]
 fn no_duplicate_id_annotation() {
     let content = r#"
-/// @response 200 Json<User> Success
+/// # Responses
+///
+/// 200: Json<User> - Success
+///
+/// # Metadata
+///
 /// @id get_user
 #[rovo]
 async fn handler() {}
@@ -201,7 +214,9 @@ async fn handler() {}
 #[test]
 fn offers_hidden_annotation_when_missing() {
     let content = r#"
-/// @response 200 Json<User> Success
+/// # Responses
+///
+/// 200: Json<User> - Success
 #[rovo]
 async fn handler() {}
 "#;
@@ -296,7 +311,9 @@ enum Status {
 #[test]
 fn diagnostic_quick_fix_for_invalid_status() {
     let content = r#"
-/// @response 999 Json<User> Invalid
+/// # Responses
+///
+/// 999: Json<User> - Invalid
 #[rovo]
 async fn handler() {}
 "#;
@@ -331,7 +348,9 @@ async fn handler() {}
 #[test]
 fn diagnostic_quick_fix_sets_preferred() {
     let content = r#"
-/// @response 999 Json<User> Invalid
+/// # Responses
+///
+/// 999: Json<User> - Invalid
 #[rovo]
 async fn handler() {}
 "#;
@@ -367,7 +386,9 @@ async fn handler() {}
 #[test]
 fn no_diagnostic_actions_for_non_status_errors() {
     let content = r#"
-/// @response 200 Json<User> Success
+/// # Responses
+///
+/// 200: Json<User> - Success
 #[rovo]
 async fn handler() {}
 "#;
@@ -491,17 +512,22 @@ async fn handler2() {
     // Should offer to add #[rovo] (on indented line inside handler2), not annotations
     assert!(!titles.is_empty(), "Expected actions but got none");
     assert!(titles.iter().any(|t| t.contains("#[rovo]")));
-    assert!(!titles.iter().any(|t| t.contains("@response")));
+    assert!(!titles.iter().any(|t| t.contains("response")));
+    assert!(!titles.iter().any(|t| t.contains("@tag")));
 }
 
 #[test]
 fn handles_multiple_rovo_blocks() {
     let content = r#"
-/// @response 200 Json<User> Success
+/// # Responses
+///
+/// 200: Json<User> - Success
 #[rovo]
 async fn handler1() {}
 
-/// @response 200 Json<Post> Success
+/// # Responses
+///
+/// 200: Json<Post> - Success
 #[rovo]
 async fn handler2() {
     // cursor here
@@ -554,7 +580,9 @@ struct User {
 #[test]
 fn handles_doc_comments_with_blank_lines() {
     let content = r#"
-/// @response 200 Json<User> Success
+/// # Responses
+///
+/// 200: Json<User> - Success
 ///
 /// More details here
 #[rovo]

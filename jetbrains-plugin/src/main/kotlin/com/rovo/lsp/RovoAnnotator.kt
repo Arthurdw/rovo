@@ -10,16 +10,16 @@ import com.intellij.psi.PsiFile
 import com.intellij.psi.util.PsiTreeUtil
 
 /**
- * Provides custom syntax highlighting for Rovo annotations in doc comments.
+ * Provides custom syntax highlighting for Rovo section headers and metadata annotations in doc comments.
  *
- * This annotator is context-aware and only highlights annotations near #[rovo] attributes,
+ * This annotator is context-aware and only highlights Rovo elements near #[rovo] attributes,
  * similar to the Neovim plugin behavior.
  */
 class RovoAnnotator : Annotator {
 
     companion object {
-        // Rovo annotation keywords
-        private val ANNOTATIONS = setOf("@response", "@tag", "@security", "@example", "@id", "@hidden")
+        // Rovo metadata annotations
+        private val ANNOTATIONS = setOf("@tag", "@security", "@id", "@hidden")
 
         // Security scheme names
         private val SECURITY_SCHEMES = setOf("bearer", "basic", "apiKey", "oauth2")
@@ -50,13 +50,13 @@ class RovoAnnotator : Annotator {
         // Extract the comment content (without ///)
         val commentContent = extractCommentContent(text) ?: return
 
-        // Highlight annotations (@response, @tag, etc.)
+        // Highlight metadata annotations (@tag, @security, etc.)
         highlightAnnotations(commentContent, element, holder)
 
-        // Highlight status codes (200, 404, etc.)
+        // Highlight status codes in response definitions (200, 404, etc.)
         highlightStatusCodes(commentContent, element, holder)
 
-        // Highlight security schemes (bearer, basic, etc.)
+        // Highlight security schemes in metadata annotations (bearer, basic, etc.)
         highlightSecuritySchemes(commentContent, element, holder)
     }
 

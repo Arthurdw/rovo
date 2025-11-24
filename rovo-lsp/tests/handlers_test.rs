@@ -4,14 +4,16 @@ use tower_lsp::lsp_types::*;
 #[test]
 fn hover_provides_status_code_info() {
     let content = r#"
-/// @response 200 Json<User> Success
+/// # Responses
+///
+/// 200: Json<User> - Success
 #[rovo]
 async fn handler() {}
 "#;
 
     let position = Position {
-        line: 1,
-        character: 14, // On "200"
+        line: 3,
+        character: 4, // On "200"
     };
 
     let hover = handlers::text_document_hover(content, position);
@@ -58,14 +60,16 @@ struct User {
     name: String,
 }
 
-/// @response 200 Json<User> Success
+/// # Responses
+///
+/// 200: Json<User> - Success
 #[rovo]
 async fn handler() {}
 "#;
 
     let position = Position {
-        line: 5,
-        character: 23, // On "User" in the annotation
+        line: 7,
+        character: 15, // On "User" in the annotation
     };
 
     let hover = handlers::text_document_hover(content, position);
@@ -85,7 +89,9 @@ async fn handler() {}
 fn hover_handles_utf16_positions() {
     // Content with emoji (4 bytes UTF-8, 2 UTF-16 code units)
     let content = r#"
-/// 👋 @response 200 Json<User> Success
+/// # Responses
+///
+/// 👋 200: Json<User> - Success
 #[rovo]
 async fn handler() {}
 "#;
@@ -103,7 +109,9 @@ async fn handler() {}
 #[test]
 fn no_hover_outside_rovo_block() {
     let content = r#"
-/// @response 200 Json<User> Success
+/// # Responses
+///
+/// 200: Json<User> - Success
 async fn handler() {}
 "#;
 
@@ -247,7 +255,9 @@ async fn create_user() {}
 #[test]
 fn diagnostics_reports_invalid_status_codes() {
     let content = r#"
-/// @response 999 Json<User> Invalid
+/// # Responses
+///
+/// 999: Json<User> - Invalid
 #[rovo]
 async fn handler() {}
 "#;
@@ -263,7 +273,9 @@ async fn handler() {}
 fn diagnostics_handles_utf16_positions() {
     // Content with multibyte characters
     let content = r#"
-/// @response 999 Json<User> 用户信息
+/// # Responses
+///
+/// 999: Json<User> - 用户信息
 #[rovo]
 async fn handler() {}
 "#;
@@ -352,7 +364,9 @@ async fn handler() {}
 #[test]
 fn hover_returns_none_for_out_of_bounds_line() {
     let content = r#"
-/// @response 200 Json<User> Success
+/// # Responses
+///
+/// 200: Json<User> - Success
 #[rovo]
 async fn handler() {}
 "#;
@@ -369,14 +383,16 @@ async fn handler() {}
 #[test]
 fn hover_on_annotation_keyword_shows_docs() {
     let content = r#"
-/// @response 200 Json<User> Success
+/// # Responses
+///
+/// 200: Json<User> - Success
 #[rovo]
 async fn handler() {}
 "#;
 
     let position = Position {
         line: 1,
-        character: 5, // On "@response" keyword
+        character: 5, // On status code
     };
 
     let hover = handlers::text_document_hover(content, position);
@@ -428,14 +444,16 @@ async fn handler() {}
 #[test]
 fn hover_provides_info_for_201_status_code() {
     let content = r#"
-/// @response 201 Json<User> Created
+/// # Responses
+///
+/// 201: Json<User> - Created
 #[rovo]
 async fn handler() {}
 "#;
 
     let position = Position {
-        line: 1,
-        character: 14, // On "201"
+        line: 3,
+        character: 4, // On "201"
     };
 
     let hover = handlers::text_document_hover(content, position);
@@ -453,14 +471,16 @@ async fn handler() {}
 #[test]
 fn hover_provides_info_for_204_status_code() {
     let content = r#"
-/// @response 204 () No content
+/// # Responses
+///
+/// 204: () - No content
 #[rovo]
 async fn handler() {}
 "#;
 
     let position = Position {
-        line: 1,
-        character: 14, // On "204"
+        line: 3,
+        character: 4, // On "204"
     };
 
     let hover = handlers::text_document_hover(content, position);
@@ -478,14 +498,16 @@ async fn handler() {}
 #[test]
 fn hover_provides_info_for_400_status_code() {
     let content = r#"
-/// @response 400 Json<Error> Bad request
+/// # Responses
+///
+/// 400: Json<Error> - Bad request
 #[rovo]
 async fn handler() {}
 "#;
 
     let position = Position {
-        line: 1,
-        character: 14, // On "400"
+        line: 3,
+        character: 4, // On "400"
     };
 
     let hover = handlers::text_document_hover(content, position);
@@ -503,14 +525,16 @@ async fn handler() {}
 #[test]
 fn hover_provides_info_for_401_status_code() {
     let content = r#"
-/// @response 401 Json<Error> Unauthorized
+/// # Responses
+///
+/// 401: Json<Error> - Unauthorized
 #[rovo]
 async fn handler() {}
 "#;
 
     let position = Position {
-        line: 1,
-        character: 14, // On "401"
+        line: 3,
+        character: 4, // On "401"
     };
 
     let hover = handlers::text_document_hover(content, position);
@@ -528,14 +552,16 @@ async fn handler() {}
 #[test]
 fn hover_provides_info_for_403_status_code() {
     let content = r#"
-/// @response 403 Json<Error> Forbidden
+/// # Responses
+///
+/// 403: Json<Error> - Forbidden
 #[rovo]
 async fn handler() {}
 "#;
 
     let position = Position {
-        line: 1,
-        character: 14, // On "403"
+        line: 3,
+        character: 4, // On "403"
     };
 
     let hover = handlers::text_document_hover(content, position);
@@ -553,14 +579,16 @@ async fn handler() {}
 #[test]
 fn hover_provides_info_for_404_status_code() {
     let content = r#"
-/// @response 404 Json<Error> Not found
+/// # Responses
+///
+/// 404: Json<Error> - Not found
 #[rovo]
 async fn handler() {}
 "#;
 
     let position = Position {
-        line: 1,
-        character: 14, // On "404"
+        line: 3,
+        character: 4, // On "404"
     };
 
     let hover = handlers::text_document_hover(content, position);
@@ -578,14 +606,16 @@ async fn handler() {}
 #[test]
 fn hover_provides_info_for_409_status_code() {
     let content = r#"
-/// @response 409 Json<Error> Conflict
+/// # Responses
+///
+/// 409: Json<Error> - Conflict
 #[rovo]
 async fn handler() {}
 "#;
 
     let position = Position {
-        line: 1,
-        character: 14, // On "409"
+        line: 3,
+        character: 4, // On "409"
     };
 
     let hover = handlers::text_document_hover(content, position);
@@ -603,14 +633,16 @@ async fn handler() {}
 #[test]
 fn hover_provides_info_for_422_status_code() {
     let content = r#"
-/// @response 422 Json<Error> Unprocessable
+/// # Responses
+///
+/// 422: Json<Error> - Unprocessable
 #[rovo]
 async fn handler() {}
 "#;
 
     let position = Position {
-        line: 1,
-        character: 14, // On "422"
+        line: 3,
+        character: 4, // On "422"
     };
 
     let hover = handlers::text_document_hover(content, position);
@@ -628,14 +660,16 @@ async fn handler() {}
 #[test]
 fn hover_provides_info_for_500_status_code() {
     let content = r#"
-/// @response 500 Json<Error> Server error
+/// # Responses
+///
+/// 500: Json<Error> - Server error
 #[rovo]
 async fn handler() {}
 "#;
 
     let position = Position {
-        line: 1,
-        character: 14, // On "500"
+        line: 3,
+        character: 4, // On "500"
     };
 
     let hover = handlers::text_document_hover(content, position);
@@ -653,14 +687,16 @@ async fn handler() {}
 #[test]
 fn hover_provides_info_for_503_status_code() {
     let content = r#"
-/// @response 503 Json<Error> Service unavailable
+/// # Responses
+///
+/// 503: Json<Error> - Service unavailable
 #[rovo]
 async fn handler() {}
 "#;
 
     let position = Position {
-        line: 1,
-        character: 14, // On "503"
+        line: 3,
+        character: 4, // On "503"
     };
 
     let hover = handlers::text_document_hover(content, position);
@@ -678,14 +714,16 @@ async fn handler() {}
 #[test]
 fn hover_provides_generic_info_for_informational_status_codes() {
     let content = r#"
-/// @response 102 () Processing
+/// # Responses
+///
+/// 102: () - Processing
 #[rovo]
 async fn handler() {}
 "#;
 
     let position = Position {
-        line: 1,
-        character: 14, // On "102"
+        line: 3,
+        character: 4, // On "102"
     };
 
     let hover = handlers::text_document_hover(content, position);
@@ -703,14 +741,16 @@ async fn handler() {}
 #[test]
 fn hover_provides_generic_info_for_redirection_status_codes() {
     let content = r#"
-/// @response 301 () Moved permanently
+/// # Responses
+///
+/// 301: () - Moved permanently
 #[rovo]
 async fn handler() {}
 "#;
 
     let position = Position {
-        line: 1,
-        character: 14, // On "301"
+        line: 3,
+        character: 4, // On "301"
     };
 
     let hover = handlers::text_document_hover(content, position);
@@ -803,14 +843,16 @@ async fn handler() {}
 #[test]
 fn hover_on_status_code_in_example_annotation() {
     let content = r#"
-/// @example 201 User::default()
+/// # Examples
+///
+/// 201: User::default()
 #[rovo]
 async fn handler() {}
 "#;
 
     let position = Position {
-        line: 1,
-        character: 13, // On "201" in @example
+        line: 3,
+        character: 4, // On "201" in example
     };
 
     let hover = handlers::text_document_hover(content, position);
@@ -846,7 +888,9 @@ async fn handler() {}
 #[test]
 fn find_tag_references_returns_none_when_not_on_tag() {
     let content = r#"
-/// @response 200 Json<User> Success
+/// # Responses
+///
+/// 200: Json<User> - Success
 #[rovo]
 async fn handler() {}
 "#;
@@ -907,7 +951,9 @@ async fn handler() {}
 #[test]
 fn prepare_rename_returns_none_when_not_on_tag() {
     let content = r#"
-/// @response 200 Json<User> Success
+/// # Responses
+///
+/// 200: Json<User> - Success
 #[rovo]
 async fn handler() {}
 "#;
@@ -942,7 +988,9 @@ async fn handler() {}
 #[test]
 fn rename_tag_returns_none_when_not_on_tag() {
     let content = r#"
-/// @response 200 Json<User> Success
+/// # Responses
+///
+/// 200: Json<User> - Success
 #[rovo]
 async fn handler() {}
 "#;
@@ -960,7 +1008,9 @@ async fn handler() {}
 #[test]
 fn hover_returns_none_for_invalid_utf16_position() {
     let content = r#"
-/// @response 200 Json<User> Success
+/// # Responses
+///
+/// 200: Json<User> - Success
 #[rovo]
 async fn handler() {}
 "#;
@@ -978,8 +1028,10 @@ async fn handler() {}
 #[test]
 fn diagnostics_with_multiple_errors() {
     let content = r#"
-/// @response 999 Json<User> Invalid code
-/// @response 1000 Json<User> Also invalid
+/// # Responses
+///
+/// 999: Json<User> - Invalid code
+/// 1000: Json<User> - Also invalid
 #[rovo]
 async fn handler() {}
 "#;

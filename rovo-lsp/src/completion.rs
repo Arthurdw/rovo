@@ -239,7 +239,7 @@ fn get_metadata_annotation_completions(typed: &str) -> Vec<CompletionItem> {
     let after_at = typed.trim_start_matches('@');
     let mut completions = Vec::new();
 
-    // Only metadata annotations - no @response or @example (use sections instead)
+    // Metadata annotations
     let annotations = [
         ("tag", "@tag ${1:tag_name}"),
         ("security", "@security ${1:bearer}"),
@@ -338,7 +338,7 @@ mod tests {
 
     #[test]
     fn test_no_completions_outside_doc_comment() {
-        let content = "@response";
+        let content = "@tag";
         let position = Position {
             line: 0,
             character: 1,
@@ -476,10 +476,10 @@ mod tests {
 
     #[test]
     fn test_status_code_completions_have_details() {
-        let content = "/// @response ";
+        let content = "/// # Responses\n/// ";
         let position = Position {
-            line: 0,
-            character: 14,
+            line: 1,
+            character: 4,
         };
         let completions = get_completions(content, position);
 
@@ -522,15 +522,15 @@ mod tests {
     #[test]
     fn test_handles_utf16_positions() {
         // Content with multibyte characters - just ensure it doesn't crash
-        let content = "/// 世界 @response";
+        let content = "/// # Metadata\n/// 世界 @tag";
         let position = Position {
-            line: 0,
+            line: 1,
             character: 12, // Somewhere in the line
         };
         let completions = get_completions(content, position);
         // Should not crash with UTF-16 positions
         // (may or may not offer completions depending on exact position)
-        assert!(completions.len() <= 11); // At most all status codes
+        assert!(completions.len() <= 4); // At most all metadata annotations
     }
 
     #[test]
@@ -553,7 +553,7 @@ mod tests {
             character: 5,
         };
         let completions = get_completions(content, position);
-        // Should show all 4 metadata annotations (no @response/@example, use sections instead)
+        // Should show all 4 metadata annotations
         assert_eq!(completions.len(), 4);
     }
 
@@ -614,10 +614,10 @@ mod tests {
 
     #[test]
     fn test_no_completion_after_complete_annotation() {
-        let content = "/// @response 200 Json<T> Success";
+        let content = "/// # Metadata\n/// @tag users";
         let position = Position {
-            line: 0,
-            character: 20, // In the middle
+            line: 1,
+            character: 10, // In the middle of "users"
         };
         let completions = get_completions(content, position);
         // Should not offer completions after the annotation is complete

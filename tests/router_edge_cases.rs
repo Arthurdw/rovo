@@ -17,28 +17,40 @@ struct Item {
 }
 
 /// Get item
-/// @response 200 Json<Item> Item retrieved
+///
+/// # Responses
+///
+/// 200: Json<Item> - Item retrieved
 #[rovo]
 async fn get_item(State(_state): State<AppState>) -> Json<Item> {
     Json(Item::default())
 }
 
 /// Create item
-/// @response 201 Json<Item> Item created
+///
+/// # Responses
+///
+/// 201: Json<Item> - Item created
 #[rovo]
 async fn create_item(State(_state): State<AppState>) -> Json<Item> {
     Json(Item::default())
 }
 
 /// Replace item
-/// @response 200 Json<Item> Item replaced
+///
+/// # Responses
+///
+/// 200: Json<Item> - Item replaced
 #[rovo]
 async fn replace_item(State(_state): State<AppState>) -> Json<Item> {
     Json(Item::default())
 }
 
 /// Update item
-/// @response 200 Json<Item> Item updated
+///
+/// # Responses
+///
+/// 200: Json<Item> - Item updated
 #[rovo]
 async fn update_item(State(_state): State<AppState>) -> Json<Item> {
     Json(Item::default())

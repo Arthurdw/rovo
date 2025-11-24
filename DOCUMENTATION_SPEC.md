@@ -479,13 +479,13 @@ async fn experimental() -> impl IntoApiResponse {
 The parser provides helpful error messages:
 
 ```
-error: unknown annotation `@respons`
+error: unknown annotation `@tg`
   --> src/main.rs:10:5
    |
-10 | /// @respons 200 Json<String> Success
-   |     ^^^^^^^^
+10 | /// @tg users
+   |     ^^^
    |
-   = help: did you mean `@response`?
+   = help: did you mean `@tag`?
 ```
 
 

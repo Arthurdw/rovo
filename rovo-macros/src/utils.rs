@@ -26,8 +26,6 @@ pub fn levenshtein_distance(s1: &str, s2: &str) -> usize {
 /// Find the closest matching annotation
 pub fn find_closest_annotation(input: &str) -> Option<&'static str> {
     const ANNOTATIONS: &[&str] = &[
-        "response",
-        "example",
         "tag",
         "security",
         "id",

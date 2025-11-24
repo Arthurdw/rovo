@@ -48,7 +48,7 @@ fn includes_snippet_for_tag() {
 
 #[test]
 fn no_completions_outside_doc_comment() {
-    let content = "@response";
+    let content = "@tag";
     let position = Position {
         line: 0,
         character: 1,
@@ -59,7 +59,7 @@ fn no_completions_outside_doc_comment() {
 
 #[test]
 fn no_completions_in_regular_comment() {
-    let content = "// @response";
+    let content = "// @tag";
     let position = Position {
         line: 0,
         character: 4,

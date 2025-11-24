@@ -1,5 +1,4 @@
 error: Unknown annotation '@respons'
-       help: did you mean '@response'?
        note: valid annotations are @tag, @security, @id, @hidden
   --> tests/ui/unknown_annotation.rs:10:1
    |

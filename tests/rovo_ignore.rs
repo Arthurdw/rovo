@@ -4,7 +4,12 @@ use rovo::rovo;
 
 /// Test handler for rovo-ignore
 ///
-/// @response 200 Json<String> Success response
+/// # Responses
+///
+/// 200: Json<String> - Success response
+///
+/// # Metadata
+///
 /// @tag test
 /// @rovo-ignore
 /// Everything after this line should be ignored

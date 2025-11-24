@@ -6,7 +6,7 @@ local setup_done = false
 -- Debounce timers per buffer for proper debouncing
 local debounce_timers = {}
 
--- Setup syntax highlighting for Rovo annotations using LSP semantic tokens
+-- Setup syntax highlighting for Rovo section headers and metadata annotations using LSP semantic tokens
 local function setup_highlighting()
   -- Setup LSP semantic token highlight groups for Rovo
   -- These are applied by the LSP server's semantic tokens
@@ -16,6 +16,8 @@ local function setup_highlighting()
 
   -- Legacy extmarks-based highlighting (kept for backwards compatibility)
   -- Only used if use_lsp_semantic_tokens option is explicitly set to false
+  -- Note: This legacy implementation still uses old annotation patterns and should be updated
+  -- if re-enabled in the future
   local function setup_extmarks_highlighting()
     -- Get libuv handle for proper timer management
     local uv = vim.uv or vim.loop
@@ -76,8 +78,8 @@ local function setup_highlighting()
         local line = lines[line_idx]
         if not line then break end
 
-        -- Highlight annotation keywords (@response, @tag, etc.)
-        for _, annotation in ipairs({'@response', '@tag', '@security', '@example', '@id', '@hidden'}) do
+        -- Highlight metadata annotations (@tag, @security, etc.)
+        for _, annotation in ipairs({'@tag', '@security', '@id', '@hidden'}) do
           -- Check if line is a doc comment with this annotation
           if line:match('^%s*///%s*' .. annotation) then
             local start_col, end_col = line:find(annotation, 1, true)
@@ -337,8 +339,8 @@ end
 
 --- Setup Rovo LSP and syntax highlighting for Neovim
 ---
---- This function configures both the syntax highlighting and LSP client for Rovo annotations.
---- It's designed to work alongside rust-analyzer without conflicts.
+--- This function configures both the syntax highlighting and LSP client for Rovo section headers
+--- and metadata annotations. It's designed to work alongside rust-analyzer without conflicts.
 ---
 ---@param opts table|nil Configuration options
 ---   - enable_highlighting: boolean|nil - Setup LSP semantic token highlights (default: true)
@@ -349,7 +351,7 @@ end
 ---   - Any other lspconfig options (filetypes, settings, etc.)
 ---
 --- Note: The on_attach callback is merged with Rovo's internal handler, which:
----   - Enables semantic tokens for annotation highlighting (consistent with VSCode)
+---   - Enables semantic tokens for highlighting section headers and metadata annotations (consistent with VSCode)
 ---   - Calls your custom on_attach if provided
 ---
 --- Example:
@@ -411,7 +413,7 @@ function M.setup(opts)
   -- Merge with user's on_attach if provided
   local user_on_attach = opts.on_attach
   opts.on_attach = function(client, bufnr)
-    -- Enable semantic tokens from Rovo LSP for annotation highlighting
+    -- Enable semantic tokens from Rovo LSP for highlighting section headers and metadata annotations
     -- This provides consistent highlighting across Neovim and VSCode
     if client.server_capabilities.semanticTokensProvider then
       vim.lsp.semantic_tokens.start(bufnr, client.id)

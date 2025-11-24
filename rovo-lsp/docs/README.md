@@ -4,14 +4,32 @@ This directory contains markdown files that are automatically included in the LS
 
 ## Structure
 
-- **annotations/**: Documentation for Rovo annotations (e.g., `@response`, `@tag`)
+- **sections/**: Documentation for Rovo documentation sections (e.g., `# Responses`, `# Examples`, `# Metadata`)
+- **annotations/**: Documentation for Rovo metadata annotations (e.g., `@tag`, `@security`, `@id`, `@hidden`)
 - **status-codes/**: HTTP status code descriptions
 
 ## Adding New Documentation
 
+### Sections
+
+To add a new documentation section:
+
+1. Create a new `.md` file in `sections/` with the section name (e.g., `custom.md`)
+2. Format the file with a `#` heading as the title:
+   ```markdown
+   # Custom Section
+
+   Description of the section.
+
+   ## Format
+   ...
+   ```
+3. The section will be automatically available in the LSP hover documentation
+4. The first non-empty line after the heading becomes the summary
+
 ### Annotations
 
-To add a new annotation:
+To add a new metadata annotation:
 
 1. Create a new `.md` file in `annotations/` with the annotation name (e.g., `custom.md`)
 2. Format the file with a `#` heading as the title:
@@ -25,6 +43,7 @@ To add a new annotation:
    ```
 3. The annotation will be automatically available as `@custom` in the LSP
 4. The first non-empty line after the heading becomes the summary
+5. Metadata annotations should be used within the `# Metadata` section
 
 ### Status Codes
 
