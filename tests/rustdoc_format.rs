@@ -32,6 +32,7 @@ struct ErrorResponse {
     code: String,
 }
 
+#[allow(dead_code)]
 #[derive(Deserialize, JsonSchema)]
 struct TodoId {
     id: Uuid,
@@ -460,6 +461,7 @@ fn test_nested_response_types() {
 ///     completed: false
 /// }
 #[rovo]
+#[allow(unused_variables)]
 async fn get_todo_next_line_example(
     State(_app): State<AppState>,
     Path(id): Path<Uuid>,

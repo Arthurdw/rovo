@@ -11,6 +11,9 @@ use types::DocLine;
 
 use crate::utils::find_closest_annotation;
 
+/// Special depth value indicating code block mode for multi-line examples
+const CODE_BLOCK_MODE: usize = usize::MAX - 1;
+
 /// Parse a function annotated with #[rovo]
 pub fn parse_rovo_function(input: TokenStream) -> Result<(FuncItem, DocInfo), ParseError> {
     let tokens: Vec<TokenTree> = input.clone().into_iter().collect();
@@ -78,6 +81,7 @@ pub fn parse_rovo_function(input: TokenStream) -> Result<(FuncItem, DocInfo), Pa
 }
 
 /// Parse doc comments and extract documentation info
+#[allow(clippy::cognitive_complexity)]
 fn parse_doc_comments(lines: &[DocLine]) -> Result<DocInfo, ParseError> {
     let mut doc_info = DocInfo::default();
     let mut description_lines = Vec::new();
@@ -87,7 +91,7 @@ fn parse_doc_comments(lines: &[DocLine]) -> Result<DocInfo, ParseError> {
     let mut pending_response: Option<(u16, String, String, Span)> = None; // (status, type, desc, span)
     let mut pending_example: Option<(u16, String, Span, usize)> = None; // (status, code, span, depth)
 
-    for doc_line in lines.iter() {
+    for doc_line in lines {
         let trimmed = doc_line.text.trim();
         let span = doc_line.span;
 
@@ -137,7 +141,7 @@ fn parse_doc_comments(lines: &[DocLine]) -> Result<DocInfo, ParseError> {
                         // Parse the new response line
                         let status_code = before_colon.parse::<u16>().map_err(|_| {
                             ParseError::with_span(
-                                format!("Invalid status code '{}'", before_colon),
+                                format!("Invalid status code '{before_colon}'"),
                                 span,
                             )
                         })?;
@@ -167,9 +171,6 @@ fn parse_doc_comments(lines: &[DocLine]) -> Result<DocInfo, ParseError> {
             Some("examples") if !trimmed.is_empty() => {
                 // Check if we have a pending example that needs more lines
                 if let Some((status, ref mut code, sp, ref mut depth)) = pending_example {
-                    // Special depth value (usize::MAX - 1) indicates code block mode
-                    const CODE_BLOCK_MODE: usize = usize::MAX - 1;
-
                     if *depth == CODE_BLOCK_MODE {
                         // In code block mode - looking for closing backticks
                         if trimmed == "```" && !code.is_empty() {
@@ -230,13 +231,12 @@ fn parse_doc_comments(lines: &[DocLine]) -> Result<DocInfo, ParseError> {
                         // This is a new example line
                         let status_code = before_colon.parse::<u16>().map_err(|_| {
                             ParseError::with_span(
-                                format!("Invalid status code '{}'", before_colon),
+                                format!("Invalid status code '{before_colon}'"),
                                 span,
                             )
                         })?;
 
                         let code = trimmed[colon_pos + 1..].trim().to_string();
-                        const CODE_BLOCK_MODE: usize = usize::MAX - 1;
 
                         // Check if code starts with triple backticks (code block on same line)
                         if code == "```" || code == "```rust" || code == "```rs" {
