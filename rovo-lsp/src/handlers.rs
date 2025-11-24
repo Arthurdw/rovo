@@ -169,12 +169,7 @@ fn get_annotation_at_position(line: &str, char_idx: usize) -> Option<String> {
     }
 
     // Find the annotation keyword at the cursor position (for metadata section)
-    let annotations = [
-        "@tag",
-        "@security",
-        "@id",
-        "@hidden",
-    ];
+    let annotations = ["@tag", "@security", "@id", "@hidden"];
 
     for annotation in annotations {
         if let Some(pos) = line.find(annotation) {
@@ -609,8 +604,7 @@ pub fn semantic_tokens_full(content: &str) -> Option<SemanticTokensResult> {
     let mut prev_start: u32 = 0;
 
     // Compile regexes once outside the loop for efficiency
-    let annotation_regex =
-        regex::Regex::new(r"@(tag|security|id|hidden|rovo-ignore)\b").unwrap();
+    let annotation_regex = regex::Regex::new(r"@(tag|security|id|hidden|rovo-ignore)\b").unwrap();
     let tag_value_regex = regex::Regex::new(r"@(?:tag|id)\s+(\w+)").unwrap();
     let status_regex = regex::Regex::new(r"\b([1-5][0-9]{2})\b").unwrap();
     let security_regex = regex::Regex::new(r"\b(bearer|basic|apiKey|oauth2)\b").unwrap();

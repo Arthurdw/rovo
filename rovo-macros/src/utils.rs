@@ -25,13 +25,7 @@ pub fn levenshtein_distance(s1: &str, s2: &str) -> usize {
 
 /// Find the closest matching annotation
 pub fn find_closest_annotation(input: &str) -> Option<&'static str> {
-    const ANNOTATIONS: &[&str] = &[
-        "tag",
-        "security",
-        "id",
-        "hidden",
-        "rovo-ignore",
-    ];
+    const ANNOTATIONS: &[&str] = &["tag", "security", "id", "hidden", "rovo-ignore"];
 
     let input_lower = input.to_lowercase();
     let mut best_match = None;

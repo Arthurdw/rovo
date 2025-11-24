@@ -11,8 +11,7 @@ static ENUM_RE: Lazy<Regex> =
     Lazy::new(|| Regex::new(r"^\s*(?:pub(?:\([^)]+\))?\s+)?enum\s+").unwrap());
 static TYPE_RE: Lazy<Regex> =
     Lazy::new(|| Regex::new(r"^\s*(?:pub(?:\([^)]+\))?\s+)?type\s+").unwrap());
-static ANNOTATION_TYPE_RE: Lazy<Regex> =
-    Lazy::new(|| Regex::new(r"///\s*\d+:\s*(\S+)").unwrap());
+static ANNOTATION_TYPE_RE: Lazy<Regex> = Lazy::new(|| Regex::new(r"///\s*\d+:\s*(\S+)").unwrap());
 
 /// Extract innermost type name from annotation response type by recursively unwrapping
 ///
