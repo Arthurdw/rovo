@@ -96,6 +96,14 @@ repos:
         pass_filenames: false
         stages: [commit]
 
+      - id: sync-jetbrains-icon
+        name: Sync JetBrains plugin icon
+        entry: scripts/sync-jetbrains-icon.sh
+        language: system
+        files: ^\.docs/rovo-icon\.png$
+        pass_filenames: false
+        stages: [commit]
+
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v4.5.0
     hooks:

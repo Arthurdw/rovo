@@ -5,6 +5,7 @@
   "version": "0.1.7",
   "publisher": "arthurdw",
   "license": "MIT",
+  "icon": "icon.png",
   "author": {
     "name": "Arthur Deierlein",
     "email": "dev@arthurdw.com"
