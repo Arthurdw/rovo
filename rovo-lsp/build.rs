@@ -36,8 +36,11 @@ fn main() {
             let filename = path.file_stem().unwrap().to_str().unwrap();
             let annotation_name = format!("@{}", filename);
 
+            // Convert path to string with forward slashes (works on all platforms)
+            let path_str = path.to_str().unwrap().replace('\\', "/");
+
             writeln!(f, "        \"{}\" => {{", annotation_name).unwrap();
-            writeln!(f, "            include_str!(\"{}\").trim()", path.display()).unwrap();
+            writeln!(f, "            include_str!(\"{}\").trim()", path_str).unwrap();
             writeln!(f, "        }}").unwrap();
 
             // Tell Cargo to rerun if the file changes

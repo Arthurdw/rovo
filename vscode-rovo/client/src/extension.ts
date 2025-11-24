@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import * as child_process from 'child_process';
 import { promisify } from 'util';
 import * as fs from 'fs/promises';
+import * as path from 'path';
 import {
     LanguageClient,
     LanguageClientOptions,
@@ -276,7 +277,9 @@ async function installServer(outputChannel: vscode.OutputChannel): Promise<boole
                 }
 
                 // Install rovo-lsp with matching version
-                const extensionVersion = require('../../../package.json').version;
+                const packageJsonPath = path.join(context.extensionPath, 'package.json');
+                const packageJsonContent = await fs.readFile(packageJsonPath, 'utf-8');
+                const extensionVersion = JSON.parse(packageJsonContent).version as string;
                 const { stdout, stderr } = await execAsync(`cargo install rovo-lsp --version ${extensionVersion}`, {
                     maxBuffer: 10 * 1024 * 1024 // 10MB buffer for cargo output
                 });
@@ -290,10 +293,11 @@ async function installServer(outputChannel: vscode.OutputChannel): Promise<boole
                 vscode.window.showInformationMessage('rovo-lsp installed successfully!');
                 return true;
 
-            } catch (error: any) {
-                outputChannel.appendLine(`Installation failed: ${error.message}`);
-                if (error.stdout) outputChannel.appendLine(error.stdout);
-                if (error.stderr) outputChannel.appendLine(error.stderr);
+            } catch (error: unknown) {
+                const err = error as Error & { stdout?: string; stderr?: string };
+                outputChannel.appendLine(`Installation failed: ${err.message}`);
+                if (err.stdout) outputChannel.appendLine(err.stdout);
+                if (err.stderr) outputChannel.appendLine(err.stderr);
                 return false;
             }
         }
