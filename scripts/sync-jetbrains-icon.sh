@@ -13,6 +13,7 @@ fi
 # Check if destination exists and if files are different
 if [ ! -f "$ICON_DEST" ] || ! cmp -s "$ICON_SOURCE" "$ICON_DEST"; then
     echo "Syncing JetBrains plugin icon..."
+    mkdir -p "$(dirname "$ICON_DEST")"
     cp "$ICON_SOURCE" "$ICON_DEST"
     git add "$ICON_DEST"
     echo "JetBrains plugin icon synced"
