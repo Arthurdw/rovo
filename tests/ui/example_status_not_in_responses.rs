@@ -1,3 +1,4 @@
+#![allow(unused_imports)]
 use axum::response::Json;
 use rovo::rovo;
 use serde::Serialize;

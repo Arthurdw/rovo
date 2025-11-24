@@ -1,13 +1,5 @@
 error: Example status code 201 is not defined in responses. Available status codes: 200, 404
-  --> tests/ui/example_status_not_in_responses.rs:20:1
+  --> tests/ui/example_status_not_in_responses.rs:21:1
    |
-20 | /// 201: User { id: 1, name: "Alice".into() }
+21 | /// 201: User { id: 1, name: "Alice".into() }
    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-warning: unused import: `axum::response::Json`
- --> tests/ui/example_status_not_in_responses.rs:1:5
-  |
-1 | use axum::response::Json;
-  |     ^^^^^^^^^^^^^^^^^^^^
-  |
-  = note: `#[warn(unused_imports)]` on by default
