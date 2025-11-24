@@ -1,5 +1,4 @@
 use axum::extract::{Path, State};
-use axum::http::StatusCode;
 use axum::response::Json;
 use rovo::aide::axum::IntoApiResponse;
 use rovo::schemars::JsonSchema;
@@ -136,9 +135,7 @@ async fn create_todo_multiline(
 /// 202: true
 /// 203: 99.9
 #[rovo]
-async fn get_status_primitives(
-    State(_app): State<AppState>,
-) -> impl IntoApiResponse {
+async fn get_status_primitives(State(_app): State<AppState>) -> impl IntoApiResponse {
     Json("success")
 }
 
@@ -153,9 +150,7 @@ async fn get_status_primitives(
 ///
 /// @tag todos
 #[rovo]
-async fn list_todos_single_tag(
-    State(_app): State<AppState>,
-) -> impl IntoApiResponse {
+async fn list_todos_single_tag(State(_app): State<AppState>) -> impl IntoApiResponse {
     Json(Vec::<TodoItem>::new())
 }
 
@@ -171,9 +166,7 @@ async fn list_todos_single_tag(
 /// @tag todos
 /// @tag lists
 #[rovo]
-async fn list_todos_multiple_tags(
-    State(_app): State<AppState>,
-) -> impl IntoApiResponse {
+async fn list_todos_multiple_tags(State(_app): State<AppState>) -> impl IntoApiResponse {
     Json(Vec::<TodoItem>::new())
 }
 
@@ -227,9 +220,7 @@ async fn get_todo_custom_id(
 ///
 /// @hidden
 #[rovo]
-async fn internal_endpoint(
-    State(_app): State<AppState>,
-) -> impl IntoApiResponse {
+async fn internal_endpoint(State(_app): State<AppState>) -> impl IntoApiResponse {
     Json("internal")
 }
 
@@ -288,9 +279,7 @@ async fn create_todo_complete(
 /// TODO: Add authentication
 /// @invalid_annotation this won't cause errors
 #[rovo]
-async fn experimental_endpoint(
-    State(_app): State<AppState>,
-) -> impl IntoApiResponse {
+async fn experimental_endpoint(State(_app): State<AppState>) -> impl IntoApiResponse {
     Json("experimental")
 }
 
@@ -310,7 +299,7 @@ async fn delete_todo(
     State(_app): State<AppState>,
     Path(_id): Path<TodoId>,
 ) -> impl IntoApiResponse {
-    ()
+    
 }
 
 // Test 14: Complex nested response types
@@ -340,9 +329,7 @@ async fn delete_todo(
 ///
 /// @tag todos
 #[rovo]
-async fn get_nested_response(
-    State(_app): State<AppState>,
-) -> impl IntoApiResponse {
+async fn get_nested_response(State(_app): State<AppState>) -> impl IntoApiResponse {
     Json(Vec::<TodoItem>::new())
 }
 
@@ -457,7 +444,6 @@ fn test_nested_response_types() {
         .route("/nested", get(get_nested_response))
         .with_state(_state);
 }
-
 
 // Test: Examples starting on next line
 /// Get todo with example on next line.

@@ -171,15 +171,18 @@ pub fn parse_annotations(content: &str) -> Vec<Annotation> {
                 match section_name {
                     "Responses" => {
                         current_section = Some("responses");
-                        annotations.push(Annotation::new(AnnotationKind::ResponsesSection, line_num));
+                        annotations
+                            .push(Annotation::new(AnnotationKind::ResponsesSection, line_num));
                     }
                     "Examples" => {
                         current_section = Some("examples");
-                        annotations.push(Annotation::new(AnnotationKind::ExamplesSection, line_num));
+                        annotations
+                            .push(Annotation::new(AnnotationKind::ExamplesSection, line_num));
                     }
                     "Metadata" => {
                         current_section = Some("metadata");
-                        annotations.push(Annotation::new(AnnotationKind::MetadataSection, line_num));
+                        annotations
+                            .push(Annotation::new(AnnotationKind::MetadataSection, line_num));
                     }
                     _ => current_section = None,
                 }
@@ -198,7 +201,9 @@ pub fn parse_annotations(content: &str) -> Vec<Annotation> {
                     }
                     "examples" => {
                         // Try to parse a multi-line example
-                        if let Some((ann, lines_consumed)) = parse_multiline_example(&doc_lines[idx..]) {
+                        if let Some((ann, lines_consumed)) =
+                            parse_multiline_example(&doc_lines[idx..])
+                        {
                             annotations.push(ann);
                             idx += lines_consumed;
                         } else {
@@ -325,12 +330,17 @@ fn parse_multiline_example(doc_lines: &[(usize, &str)]) -> Option<(Annotation, u
         }
 
         // Continue collecting lines if we have unclosed delimiters
-        while (brace_depth > 0 || bracket_depth > 0 || paren_depth > 0) && lines_consumed < doc_lines.len() {
+        while (brace_depth > 0 || bracket_depth > 0 || paren_depth > 0)
+            && lines_consumed < doc_lines.len()
+        {
             let (_, next_line) = doc_lines[lines_consumed];
             let next_content = next_line.trim_start_matches("///").trim();
 
             // Stop if we hit a new section or annotation
-            if next_content.starts_with('#') || next_content.starts_with('@') || next_content.is_empty() {
+            if next_content.starts_with('#')
+                || next_content.starts_with('@')
+                || next_content.is_empty()
+            {
                 break;
             }
 
@@ -578,15 +588,21 @@ async fn handler() {}
 "#;
         let annotations = parse_annotations(content);
         // Should have ResponsesSection + 2 Response annotations
-        assert!(annotations.iter().any(|a| a.kind == AnnotationKind::ResponsesSection));
+        assert!(annotations
+            .iter()
+            .any(|a| a.kind == AnnotationKind::ResponsesSection));
 
-        let responses: Vec<_> = annotations.iter()
+        let responses: Vec<_> = annotations
+            .iter()
             .filter(|a| a.kind == AnnotationKind::Response)
             .collect();
         assert_eq!(responses.len(), 2);
         assert_eq!(responses[0].status, Some(200));
         assert_eq!(responses[0].response_type, Some("Json<User>".to_string()));
-        assert_eq!(responses[0].description, Some("Successfully retrieved user".to_string()));
+        assert_eq!(
+            responses[0].description,
+            Some("Successfully retrieved user".to_string())
+        );
     }
 
     #[test]
@@ -600,14 +616,20 @@ async fn handler() {}
 async fn handler() {}
 "#;
         let annotations = parse_annotations(content);
-        assert!(annotations.iter().any(|a| a.kind == AnnotationKind::ExamplesSection));
+        assert!(annotations
+            .iter()
+            .any(|a| a.kind == AnnotationKind::ExamplesSection));
 
-        let examples: Vec<_> = annotations.iter()
+        let examples: Vec<_> = annotations
+            .iter()
             .filter(|a| a.kind == AnnotationKind::Example)
             .collect();
         assert_eq!(examples.len(), 2);
         assert_eq!(examples[0].status, Some(200));
-        assert_eq!(examples[0].example_value, Some("User::default()".to_string()));
+        assert_eq!(
+            examples[0].example_value,
+            Some("User::default()".to_string())
+        );
     }
 
     #[test]
@@ -621,9 +643,13 @@ async fn handler() {}
 async fn handler() {}
 "#;
         let annotations = parse_annotations(content);
-        assert!(annotations.iter().any(|a| a.kind == AnnotationKind::MetadataSection));
+        assert!(annotations
+            .iter()
+            .any(|a| a.kind == AnnotationKind::MetadataSection));
         assert!(annotations.iter().any(|a| a.kind == AnnotationKind::Tag));
-        assert!(annotations.iter().any(|a| a.kind == AnnotationKind::Security));
+        assert!(annotations
+            .iter()
+            .any(|a| a.kind == AnnotationKind::Security));
     }
 
     #[test]
@@ -641,7 +667,10 @@ async fn handler() {}
 async fn handler() {}
 "#;
         let annotations = parse_annotations(content);
-        let examples: Vec<_> = annotations.iter().filter(|a| a.kind == AnnotationKind::Example).collect();
+        let examples: Vec<_> = annotations
+            .iter()
+            .filter(|a| a.kind == AnnotationKind::Example)
+            .collect();
         assert_eq!(examples.len(), 1);
         assert_eq!(examples[0].status, Some(200));
         let example_value = examples[0].example_value.as_ref().unwrap();
@@ -667,15 +696,30 @@ async fn handler() {}
 async fn handler() {}
 "#;
         let annotations = parse_annotations(content);
-        let examples: Vec<_> = annotations.iter().filter(|a| a.kind == AnnotationKind::Example).collect();
+        let examples: Vec<_> = annotations
+            .iter()
+            .filter(|a| a.kind == AnnotationKind::Example)
+            .collect();
         assert_eq!(examples.len(), 1, "Should have exactly one example");
         assert_eq!(examples[0].status, Some(200));
         let example_value = examples[0].example_value.as_ref().unwrap();
-        assert!(example_value.contains("TodoItem"), "Example should contain 'TodoItem'");
-        assert!(example_value.contains("id: Uuid::nil()"), "Example should contain 'id: Uuid::nil()'");
-        assert!(example_value.contains("..Default::default()"), "Example should contain '..Default::default()'");
+        assert!(
+            example_value.contains("TodoItem"),
+            "Example should contain 'TodoItem'"
+        );
+        assert!(
+            example_value.contains("id: Uuid::nil()"),
+            "Example should contain 'id: Uuid::nil()'"
+        );
+        assert!(
+            example_value.contains("..Default::default()"),
+            "Example should contain '..Default::default()'"
+        );
         // Ensure we don't include the backticks
-        assert!(!example_value.contains("```"), "Example should not contain backticks");
+        assert!(
+            !example_value.contains("```"),
+            "Example should not contain backticks"
+        );
     }
 
     #[test]
@@ -694,9 +738,15 @@ async fn handler() {}
 async fn handler() {}
 "#;
         let annotations = parse_annotations(content);
-        assert!(annotations.iter().any(|a| a.kind == AnnotationKind::ResponsesSection));
-        assert!(annotations.iter().any(|a| a.kind == AnnotationKind::MetadataSection));
-        assert!(annotations.iter().any(|a| a.kind == AnnotationKind::Response));
+        assert!(annotations
+            .iter()
+            .any(|a| a.kind == AnnotationKind::ResponsesSection));
+        assert!(annotations
+            .iter()
+            .any(|a| a.kind == AnnotationKind::MetadataSection));
+        assert!(annotations
+            .iter()
+            .any(|a| a.kind == AnnotationKind::Response));
         assert!(annotations.iter().any(|a| a.kind == AnnotationKind::Tag));
     }
 }

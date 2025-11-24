@@ -42,10 +42,18 @@ async fn handler() {
     let titles = get_action_titles(&actions);
 
     // Should offer to add more annotations (new format)
-    assert!(titles.iter().any(|t| t.contains("Add response") || t.contains("response")));
-    assert!(titles.iter().any(|t| t.contains("@tag") || t.contains("tag")));
-    assert!(titles.iter().any(|t| t.contains("@security") || t.contains("security")));
-    assert!(titles.iter().any(|t| t.contains("Add example") || t.contains("example")));
+    assert!(titles
+        .iter()
+        .any(|t| t.contains("Add response") || t.contains("response")));
+    assert!(titles
+        .iter()
+        .any(|t| t.contains("@tag") || t.contains("tag")));
+    assert!(titles
+        .iter()
+        .any(|t| t.contains("@security") || t.contains("security")));
+    assert!(titles
+        .iter()
+        .any(|t| t.contains("Add example") || t.contains("example")));
 }
 
 #[test]
@@ -391,7 +399,9 @@ fn outer() {
     let titles = get_action_titles(&actions);
 
     // Should detect we're in a rovo function even when nested
-    assert!(titles.iter().any(|t| t.contains("Add response") || t.contains("response")));
+    assert!(titles
+        .iter()
+        .any(|t| t.contains("Add response") || t.contains("response")));
 }
 
 #[test]
@@ -410,7 +420,9 @@ async fn complex_handler(
     let titles = get_action_titles(&actions);
 
     // Should work with multiline function signatures
-    assert!(titles.iter().any(|t| t.contains("Add response") || t.contains("response")));
+    assert!(titles
+        .iter()
+        .any(|t| t.contains("Add response") || t.contains("response")));
 }
 
 #[test]
@@ -426,7 +438,9 @@ async fn generic_handler<T: Serialize>() {
     let titles = get_action_titles(&actions);
 
     // Should work with generic functions
-    assert!(titles.iter().any(|t| t.contains("Add response") || t.contains("response")));
+    assert!(titles
+        .iter()
+        .any(|t| t.contains("Add response") || t.contains("response")));
 }
 
 #[test]

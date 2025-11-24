@@ -344,8 +344,14 @@ fn test_spec_contains_multiline_example_with_default() {
 
         // Verify the example contains the multi-line content
         let example_json = serde_json::to_string(&json_content.example.as_ref().unwrap()).unwrap();
-        assert!(example_json.contains("id"), "Example should contain 'id' field");
-        assert!(example_json.contains("name"), "Example should contain 'name' field");
+        assert!(
+            example_json.contains("id"),
+            "Example should contain 'id' field"
+        );
+        assert!(
+            example_json.contains("name"),
+            "Example should contain 'name' field"
+        );
     }
 }
 

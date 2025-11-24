@@ -158,9 +158,12 @@ pub fn get_code_actions(content: &str, range: Range, uri: Url) -> Vec<CodeAction
     }
 
     // Action 7: Add full REST response set (only if this block has no responses yet)
-    let has_responses = filtered_annotations
-        .iter()
-        .any(|ann| matches!(ann.kind, AnnotationKind::Response | AnnotationKind::ResponsesSection));
+    let has_responses = filtered_annotations.iter().any(|ann| {
+        matches!(
+            ann.kind,
+            AnnotationKind::Response | AnnotationKind::ResponsesSection
+        )
+    });
 
     if !has_responses {
         actions.push(create_smart_rest_responses_action(
@@ -658,7 +661,12 @@ fn create_init_rovo_action(insert_line: usize, uri: Url) -> CodeActionOrCommand 
 
 /// Find a documentation section (# Responses, # Examples, # Metadata) and return its boundaries
 /// Returns: (section_exists, section_start_line, last_content_line)
-fn find_section(content: &str, section_name: &str, doc_start: usize, doc_end: usize) -> (bool, Option<usize>, Option<usize>) {
+fn find_section(
+    content: &str,
+    section_name: &str,
+    doc_start: usize,
+    doc_end: usize,
+) -> (bool, Option<usize>, Option<usize>) {
     let lines: Vec<&str> = content.lines().collect();
     let section_header = format!("# {}", section_name);
 
@@ -949,7 +957,8 @@ fn find_metadata_insertion_point(
     }
 
     // If we get here, insert after the last annotation (all are before or same type)
-    if let Some(last_line) = last_same_type.or_else(|| annotation_positions.last().map(|(_, l)| *l)) {
+    if let Some(last_line) = last_same_type.or_else(|| annotation_positions.last().map(|(_, l)| *l))
+    {
         return last_line + 1;
     }
 
@@ -975,7 +984,8 @@ fn create_smart_metadata_action(
         let metadata_start = section_start.unwrap();
         let metadata_end = section_end.unwrap();
 
-        let insert_line = find_metadata_insertion_point(content, annotation, metadata_start, metadata_end);
+        let insert_line =
+            find_metadata_insertion_point(content, annotation, metadata_start, metadata_end);
 
         changes.insert(
             uri.clone(),

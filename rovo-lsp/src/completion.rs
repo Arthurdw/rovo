@@ -87,13 +87,25 @@ pub fn get_completions(content: &str, position: Position) -> Vec<CompletionItem>
     match context {
         SectionContext::ResponsesSection => {
             // In # Responses section, complete response lines
-            if after_doc.is_empty() || after_doc.chars().next().map(|c| c.is_digit(10)).unwrap_or(false) {
+            if after_doc.is_empty()
+                || after_doc
+                    .chars()
+                    .next()
+                    .map(|c| c.is_digit(10))
+                    .unwrap_or(false)
+            {
                 return get_response_line_completions();
             }
         }
         SectionContext::ExamplesSection => {
             // In # Examples section, complete example lines
-            if after_doc.is_empty() || after_doc.chars().next().map(|c| c.is_digit(10)).unwrap_or(false) {
+            if after_doc.is_empty()
+                || after_doc
+                    .chars()
+                    .next()
+                    .map(|c| c.is_digit(10))
+                    .unwrap_or(false)
+            {
                 return get_example_line_completions();
             }
         }
@@ -158,8 +170,14 @@ fn get_section_completions(typed: &str, _context: &SectionContext) -> Vec<Comple
     let mut completions = Vec::new();
 
     let sections = [
-        ("# Responses", "# Responses\n///\n/// ${1:200}: ${2:Json<T>} - ${3:description}"),
-        ("# Examples", "# Examples\n///\n/// ${1:200}: ${2:expression}"),
+        (
+            "# Responses",
+            "# Responses\n///\n/// ${1:200}: ${2:Json<T>} - ${3:description}",
+        ),
+        (
+            "# Examples",
+            "# Examples\n///\n/// ${1:200}: ${2:expression}",
+        ),
         ("# Metadata", "# Metadata\n///\n/// @${1:tag} ${2:value}"),
     ];
 
@@ -207,15 +225,13 @@ fn get_response_line_completions() -> Vec<CompletionItem> {
 
 /// Get completions for example lines in # Examples section
 fn get_example_line_completions() -> Vec<CompletionItem> {
-    vec![
-        CompletionItem {
-            label: "200 example".to_string(),
-            kind: CompletionItemKind::Snippet,
-            detail: Some("Success example".to_string()),
-            documentation: Some("Add a 200 OK example".to_string()),
-            insert_text: Some("200: ${1:expression}".to_string()),
-        },
-    ]
+    vec![CompletionItem {
+        label: "200 example".to_string(),
+        kind: CompletionItemKind::Snippet,
+        detail: Some("Success example".to_string()),
+        documentation: Some("Add a 200 OK example".to_string()),
+        insert_text: Some("200: ${1:expression}".to_string()),
+    }]
 }
 
 /// Get completions for metadata annotations
@@ -238,7 +254,9 @@ fn get_metadata_annotation_completions(typed: &str) -> Vec<CompletionItem> {
                 label: full_label.clone(),
                 kind: CompletionItemKind::Snippet,
                 detail: Some(format!("{} annotation", label)),
-                documentation: Some(crate::docs::get_annotation_documentation(&full_label).to_string()),
+                documentation: Some(
+                    crate::docs::get_annotation_documentation(&full_label).to_string(),
+                ),
                 insert_text: Some(snippet.to_string()),
             });
         }
@@ -340,7 +358,11 @@ mod tests {
         // Should offer status code response lines
         assert!(!completions.is_empty());
         assert!(completions.iter().any(|c| c.label.starts_with("200")));
-        assert!(completions.iter().any(|c| c.insert_text.as_ref().map(|t| t.starts_with("200:")).unwrap_or(false)));
+        assert!(completions.iter().any(|c| c
+            .insert_text
+            .as_ref()
+            .map(|t| t.starts_with("200:"))
+            .unwrap_or(false)));
     }
 
     #[test]
@@ -354,7 +376,11 @@ mod tests {
         // Should offer status code example lines
         assert!(!completions.is_empty());
         assert!(completions.iter().any(|c| c.label.starts_with("200")));
-        assert!(completions.iter().any(|c| c.insert_text.as_ref().map(|t| t.starts_with("200:")).unwrap_or(false)));
+        assert!(completions.iter().any(|c| c
+            .insert_text
+            .as_ref()
+            .map(|t| t.starts_with("200:"))
+            .unwrap_or(false)));
     }
 
     #[test]

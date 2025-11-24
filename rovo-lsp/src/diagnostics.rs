@@ -117,7 +117,10 @@ pub fn validate_annotations(content: &str) -> Vec<Diagnostic> {
                             if line.starts_with("///") {
                                 let content = line.trim_start_matches("///").trim();
                                 // Check if this line is part of the example
-                                if content.is_empty() || content.starts_with("#") || content.starts_with("@") {
+                                if content.is_empty()
+                                    || content.starts_with("#")
+                                    || content.starts_with("@")
+                                {
                                     break;
                                 }
                                 // Update end_line for each content line we find
@@ -136,7 +139,11 @@ pub fn validate_annotations(content: &str) -> Vec<Diagnostic> {
                             severity: DiagnosticSeverity::Error,
                             char_start,
                             char_end: None,
-                            end_line: if end_line > start_line { Some(end_line) } else { None },
+                            end_line: if end_line > start_line {
+                                Some(end_line)
+                            } else {
+                                None
+                            },
                             end_char: if end_line > start_line {
                                 lines.get(end_line).map(|l| l.len())
                             } else {

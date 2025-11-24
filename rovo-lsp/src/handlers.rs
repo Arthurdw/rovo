@@ -227,7 +227,8 @@ pub fn text_document_did_change(content: &str, _uri: Url) -> Vec<Diagnostic> {
             // Handle multi-line diagnostics
             let (end_line, end_char) = if let Some(end_line_num) = diag.end_line {
                 let end_line_content = lines.get(end_line_num).map(|l| *l).unwrap_or("");
-                let end_line_utf16_len = byte_index_to_utf16_col(end_line_content, end_line_content.len());
+                let end_line_utf16_len =
+                    byte_index_to_utf16_col(end_line_content, end_line_content.len());
                 let end_char_pos = diag
                     .end_char
                     .map(|idx| byte_index_to_utf16_col(end_line_content, idx))
@@ -504,7 +505,11 @@ fn get_status_code_at_position(line: &str, char_idx: usize) -> Option<String> {
     // Old format: "@response 200 ..." or "@example 200 ..."
     let has_status_context = line.contains("@response")
         || line.contains("@example")
-        || content.chars().next().map(|c| c.is_ascii_digit()).unwrap_or(false);
+        || content
+            .chars()
+            .next()
+            .map(|c| c.is_ascii_digit())
+            .unwrap_or(false);
 
     if !has_status_context {
         return None;

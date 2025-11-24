@@ -101,7 +101,10 @@ async fn handler() {}
 "#;
     let diagnostics = validate_annotations(content);
     assert!(diagnostics.len() > 0);
-    assert!(diagnostics[0].message.contains("Invalid example") || diagnostics[0].message.contains("parse"));
+    assert!(
+        diagnostics[0].message.contains("Invalid example")
+            || diagnostics[0].message.contains("parse")
+    );
 }
 
 #[test]
@@ -119,7 +122,9 @@ async fn handler() {}
     // Note: This may or may not produce diagnostics depending on type checking
     // The key is that if it does, the message should be helpful
     if !diagnostics.is_empty() {
-        assert!(diagnostics[0].message.contains("missing") || diagnostics[0].message.contains("field"));
+        assert!(
+            diagnostics[0].message.contains("missing") || diagnostics[0].message.contains("field")
+        );
     }
 }
 
@@ -138,9 +143,15 @@ async fn handler() {}
     let diagnostics = validate_annotations(content);
     if !diagnostics.is_empty() {
         // The diagnostic should span from line 3 to line 6
-        assert_eq!(diagnostics[0].line, 3, "Should start at line with status code");
+        assert_eq!(
+            diagnostics[0].line, 3,
+            "Should start at line with status code"
+        );
         if let Some(end_line) = diagnostics[0].end_line {
-            assert!(end_line >= 6, "Should end at or after the closing brace line");
+            assert!(
+                end_line >= 6,
+                "Should end at or after the closing brace line"
+            );
         }
     }
 }

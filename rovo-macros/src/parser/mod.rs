@@ -100,7 +100,8 @@ fn parse_doc_comments(lines: &[DocLine]) -> Result<DocInfo, ParseError> {
         if trimmed.starts_with("# ") {
             // Finalize any pending multi-line content
             if let Some((status, type_str, desc, sp)) = pending_response.take() {
-                let response_info = annotations::parse_response_from_parts(&type_str, status, &desc, sp)?;
+                let response_info =
+                    annotations::parse_response_from_parts(&type_str, status, &desc, sp)?;
                 doc_info.responses.push(response_info);
             }
             if let Some((status, code, sp, _)) = pending_example.take() {
@@ -127,7 +128,9 @@ fn parse_doc_comments(lines: &[DocLine]) -> Result<DocInfo, ParseError> {
                         // This is a new response line
                         // First, finalize any pending response
                         if let Some((status, type_str, desc, sp)) = pending_response.take() {
-                            let response_info = annotations::parse_response_from_parts(&type_str, status, &desc, sp)?;
+                            let response_info = annotations::parse_response_from_parts(
+                                &type_str, status, &desc, sp,
+                            )?;
                             doc_info.responses.push(response_info);
                         }
 
@@ -172,10 +175,13 @@ fn parse_doc_comments(lines: &[DocLine]) -> Result<DocInfo, ParseError> {
                         if trimmed == "```" && !code.is_empty() {
                             // Found closing backticks, finalize the example
                             let final_code = code.clone();
-                            let example_info = annotations::parse_example_from_parts(status, &final_code, sp)?;
+                            let example_info =
+                                annotations::parse_example_from_parts(status, &final_code, sp)?;
                             doc_info.examples.push(example_info);
                             pending_example = None;
-                        } else if code.is_empty() && (trimmed == "```" || trimmed == "```rust" || trimmed == "```rs") {
+                        } else if code.is_empty()
+                            && (trimmed == "```" || trimmed == "```rust" || trimmed == "```rs")
+                        {
                             // Opening backticks on their own line - skip
                         } else {
                             // Regular content line in code block
@@ -186,7 +192,9 @@ fn parse_doc_comments(lines: &[DocLine]) -> Result<DocInfo, ParseError> {
                         }
                     } else {
                         // Check if first line is switching to code block mode
-                        if code.is_empty() && (trimmed == "```" || trimmed == "```rust" || trimmed == "```rs") {
+                        if code.is_empty()
+                            && (trimmed == "```" || trimmed == "```rust" || trimmed == "```rs")
+                        {
                             // Switch to code block mode
                             *depth = CODE_BLOCK_MODE;
                         } else {
@@ -209,7 +217,8 @@ fn parse_doc_comments(lines: &[DocLine]) -> Result<DocInfo, ParseError> {
                             // If depth is 0 and we have meaningful content, finalize it
                             if *depth == 0 && !code.trim().is_empty() {
                                 let final_code = code.clone();
-                                let example_info = annotations::parse_example_from_parts(status, &final_code, sp)?;
+                                let example_info =
+                                    annotations::parse_example_from_parts(status, &final_code, sp)?;
                                 doc_info.examples.push(example_info);
                                 pending_example = None;
                             }
@@ -232,7 +241,8 @@ fn parse_doc_comments(lines: &[DocLine]) -> Result<DocInfo, ParseError> {
                         // Check if code starts with triple backticks (code block on same line)
                         if code == "```" || code == "```rust" || code == "```rs" {
                             // Start code block mode
-                            pending_example = Some((status_code, String::new(), span, CODE_BLOCK_MODE));
+                            pending_example =
+                                Some((status_code, String::new(), span, CODE_BLOCK_MODE));
                         } else if code.is_empty() {
                             // Store pending example with empty code, depth 0 (will accumulate on next lines)
                             pending_example = Some((status_code, String::new(), span, 0));
@@ -249,7 +259,11 @@ fn parse_doc_comments(lines: &[DocLine]) -> Result<DocInfo, ParseError> {
 
                             if depth == 0 {
                                 // Single-line example, process immediately
-                                let example_info = annotations::parse_example_from_parts(status_code, &code, span)?;
+                                let example_info = annotations::parse_example_from_parts(
+                                    status_code,
+                                    &code,
+                                    span,
+                                )?;
                                 doc_info.examples.push(example_info);
                             } else {
                                 // Multi-line example, store for continuation
@@ -337,7 +351,8 @@ fn parse_doc_comments(lines: &[DocLine]) -> Result<DocInfo, ParseError> {
 
         for example in &doc_info.examples {
             if !response_codes.contains(&example.status_code) {
-                let available_codes: Vec<String> = doc_info.responses
+                let available_codes: Vec<String> = doc_info
+                    .responses
                     .iter()
                     .map(|r| r.status_code.to_string())
                     .collect();
