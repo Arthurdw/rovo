@@ -491,18 +491,13 @@ fn get_status_code_at_position(line: &str, char_idx: usize) -> Option<String> {
 }
 
 fn get_status_code_info(code: u16) -> String {
+    // Try to get from markdown files first
+    if let Some(info) = crate::docs::get_status_code_from_markdown(code) {
+        return info.to_string();
+    }
+
+    // Fallback to generic messages
     match code {
-        200 => "**200 OK**\n\nRequest succeeded. The meaning depends on the HTTP method:\n- GET: Resource fetched\n- POST: Resource created/action performed\n- PUT: Resource updated\n- DELETE: Resource deleted".to_string(),
-        201 => "**201 Created**\n\nRequest succeeded and a new resource was created. Typically returned after POST or PUT requests.".to_string(),
-        204 => "**204 No Content**\n\nRequest succeeded but there's no content to return. Often used for DELETE operations.".to_string(),
-        400 => "**400 Bad Request**\n\nServer cannot process the request due to client error (e.g., malformed syntax, invalid request message framing, or deceptive request routing).".to_string(),
-        401 => "**401 Unauthorized**\n\nClient must authenticate itself to get the requested response. The client is not authenticated.".to_string(),
-        403 => "**403 Forbidden**\n\nClient does not have access rights to the content. Unlike 401, the client's identity is known to the server but they don't have permission.".to_string(),
-        404 => "**404 Not Found**\n\nServer cannot find the requested resource. This is one of the most famous status codes.".to_string(),
-        409 => "**409 Conflict**\n\nRequest conflicts with the current state of the server. Often used for concurrent modification conflicts.".to_string(),
-        422 => "**422 Unprocessable Entity**\n\nRequest was well-formed but contains semantic errors. Often used for validation failures.".to_string(),
-        500 => "**500 Internal Server Error**\n\nServer encountered an unexpected condition that prevented it from fulfilling the request.".to_string(),
-        503 => "**503 Service Unavailable**\n\nServer is not ready to handle the request. Common causes are server maintenance or overload.".to_string(),
         _ if (100..=199).contains(&code) => format!("**{} Informational**\n\nIndicates that the request was received and is being processed.", code),
         _ if (200..=299).contains(&code) => format!("**{} Success**\n\nIndicates that the request was successfully received, understood, and accepted.", code),
         _ if (300..=399).contains(&code) => format!("**{} Redirection**\n\nIndicates that further action needs to be taken to complete the request.", code),
