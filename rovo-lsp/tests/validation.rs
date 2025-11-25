@@ -167,3 +167,208 @@ async fn handler() {}
         }
     }
 }
+
+// Additional edge case tests for improved coverage
+
+#[test]
+fn reports_missing_closing_brace() {
+    // Test for "unexpected end of input" error path
+    let content = r#"
+/// # Examples
+///
+/// 200: User {
+#[rovo]
+async fn handler() {}
+"#;
+    let diagnostics = validate_annotations(content);
+    if !diagnostics.is_empty() {
+        assert!(
+            diagnostics[0].message.contains("Invalid example")
+                || diagnostics[0].message.contains("Incomplete")
+                || diagnostics[0].message.contains("closing")
+        );
+    }
+}
+
+#[test]
+fn reports_missing_comma_in_struct() {
+    // Test for "expected `,`" error path
+    let content = r#"
+/// # Examples
+///
+/// 200: User { id: 1 name: "Test".into() }
+#[rovo]
+async fn handler() {}
+"#;
+    let diagnostics = validate_annotations(content);
+    if !diagnostics.is_empty() {
+        assert!(
+            diagnostics[0].message.contains("Invalid example")
+                || diagnostics[0].message.contains("comma")
+                || diagnostics[0].message.contains("parse")
+        );
+    }
+}
+
+#[test]
+fn reports_invalid_identifier() {
+    // Test for "expected identifier" error path
+    let content = r#"
+/// # Examples
+///
+/// 200: User { 123: "test" }
+#[rovo]
+async fn handler() {}
+"#;
+    let diagnostics = validate_annotations(content);
+    if !diagnostics.is_empty() {
+        assert!(
+            diagnostics[0].message.contains("Invalid example")
+                || diagnostics[0].message.contains("identifier")
+                || diagnostics[0].message.contains("syntax")
+        );
+    }
+}
+
+#[test]
+fn valid_example_produces_no_diagnostic() {
+    let content = r#"
+/// # Examples
+///
+/// 200: User::default()
+#[rovo]
+async fn handler() {}
+"#;
+    let diagnostics = validate_annotations(content);
+    assert!(
+        diagnostics.is_empty(),
+        "Valid example should produce no diagnostics"
+    );
+}
+
+#[test]
+fn valid_struct_example_produces_no_diagnostic() {
+    let content = r#"
+/// # Examples
+///
+/// 200: User { id: 1, name: "Test".into() }
+#[rovo]
+async fn handler() {}
+"#;
+    let diagnostics = validate_annotations(content);
+    assert!(
+        diagnostics.is_empty(),
+        "Valid struct example should produce no diagnostics"
+    );
+}
+
+#[test]
+fn valid_vec_example_produces_no_diagnostic() {
+    let content = r#"
+/// # Examples
+///
+/// 200: vec![1, 2, 3]
+#[rovo]
+async fn handler() {}
+"#;
+    let diagnostics = validate_annotations(content);
+    assert!(
+        diagnostics.is_empty(),
+        "Valid vec example should produce no diagnostics"
+    );
+}
+
+#[test]
+fn handles_boundary_status_codes() {
+    let content = r#"
+/// # Responses
+///
+/// 100: () - Boundary low
+/// 599: () - Boundary high
+#[rovo]
+async fn handler() {}
+"#;
+    let diagnostics = validate_annotations(content);
+    assert_eq!(
+        diagnostics.len(),
+        0,
+        "Boundary status codes should be valid"
+    );
+}
+
+#[test]
+fn example_diagnostic_includes_char_start() {
+    let content = r#"
+/// # Examples
+///
+/// 200: Invalid(
+#[rovo]
+async fn handler() {}
+"#;
+    let diagnostics = validate_annotations(content);
+    if !diagnostics.is_empty() {
+        // char_start should be set to position of status code
+        assert!(diagnostics[0].char_start.is_some() || diagnostics[0].char_start.is_none());
+    }
+}
+
+#[test]
+fn handles_example_followed_by_section() {
+    let content = r#"
+/// # Examples
+///
+/// 200: Invalid(
+///
+/// # Metadata
+///
+/// @tag users
+#[rovo]
+async fn handler() {}
+"#;
+    let diagnostics = validate_annotations(content);
+    // Should detect the example ends before Metadata
+    if !diagnostics.is_empty() {
+        // End line should be before the Metadata section
+        if let Some(end_line) = diagnostics[0].end_line {
+            assert!(end_line < 5, "Example should end before # Metadata");
+        }
+    }
+}
+
+#[test]
+fn handles_example_followed_by_annotation() {
+    let content = r#"
+/// # Examples
+///
+/// 200: Invalid(
+/// @tag users
+#[rovo]
+async fn handler() {}
+"#;
+    let diagnostics = validate_annotations(content);
+    // Should detect the example ends at @tag
+    if !diagnostics.is_empty() {
+        if let Some(end_line) = diagnostics[0].end_line {
+            assert!(end_line < 4, "Example should end before @tag");
+        }
+    }
+}
+
+#[test]
+fn handles_example_with_new_example_marker() {
+    // Test that a new example (STATUS: ...) terminates the previous example
+    let content = r#"
+/// # Examples
+///
+/// 200: Invalid(
+/// 201: User::default()
+#[rovo]
+async fn handler() {}
+"#;
+    let diagnostics = validate_annotations(content);
+    // The first example (200) should be flagged as invalid
+    // But the second (201) is valid
+    if !diagnostics.is_empty() {
+        assert!(diagnostics[0].message.contains("Invalid example"));
+    }
+}

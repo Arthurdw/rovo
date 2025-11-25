@@ -312,7 +312,10 @@ mod tests {
     fn response_from_parts_invalid_status() {
         let result = parse_response_from_parts("Json<User>", 999, "Success", Span::call_site());
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("out of valid range"));
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("out of valid range"));
     }
 
     #[test]
@@ -355,7 +358,10 @@ mod tests {
     fn example_from_parts_invalid_status() {
         let result = parse_example_from_parts(999, "User::default()", Span::call_site());
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("out of valid range"));
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("out of valid range"));
     }
 
     #[test]
@@ -370,8 +376,11 @@ mod tests {
 
     #[test]
     fn example_from_parts_struct_expression() {
-        let result =
-            parse_example_from_parts(200, "User { id: 1, name: \"Test\".into() }", Span::call_site());
+        let result = parse_example_from_parts(
+            200,
+            "User { id: 1, name: \"Test\".into() }",
+            Span::call_site(),
+        );
         assert!(result.is_ok());
     }
 

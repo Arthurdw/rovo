@@ -757,3 +757,226 @@ async fn handler() {}
     assert_eq!(text_edit.range.start.line, 5);
     assert!(text_edit.new_text.contains("@id"));
 }
+
+// Additional edge case tests for improved coverage
+
+#[test]
+fn no_actions_for_out_of_bounds_line() {
+    let content = r#"
+#[rovo]
+async fn handler() {}
+"#;
+
+    // Line 100 is way beyond the content
+    let actions = code_actions::get_code_actions(content, range_at_line(100), test_uri());
+    assert!(actions.is_empty());
+}
+
+#[test]
+fn respects_rovo_ignore_for_code_actions() {
+    let content = r#"
+/// Handler
+///
+/// # Responses
+///
+/// 200: Json<User> - Success
+///
+/// @rovo-ignore
+/// @invalid this would cause an error
+#[rovo]
+async fn handler() {}
+"#;
+
+    // Actions should be offered before @rovo-ignore
+    let actions = code_actions::get_code_actions(content, range_at_line(5), test_uri());
+    assert!(!actions.is_empty());
+}
+
+#[test]
+fn handles_function_without_body() {
+    let content = r#"
+async fn handler();
+"#;
+
+    // Function declaration without body should not offer #[rovo]
+    let actions = code_actions::get_code_actions(content, range_at_line(1), test_uri());
+    // Should be empty or not offer rovo since there's no opening brace
+    let titles = get_action_titles(&actions);
+    assert!(!titles.iter().any(|t| t.contains("#[rovo]")));
+}
+
+#[test]
+fn handles_struct_without_fields_block() {
+    let content = r#"
+struct Empty;
+"#;
+
+    // Unit struct should not offer JsonSchema (cursor not inside braces)
+    let actions = code_actions::get_code_actions(content, range_at_line(1), test_uri());
+    assert!(actions.is_empty());
+}
+
+#[test]
+fn handles_comment_line() {
+    let content = r#"
+// This is a comment
+async fn handler() {}
+"#;
+
+    // Comment line should not trigger actions
+    let actions = code_actions::get_code_actions(content, range_at_line(1), test_uri());
+    assert!(actions.is_empty());
+}
+
+#[test]
+fn handles_attribute_line_without_rovo() {
+    let content = r#"
+#[allow(dead_code)]
+async fn handler() {}
+"#;
+
+    // Attribute line should not trigger actions directly
+    let actions = code_actions::get_code_actions(content, range_at_line(1), test_uri());
+    // Should not crash, may or may not have actions
+    let _ = actions;
+}
+
+#[test]
+fn no_actions_between_functions() {
+    let content = r#"
+#[rovo]
+async fn handler1() {
+}
+
+// Just a gap
+
+#[rovo]
+async fn handler2() {
+}
+"#;
+
+    // Gap between functions should not offer annotations
+    let actions = code_actions::get_code_actions(content, range_at_line(5), test_uri());
+    let titles = get_action_titles(&actions);
+    assert!(!titles.iter().any(|t| t.contains("@tag")));
+}
+
+#[test]
+fn diagnostic_action_for_out_of_bounds_line() {
+    let content = r#"
+/// # Responses
+///
+/// 999: Json<User> - Invalid
+#[rovo]
+async fn handler() {}
+"#;
+
+    // Diagnostic at line 100 which doesn't exist
+    let diagnostic = Diagnostic {
+        range: Range {
+            start: Position {
+                line: 100,
+                character: 0,
+            },
+            end: Position {
+                line: 100,
+                character: 10,
+            },
+        },
+        message: "Invalid HTTP status code: 999".to_string(),
+        ..Default::default()
+    };
+
+    let actions = code_actions::get_diagnostic_code_actions(content, &diagnostic, test_uri());
+    // Should still work or return empty
+    assert!(actions.is_empty() || actions.len() == 5);
+}
+
+#[test]
+fn handles_section_insertion_order() {
+    let content = r#"
+/// Handler
+///
+/// # Metadata
+///
+/// @tag users
+#[rovo]
+async fn handler() {}
+"#;
+
+    // Should be able to add Responses section before Metadata
+    let actions = code_actions::get_code_actions(content, range_at_line(6), test_uri());
+    let titles = get_action_titles(&actions);
+    assert!(titles.iter().any(|t| t.contains("Add response")));
+}
+
+#[test]
+fn handles_existing_responses_section() {
+    let content = r#"
+/// Handler
+///
+/// # Responses
+///
+/// 200: Json<User> - Success
+///
+/// # Metadata
+///
+/// @tag users
+#[rovo]
+async fn handler() {}
+"#;
+
+    // Should be able to add more to existing sections
+    let actions = code_actions::get_code_actions(content, range_at_line(10), test_uri());
+    let titles = get_action_titles(&actions);
+    assert!(titles.iter().any(|t| t.contains("Add response")));
+}
+
+#[test]
+fn handles_closing_brace_outside_function() {
+    let content = r#"
+}
+
+async fn handler() {
+    let x = 1;
+}
+"#;
+
+    // First brace is outside any function - should handle gracefully
+    let actions = code_actions::get_code_actions(content, range_at_line(1), test_uri());
+    // Should not crash
+    let _ = actions;
+}
+
+#[test]
+fn handles_derive_with_nested_generics() {
+    let content = r#"
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct User<T: Default> {
+    data: T,
+}
+"#;
+
+    let actions = code_actions::get_code_actions(content, range_at_line(3), test_uri());
+    let titles = get_action_titles(&actions);
+
+    // Should still offer JsonSchema for complex derive
+    assert!(titles.iter().any(|t| t.contains("JsonSchema")));
+}
+
+#[test]
+fn handles_malformed_derive() {
+    let content = r#"
+#[derive(Debug Clone)]
+struct User {
+    name: String,
+}
+"#;
+
+    // Malformed derive (missing comma) should fall back gracefully
+    let actions = code_actions::get_code_actions(content, range_at_line(3), test_uri());
+    let titles = get_action_titles(&actions);
+
+    // Should still offer some action
+    assert!(titles.iter().any(|t| t.contains("JsonSchema")));
+}

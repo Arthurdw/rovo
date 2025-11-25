@@ -1,3 +1,5 @@
+#![allow(deprecated)]
+
 use axum::extract::State;
 use axum::response::Json;
 use rovo::aide::axum::IntoApiResponse;
