@@ -3,7 +3,7 @@ members = ["rovo-macros", "rovo-lsp"]
 resolver = "2"
 
 [workspace.package]
-version = "0.2.0"
+version = "0.2.1"
 edition = "2021"
 license = "MIT"
 repository = "https://github.com/a-line/rovo"
@@ -28,7 +28,7 @@ redoc = ["aide/redoc"]
 scalar = ["aide/scalar"]
 
 [dependencies]
-rovo-macros = { version = "0.2.0", path = "rovo-macros" }
+rovo-macros = { version = "0.2.1", path = "rovo-macros" }
 aide = { version = "0.15", features = ["axum", "axum-json"] }
 axum = "0.8.7"
 serde_yaml = "0.9"
