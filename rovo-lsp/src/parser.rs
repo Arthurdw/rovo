@@ -314,33 +314,96 @@ fn parse_multiline_response(doc_lines: &[(usize, &str)]) -> Option<(Annotation, 
 }
 
 /// Count delimiter depths while ignoring delimiters inside string/char literals
+/// Handles regular strings, raw strings (r"...", r#"..."#), and char literals
 /// Returns (brace_depth, bracket_depth, paren_depth)
 fn count_delimiters(content: &str) -> (i32, i32, i32) {
     let mut brace_depth = 0i32;
     let mut bracket_depth = 0i32;
     let mut paren_depth = 0i32;
-    let mut in_string = false;
-    let mut in_char = false;
-    let mut escape_next = false;
 
-    for ch in content.chars() {
-        if escape_next {
-            escape_next = false;
+    let chars: Vec<char> = content.chars().collect();
+    let mut i = 0;
+
+    while i < chars.len() {
+        let ch = chars[i];
+
+        // Check for raw string literal: r"..." or r#"..."# (with any number of #)
+        if ch == 'r' && i + 1 < chars.len() {
+            let mut hash_count = 0;
+            let mut j = i + 1;
+
+            // Count leading #s
+            while j < chars.len() && chars[j] == '#' {
+                hash_count += 1;
+                j += 1;
+            }
+
+            // Check for opening quote
+            if j < chars.len() && chars[j] == '"' {
+                j += 1; // Skip opening quote
+                // Find closing quote followed by same number of #s
+                while j < chars.len() {
+                    if chars[j] == '"' {
+                        // Check if followed by enough #s
+                        let mut trailing_hashes = 0;
+                        let mut k = j + 1;
+                        while k < chars.len() && chars[k] == '#' && trailing_hashes < hash_count {
+                            trailing_hashes += 1;
+                            k += 1;
+                        }
+                        if trailing_hashes == hash_count {
+                            i = k;
+                            break;
+                        }
+                    }
+                    j += 1;
+                }
+                if j >= chars.len() {
+                    i = j;
+                }
+                continue;
+            }
+        }
+
+        // Check for regular string literal
+        if ch == '"' {
+            i += 1;
+            while i < chars.len() {
+                if chars[i] == '\\' && i + 1 < chars.len() {
+                    i += 2; // Skip escape sequence
+                } else if chars[i] == '"' {
+                    i += 1;
+                    break;
+                } else {
+                    i += 1;
+                }
+            }
             continue;
         }
 
+        // Check for char literal
+        if ch == '\'' {
+            i += 1;
+            if i < chars.len() && chars[i] == '\\' && i + 2 < chars.len() {
+                i += 3; // Skip escape + char + closing quote
+            } else if i + 1 < chars.len() {
+                i += 2; // Skip char + closing quote
+            }
+            continue;
+        }
+
+        // Count delimiters outside of strings/chars
         match ch {
-            '\\' if in_string || in_char => escape_next = true,
-            '"' if !in_char => in_string = !in_string,
-            '\'' if !in_string => in_char = !in_char,
-            '{' if !in_string && !in_char => brace_depth += 1,
-            '}' if !in_string && !in_char => brace_depth -= 1,
-            '[' if !in_string && !in_char => bracket_depth += 1,
-            ']' if !in_string && !in_char => bracket_depth -= 1,
-            '(' if !in_string && !in_char => paren_depth += 1,
-            ')' if !in_string && !in_char => paren_depth -= 1,
+            '{' => brace_depth += 1,
+            '}' => brace_depth -= 1,
+            '[' => bracket_depth += 1,
+            ']' => bracket_depth -= 1,
+            '(' => paren_depth += 1,
+            ')' => paren_depth -= 1,
             _ => {}
         }
+
+        i += 1;
     }
 
     (brace_depth, bracket_depth, paren_depth)
@@ -852,5 +915,29 @@ async fn handler() {}
         assert_eq!(responses.len(), 2);
         assert_eq!(responses[0].description, Some("User found".to_string()));
         assert_eq!(responses[1].description, Some("Not found".to_string()));
+    }
+
+    #[test]
+    fn test_count_delimiters_with_raw_strings() {
+        // Regular string with brace inside - should not count
+        assert_eq!(count_delimiters(r#"let x = "{ brace";"#), (0, 0, 0));
+
+        // Raw string with brace inside - should not count
+        assert_eq!(count_delimiters(r#"let x = r"{ brace";"#), (0, 0, 0));
+
+        // Raw string with hashes - should not count delimiters inside
+        assert_eq!(count_delimiters(r##"let x = r#"{ brace"#;"##), (0, 0, 0));
+
+        // Multiple hash raw string
+        assert_eq!(count_delimiters(r###"let x = r##"{ [ ( )"##;"###), (0, 0, 0));
+
+        // Mixed: real brace + string with brace
+        assert_eq!(count_delimiters(r#"Foo { name: "{ inner }" }"#), (0, 0, 0));
+
+        // Actual unclosed brace
+        assert_eq!(count_delimiters(r#"Foo { name: "test" "#), (1, 0, 0));
+
+        // Char literal with bracket
+        assert_eq!(count_delimiters("let x = '[';"), (0, 0, 0));
     }
 }
