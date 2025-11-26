@@ -306,10 +306,15 @@ fn example_diagnostic_includes_char_start() {
 async fn handler() {}
 "#;
     let diagnostics = validate_annotations(content);
-    if !diagnostics.is_empty() {
-        // char_start should be set to position of status code
-        assert!(diagnostics[0].char_start.is_some() || diagnostics[0].char_start.is_none());
-    }
+    assert!(
+        !diagnostics.is_empty(),
+        "Should produce a diagnostic for invalid example"
+    );
+    // char_start should point at the expression after the colon
+    assert!(
+        diagnostics[0].char_start.is_some(),
+        "Example diagnostics should have a char_start for the invalid expression"
+    );
 }
 
 #[test]

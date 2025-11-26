@@ -122,6 +122,10 @@ pub fn parse_annotations(content: &str) -> Vec<Annotation> {
     let mut annotations = Vec::new();
 
     // Find all #[rovo] attributes
+    // Note: We only support the exact `#[rovo]` form for parsing, not variants like
+    // `#[rovo(...)]`. This is intentional - the simpler form matches actual usage.
+    // (is_near_rovo_attribute uses a broader check for LSP feature guards, but
+    // parsing only needs to handle the exact attribute form.)
     let mut rovo_positions = Vec::new();
     for (idx, line) in lines.iter().enumerate() {
         if line.trim() == "#[rovo]" {
