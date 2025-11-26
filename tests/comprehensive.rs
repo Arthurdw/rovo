@@ -39,9 +39,14 @@ struct ItemId {
 ///
 /// This endpoint retrieves an item by ID.
 ///
-/// @response 200 Json<Item> Item found successfully.
-/// @example 200 Item::default()
-/// @response 404 () Item not found.
+/// # Responses
+///
+/// 200: Json<Item> - Item found successfully
+/// 404: () - Item not found
+///
+/// # Examples
+///
+/// 200: Item::default()
 #[rovo]
 async fn get_item(
     State(_state): State<AppState>,
@@ -56,7 +61,9 @@ async fn get_item(
 
 /// Simple handler.
 ///
-/// @response 200 Json<String> Success.
+/// # Responses
+///
+/// 200: Json<String> - Success
 #[rovo]
 async fn simple_handler(State(_state): State<AppState>) -> impl IntoApiResponse {
     Json("ok".to_string())
@@ -64,10 +71,12 @@ async fn simple_handler(State(_state): State<AppState>) -> impl IntoApiResponse 
 
 /// Multiple response codes.
 ///
-/// @response 200 Json<Item> Success response.
-/// @response 400 () Bad request.
-/// @response 401 () Unauthorized.
-/// @response 500 () Internal server error.
+/// # Responses
+///
+/// 200: Json<Item> - Success response
+/// 400: () - Bad request
+/// 401: () - Unauthorized
+/// 500: () - Internal server error
 #[rovo]
 async fn multi_response(State(_state): State<AppState>) -> impl IntoApiResponse {
     Json(Item::default())

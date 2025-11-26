@@ -65,99 +65,204 @@ pub fn get_completions(content: &str, position: Position) -> Vec<CompletionItem>
     // Handle indented doc comments by trimming whitespace first
     let after_doc = prefix.trim_start().trim_start_matches("///").trim_start();
 
-    // Check for status code completion (after @response or @example)
-    if after_doc.starts_with("@response ") || after_doc.starts_with("@example ") {
-        let parts: Vec<&str> = after_doc.split_whitespace().collect();
-        // If we have only the annotation keyword, or started typing a status code
-        if parts.len() == 1 {
-            return get_status_code_completions("");
-        } else if parts.len() == 2 {
-            // Filter by what's been typed
-            return get_status_code_completions(parts[1]);
-        }
+    // Detect context - which section are we in?
+    let context = detect_section_context(&lines, position.line);
+
+    // Check for section header completion
+    if after_doc.starts_with("# ") || after_doc == "#" {
+        return get_section_completions(after_doc, &context);
     }
 
-    // Check for security scheme completion (after @security)
+    // Check for specific annotation value completions first (before general @ check)
     if after_doc.starts_with("@security ") {
         let parts: Vec<&str> = after_doc.split_whitespace().collect();
         if parts.len() == 1 {
             return get_security_scheme_completions("");
         } else if parts.len() == 2 {
-            // Filter by what's been typed
             return get_security_scheme_completions(parts[1]);
         }
     }
 
-    // Check if we're typing an annotation (after @)
-    if after_doc.starts_with('@') {
-        // Get what's been typed after @
-        let typed = after_doc.trim_start_matches('@');
-
-        // Return all annotations that match the typed prefix
-        let mut completions = Vec::new();
-
-        let annotations = [
-            (
-                "response",
-                "@response ${1:200} ${2:Json<T>} ${3:Description}",
-            ),
-            ("tag", "@tag ${1:tag_name}"),
-            ("security", "@security ${1:bearer}"),
-            ("example", "@example ${1:200} ${2:{\"key\": \"value\"}}"),
-            ("id", "@id ${1:operation_id}"),
-            ("hidden", "@hidden"),
-        ];
-
-        for (label, snippet) in annotations {
-            if label.starts_with(typed) {
-                let full_label = format!("@{}", label);
-                let detail = crate::docs::get_annotation_summary(&full_label);
-                let documentation = crate::docs::get_annotation_documentation(&full_label);
-                completions.push(CompletionItem {
-                    label: full_label,
-                    kind: CompletionItemKind::Snippet,
-                    detail: Some(detail.to_string()),
-                    documentation: Some(documentation.to_string()),
-                    insert_text: Some(snippet.to_string()),
-                });
+    // Context-aware completions based on current section
+    match context {
+        SectionContext::ResponsesSection => {
+            // In # Responses section, complete response lines
+            if after_doc.is_empty()
+                || after_doc
+                    .chars()
+                    .next()
+                    .map(|c| c.is_digit(10))
+                    .unwrap_or(false)
+            {
+                return get_response_line_completions();
             }
         }
-
-        completions
-    } else {
-        Vec::new()
+        SectionContext::ExamplesSection => {
+            // In # Examples section, complete example lines
+            if after_doc.is_empty()
+                || after_doc
+                    .chars()
+                    .next()
+                    .map(|c| c.is_digit(10))
+                    .unwrap_or(false)
+            {
+                return get_example_line_completions();
+            }
+        }
+        SectionContext::MetadataSection => {
+            // In # Metadata section, only allow @ annotations
+            if after_doc.starts_with('@') {
+                return get_metadata_annotation_completions(after_doc);
+            }
+        }
+        SectionContext::None => {
+            // Not in a section - handle @ annotations
+            if after_doc.starts_with('@') {
+                return get_metadata_annotation_completions(after_doc);
+            }
+        }
     }
+
+    Vec::new()
 }
 
-fn get_status_code_completions(filter: &str) -> Vec<CompletionItem> {
-    let codes = [
-        (200, "OK - Request succeeded", "**200 OK**\n\nRequest succeeded. The meaning depends on the HTTP method:\n- **GET**: Resource fetched and transmitted in response body\n- **POST**: Resource created or action performed\n- **PUT**: Resource updated\n- **DELETE**: Resource deleted\n\nThis is the standard response for successful HTTP requests."),
-        (201, "Created - Resource created", "**201 Created**\n\nRequest succeeded and a new resource was created as a result.\n\nTypically returned after:\n- **POST** requests that create a resource\n- **PUT** requests that create a new resource\n\nThe `Location` header often contains the URL of the newly created resource."),
-        (204, "No Content - Success with no response body", "**204 No Content**\n\nRequest succeeded but there's no content to return.\n\nOften used for:\n- **DELETE** operations (resource deleted successfully)\n- **PUT** operations (resource updated, no content to return)\n- Operations where the result doesn't require a response body\n\nNo response body should be sent with this status."),
-        (400, "Bad Request - Invalid input", "**400 Bad Request**\n\nServer cannot process the request due to client error.\n\nCommon causes:\n- Malformed request syntax\n- Invalid request message framing\n- Deceptive request routing\n- Missing required parameters\n- Invalid parameter types\n\nThe client should not repeat the request without modifications."),
-        (401, "Unauthorized - Authentication required", "**401 Unauthorized**\n\nClient must authenticate itself to get the requested response.\n\nKey points:\n- The client is **not authenticated**\n- Authentication is required and has either failed or not been provided\n- The `WWW-Authenticate` header typically includes information on how to authenticate\n\nNote: Despite the name, this status means **unauthenticated**, not unauthorized."),
-        (403, "Forbidden - Insufficient permissions", "**403 Forbidden**\n\nClient does not have access rights to the content.\n\nKey differences from 401:\n- The client's **identity is known** to the server\n- The client **lacks permission** to access the resource\n- Re-authenticating won't help\n\nUsed when the user is authenticated but doesn't have the required permissions."),
-        (404, "Not Found - Resource doesn't exist", "**404 Not Found**\n\nServer cannot find the requested resource.\n\nThis is one of the most famous HTTP status codes.\n\nCommon causes:\n- Resource has been deleted\n- Wrong URL/path\n- Resource never existed\n\nCan also be used to hide a resource's existence for security reasons (instead of 403)."),
-        (409, "Conflict - Resource conflict", "**409 Conflict**\n\nRequest conflicts with the current state of the server.\n\nCommon scenarios:\n- Concurrent modification conflicts\n- Version conflicts (optimistic locking)\n- Duplicate resource creation\n- Business rule violations\n\nThe client may be able to resolve the conflict and resubmit."),
-        (422, "Unprocessable Entity - Validation error", "**422 Unprocessable Entity**\n\nRequest was well-formed but contains semantic errors.\n\nCommonly used for:\n- **Validation failures** (field constraints, formats)\n- Business logic violations\n- Invalid data combinations\n\nThe request syntax is correct (unlike 400), but the content cannot be processed due to semantic errors."),
-        (500, "Internal Server Error - Server error", "**500 Internal Server Error**\n\nServer encountered an unexpected condition that prevented it from fulfilling the request.\n\nThis is a generic error message when:\n- No more specific error message is suitable\n- The server has an unexpected error\n- An unhandled exception occurs\n\nThe issue is on the server side, not the client."),
-        (503, "Service Unavailable - Server temporarily unavailable", "**503 Service Unavailable**\n\nServer is not ready to handle the request.\n\nCommon causes:\n- Server **maintenance** or updates\n- Server is **overloaded**\n- Temporary resource exhaustion\n\nThe `Retry-After` header may indicate when to try again.\n\nUnlike 500, this suggests the condition is temporary."),
+/// Context about which section we're currently in
+#[derive(Debug, Clone, PartialEq)]
+enum SectionContext {
+    ResponsesSection,
+    ExamplesSection,
+    MetadataSection,
+    None,
+}
+
+/// Detect which section (if any) the current line is in
+fn detect_section_context(lines: &[&str], current_line: usize) -> SectionContext {
+    // Look backwards from current line to find the most recent section header
+    for i in (0..=current_line).rev() {
+        let line = lines[i].trim();
+        if !line.starts_with("///") {
+            // Hit a non-comment line, stop searching
+            break;
+        }
+
+        let content = line.trim_start_matches("///").trim();
+
+        // Check for section headers
+        if content == "# Responses" {
+            return SectionContext::ResponsesSection;
+        } else if content == "# Examples" {
+            return SectionContext::ExamplesSection;
+        } else if content == "# Metadata" {
+            return SectionContext::MetadataSection;
+        }
+
+        // Check for #[rovo] attribute - we've gone too far
+        if content.contains("#[rovo]") {
+            break;
+        }
+    }
+
+    SectionContext::None
+}
+
+/// Get completions for section headers
+fn get_section_completions(typed: &str, _context: &SectionContext) -> Vec<CompletionItem> {
+    let mut completions = Vec::new();
+
+    let sections = [
+        (
+            "# Responses",
+            "# Responses\n///\n/// ${1:200}: ${2:Json<T>} - ${3:description}",
+        ),
+        (
+            "# Examples",
+            "# Examples\n///\n/// ${1:200}: ${2:expression}",
+        ),
+        ("# Metadata", "# Metadata\n///\n/// @${1:tag} ${2:value}"),
     ];
 
-    codes
-        .iter()
-        .filter(|(code, _, _)| {
-            // If no filter, show all; otherwise filter by prefix
-            filter.is_empty() || code.to_string().starts_with(filter)
-        })
-        .map(|(code, desc, docs)| CompletionItem {
-            label: code.to_string(),
-            kind: CompletionItemKind::Keyword,
-            detail: Some(desc.to_string()),
-            documentation: Some(docs.to_string()),
-            insert_text: Some(code.to_string()),
-        })
-        .collect()
+    for (label, snippet) in sections {
+        if label.to_lowercase().starts_with(&typed.to_lowercase()) {
+            completions.push(CompletionItem {
+                label: label.to_string(),
+                kind: CompletionItemKind::Snippet,
+                detail: Some(format!("Insert {} section", label)),
+                documentation: Some(format!("Creates a {} section with a template entry", label)),
+                insert_text: Some(snippet.to_string()),
+            });
+        }
+    }
+
+    completions
+}
+
+/// Get completions for response lines in # Responses section
+fn get_response_line_completions() -> Vec<CompletionItem> {
+    vec![
+        CompletionItem {
+            label: "200 response".to_string(),
+            kind: CompletionItemKind::Snippet,
+            detail: Some("Successful response".to_string()),
+            documentation: Some("Add a 200 OK response".to_string()),
+            insert_text: Some("200: ${1:Json<T>} - ${2:description}".to_string()),
+        },
+        CompletionItem {
+            label: "201 response".to_string(),
+            kind: CompletionItemKind::Snippet,
+            detail: Some("Created response".to_string()),
+            documentation: Some("Add a 201 Created response".to_string()),
+            insert_text: Some("201: ${1:Json<T>} - ${2:description}".to_string()),
+        },
+        CompletionItem {
+            label: "404 response".to_string(),
+            kind: CompletionItemKind::Snippet,
+            detail: Some("Not found response".to_string()),
+            documentation: Some("Add a 404 Not Found response".to_string()),
+            insert_text: Some("404: () - ${1:description}".to_string()),
+        },
+    ]
+}
+
+/// Get completions for example lines in # Examples section
+fn get_example_line_completions() -> Vec<CompletionItem> {
+    vec![CompletionItem {
+        label: "200 example".to_string(),
+        kind: CompletionItemKind::Snippet,
+        detail: Some("Success example".to_string()),
+        documentation: Some("Add a 200 OK example".to_string()),
+        insert_text: Some("200: ${1:expression}".to_string()),
+    }]
+}
+
+/// Get completions for metadata annotations
+fn get_metadata_annotation_completions(typed: &str) -> Vec<CompletionItem> {
+    let after_at = typed.trim_start_matches('@');
+    let mut completions = Vec::new();
+
+    // Metadata annotations
+    let annotations = [
+        ("tag", "@tag ${1:tag_name}"),
+        ("security", "@security ${1:bearer}"),
+        ("id", "@id ${1:operation_id}"),
+        ("hidden", "@hidden"),
+    ];
+
+    for (label, snippet) in annotations {
+        if label.starts_with(after_at) {
+            let full_label = format!("@{}", label);
+            completions.push(CompletionItem {
+                label: full_label.clone(),
+                kind: CompletionItemKind::Snippet,
+                detail: Some(format!("{} annotation", label)),
+                documentation: Some(
+                    crate::docs::get_annotation_documentation(&full_label).to_string(),
+                ),
+                insert_text: Some(snippet.to_string()),
+            });
+        }
+    }
+
+    completions
 }
 
 fn get_security_scheme_completions(filter: &str) -> Vec<CompletionItem> {
@@ -212,26 +317,28 @@ mod tests {
             character: 5,
         };
         let completions = get_completions(content, position);
-        assert_eq!(completions.len(), 6);
-        assert!(completions.iter().any(|c| c.label == "@response"));
+        assert_eq!(completions.len(), 4); // Only metadata annotations
         assert!(completions.iter().any(|c| c.label == "@tag"));
+        assert!(completions.iter().any(|c| c.label == "@security"));
+        assert!(completions.iter().any(|c| c.label == "@id"));
+        assert!(completions.iter().any(|c| c.label == "@hidden"));
     }
 
     #[test]
     fn test_filters_by_prefix() {
-        let content = "/// @r";
+        let content = "/// @s"; // 's' for security
         let position = Position {
             line: 0,
             character: 6,
         };
         let completions = get_completions(content, position);
         assert_eq!(completions.len(), 1);
-        assert_eq!(completions[0].label, "@response");
+        assert_eq!(completions[0].label, "@security");
     }
 
     #[test]
     fn test_no_completions_outside_doc_comment() {
-        let content = "@response";
+        let content = "@tag";
         let position = Position {
             line: 0,
             character: 1,
@@ -241,61 +348,66 @@ mod tests {
     }
 
     #[test]
-    fn test_status_code_completion_after_response() {
-        let content = "/// @response ";
+    fn test_status_code_completion_in_responses_section() {
+        let content = "/// # Responses\n/// ";
         let position = Position {
-            line: 0,
-            character: 14,
+            line: 1,
+            character: 4,
         };
         let completions = get_completions(content, position);
-        // Should offer status codes
+        // Should offer status code response lines
         assert!(!completions.is_empty());
-        assert!(completions.iter().any(|c| c.label == "200"));
-        assert!(completions.iter().any(|c| c.label == "404"));
-        assert!(completions.iter().any(|c| c.label == "500"));
+        assert!(completions.iter().any(|c| c.label.starts_with("200")));
+        assert!(completions.iter().any(|c| c
+            .insert_text
+            .as_ref()
+            .map(|t| t.starts_with("200:"))
+            .unwrap_or(false)));
     }
 
     #[test]
-    fn test_status_code_completion_after_example() {
-        let content = "/// @example ";
+    fn test_status_code_completion_in_examples_section() {
+        let content = "/// # Examples\n/// ";
         let position = Position {
-            line: 0,
-            character: 13,
+            line: 1,
+            character: 4,
         };
         let completions = get_completions(content, position);
-        // Should offer status codes for @example too
+        // Should offer status code example lines
         assert!(!completions.is_empty());
-        assert!(completions.iter().any(|c| c.label == "200"));
+        assert!(completions.iter().any(|c| c.label.starts_with("200")));
+        assert!(completions.iter().any(|c| c
+            .insert_text
+            .as_ref()
+            .map(|t| t.starts_with("200:"))
+            .unwrap_or(false)));
     }
 
     #[test]
     fn test_status_code_filtering_by_prefix() {
-        let content = "/// @response 4";
+        let content = "/// # Responses\n/// ";
         let position = Position {
-            line: 0,
-            character: 15,
+            line: 1,
+            character: 4,
         };
         let completions = get_completions(content, position);
-        // Should only show 4xx codes
-        assert!(completions.iter().all(|c| c.label.starts_with('4')));
-        assert!(completions.iter().any(|c| c.label == "400"));
-        assert!(completions.iter().any(|c| c.label == "404"));
-        assert!(!completions.iter().any(|c| c.label == "200"));
+        // Should provide response completions in Responses section
+        assert!(!completions.is_empty());
+        assert!(completions.iter().any(|c| c.label.contains("200")));
+        assert!(completions.iter().any(|c| c.label.contains("404")));
     }
 
     #[test]
     fn test_status_code_filtering_specific() {
-        let content = "/// @response 20";
+        let content = "/// # Examples\n/// ";
         let position = Position {
-            line: 0,
-            character: 16,
+            line: 1,
+            character: 4,
         };
         let completions = get_completions(content, position);
-        // Should show 20x codes
-        assert!(completions.iter().all(|c| c.label.starts_with("20")));
-        assert!(completions.iter().any(|c| c.label == "200"));
-        assert!(completions.iter().any(|c| c.label == "201"));
-        assert!(completions.iter().any(|c| c.label == "204"));
+        // Should provide example completions in Examples section
+        assert!(!completions.is_empty());
+        assert!(completions.iter().any(|c| c.label.contains("200")));
     }
 
     #[test]
@@ -364,10 +476,10 @@ mod tests {
 
     #[test]
     fn test_status_code_completions_have_details() {
-        let content = "/// @response ";
+        let content = "/// # Responses\n/// ";
         let position = Position {
-            line: 0,
-            character: 14,
+            line: 1,
+            character: 4,
         };
         let completions = get_completions(content, position);
 
@@ -403,22 +515,22 @@ mod tests {
             character: 9,
         };
         let completions = get_completions(content, position);
-        // Should work with indented comments
-        assert_eq!(completions.len(), 6);
+        // Should work with indented comments - 4 metadata annotations
+        assert_eq!(completions.len(), 4);
     }
 
     #[test]
     fn test_handles_utf16_positions() {
         // Content with multibyte characters - just ensure it doesn't crash
-        let content = "/// 世界 @response";
+        let content = "/// # Metadata\n/// 世界 @tag";
         let position = Position {
-            line: 0,
+            line: 1,
             character: 12, // Somewhere in the line
         };
         let completions = get_completions(content, position);
         // Should not crash with UTF-16 positions
         // (may or may not offer completions depending on exact position)
-        assert!(completions.len() <= 11); // At most all status codes
+        assert!(completions.len() <= 4); // At most all metadata annotations
     }
 
     #[test]
@@ -441,8 +553,8 @@ mod tests {
             character: 5,
         };
         let completions = get_completions(content, position);
-        // Should show all 6 annotations
-        assert_eq!(completions.len(), 6);
+        // Should show all 4 metadata annotations
+        assert_eq!(completions.len(), 4);
     }
 
     #[test]
@@ -474,19 +586,18 @@ mod tests {
     }
 
     #[test]
-    fn test_response_completion_has_snippet() {
-        let content = "/// @r";
+    fn test_section_completion_has_snippet() {
+        let content = "/// # R";
         let position = Position {
             line: 0,
-            character: 6,
+            character: 7,
         };
         let completions = get_completions(content, position);
 
         assert_eq!(completions.len(), 1);
         let insert_text = completions[0].insert_text.as_ref().unwrap();
         // Should have snippet placeholders
-        assert!(insert_text.contains("${1"));
-        assert!(insert_text.contains("${2"));
+        assert!(insert_text.contains("Responses"));
     }
 
     #[test]
@@ -497,36 +608,20 @@ mod tests {
             character: 5,
         };
         let completions = get_completions(content, position);
-        // Should work on second line
-        assert_eq!(completions.len(), 6);
+        // Should work on second line - 4 metadata annotations
+        assert_eq!(completions.len(), 4);
     }
 
     #[test]
     fn test_no_completion_after_complete_annotation() {
-        let content = "/// @response 200 Json<T> Success";
+        let content = "/// # Metadata\n/// @tag users";
         let position = Position {
-            line: 0,
-            character: 20, // In the middle
+            line: 1,
+            character: 10, // In the middle of "users"
         };
         let completions = get_completions(content, position);
         // Should not offer completions after the annotation is complete
         assert_eq!(completions.len(), 0);
-    }
-
-    #[test]
-    fn test_empty_status_filter() {
-        let completions = get_status_code_completions("");
-        // Should return all status codes
-        assert_eq!(completions.len(), 11); // 200, 201, 204, 400, 401, 403, 404, 409, 422, 500, 503
-    }
-
-    #[test]
-    fn test_status_5xx_filter() {
-        let completions = get_status_code_completions("5");
-        // Should only return 5xx codes
-        assert!(completions.iter().all(|c| c.label.starts_with('5')));
-        assert!(completions.iter().any(|c| c.label == "500"));
-        assert!(completions.iter().any(|c| c.label == "503"));
     }
 
     #[test]
@@ -556,16 +651,6 @@ mod tests {
         // Annotations should be snippets
         for completion in &completions {
             assert!(matches!(completion.kind, CompletionItemKind::Snippet));
-        }
-    }
-
-    #[test]
-    fn test_status_code_kind() {
-        let completions = get_status_code_completions("");
-
-        // Status codes should be keywords
-        for completion in &completions {
-            assert!(matches!(completion.kind, CompletionItemKind::Keyword));
         }
     }
 

@@ -179,7 +179,7 @@ jobs:
           git config --local user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add Cargo.toml Cargo.lock
           git commit -m "chore(release): version bump to ${{ env.VERSION }}"
-          git tag "v${{ env.VERSION}}"
+          git tag "v${{ env.VERSION }}"
 
       - name: Push changes
         if: steps.check_release.outputs.needs_release == 'true'

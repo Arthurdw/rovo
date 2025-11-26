@@ -5,7 +5,9 @@
 // Example 1: Invalid status code (too high)
 /// Test handler
 ///
-/// @response 999 Json<String> Invalid status code
+/// # Responses
+///
+/// 999: Json<String> - Invalid status code
 #[rovo]
 async fn invalid_status_code() -> impl IntoApiResponse {
     Json("test".to_string())
@@ -13,19 +15,10 @@ async fn invalid_status_code() -> impl IntoApiResponse {
 */
 
 /*
-// Example 2: Missing description
+// Example 2: Empty tag
 /// Test handler
 ///
-/// @response 200 Json<String>
-#[rovo]
-async fn missing_description() -> impl IntoApiResponse {
-    Json("test".to_string())
-}
-*/
-
-/*
-// Example 3: Empty tag
-/// Test handler
+/// # Metadata
 ///
 /// @tag
 #[rovo]
@@ -35,8 +28,10 @@ async fn empty_tag() -> impl IntoApiResponse {
 */
 
 /*
-// Example 4: Invalid operation ID (contains spaces)
+// Example 3: Invalid operation ID (contains spaces)
 /// Test handler
+///
+/// # Metadata
 ///
 /// @id my handler
 #[rovo]
@@ -46,23 +41,14 @@ async fn invalid_operation_id() -> impl IntoApiResponse {
 */
 
 /*
-// Example 5: Unknown annotation
+// Example 4: Unknown annotation
 /// Test handler
+///
+/// # Metadata
 ///
 /// @unknown something
 #[rovo]
 async fn unknown_annotation() -> impl IntoApiResponse {
-    Json("test".to_string())
-}
-*/
-
-/*
-// Example 6: Invalid response type syntax
-/// Test handler
-///
-/// @response 200 Json<String>> Invalid syntax
-#[rovo]
-async fn invalid_type_syntax() -> impl IntoApiResponse {
     Json("test".to_string())
 }
 */

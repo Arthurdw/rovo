@@ -1,3 +1,5 @@
+#![allow(clippy::needless_update)]
+
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Json, Response};
@@ -25,11 +27,19 @@ struct UserId {
 ///
 /// Returns user information for the specified ID.
 ///
+/// # Responses
+///
+/// 200: Json<User> - User found successfully
+/// 404: () - User not found
+///
+/// # Examples
+///
+/// 200: User::default()
+///
+/// # Metadata
+///
 /// @tag users
 /// @tag accounts
-/// @response 200 Json<User> User found successfully
-/// @response 404 () User not found
-/// @example 200 User::default()
 #[rovo]
 async fn get_user(State(_state): State<AppState>, Path(UserId { id }): Path<UserId>) -> Response {
     if id == 1 {
@@ -47,8 +57,13 @@ async fn get_user(State(_state): State<AppState>, Path(UserId { id }): Path<User
 ///
 /// Returns a list of all users in the system.
 ///
+/// # Responses
+///
+/// 200: Json<Vec<User>> - List of all users
+///
+/// # Metadata
+///
 /// @tag users
-/// @response 200 Json<Vec<User>> List of all users
 #[rovo]
 async fn list_users(State(_state): State<AppState>) -> Json<Vec<User>> {
     Json(vec![User {
@@ -271,6 +286,83 @@ fn test_spec_contains_operation_id() {
 }
 
 #[test]
+fn test_spec_contains_multiline_example_with_default() {
+    /// Create a new item.
+    ///
+    /// # Responses
+    ///
+    /// 201: Json<User> - Item created successfully
+    ///
+    /// # Examples
+    ///
+    /// 201: User {
+    ///     id: 1,
+    ///     name: "Test User".to_string(),
+    ///     ..Default::default()
+    /// }
+    ///
+    /// # Metadata
+    ///
+    /// @tag users
+    #[rovo]
+    async fn create_item(State(_state): State<AppState>) -> (StatusCode, Json<User>) {
+        (
+            StatusCode::CREATED,
+            Json(User {
+                id: 1,
+                name: "Test".to_string(),
+            }),
+        )
+    }
+
+    let state = AppState;
+    let mut api = OpenApi::default();
+    api.info.title = "Test API".to_string();
+
+    let app = Router::new()
+        .route("/items", rovo::routing::post(create_item))
+        .with_oas(api.clone())
+        .with_state(state);
+
+    let spec = extract_openapi_from_router(app);
+
+    // Verify operation has response examples
+    let paths = &spec.paths.as_ref().unwrap().paths;
+    let items_path = get_path_item(paths.get("/items").unwrap());
+    let post_op = items_path.post.as_ref().unwrap();
+    let responses = post_op.responses.as_ref().unwrap();
+
+    let status_201 = aide::openapi::StatusCode::Code(201);
+    assert!(
+        responses.responses.contains_key(&status_201),
+        "Should have 201 response"
+    );
+
+    if let aide::openapi::ReferenceOr::Item(response_201) =
+        responses.responses.get(&status_201).unwrap()
+    {
+        assert!(
+            response_201.content.contains_key("application/json"),
+            "Should have JSON content"
+        );
+
+        let json_content = response_201.content.get("application/json").unwrap();
+        assert!(json_content.example.is_some(), "Should have example");
+
+        // Verify the example contains the multi-line content
+        let example_json = serde_json::to_string(&json_content.example.as_ref().unwrap()).unwrap();
+        assert!(
+            example_json.contains("id"),
+            "Example should contain 'id' field"
+        );
+        assert!(
+            example_json.contains("name"),
+            "Example should contain 'name' field"
+        );
+    }
+}
+
+#[test]
 fn test_spec_contains_request_body() {
     use axum::response::Json;
     use rovo::aide::axum::IntoApiResponse;
@@ -282,8 +374,13 @@ fn test_spec_contains_request_body() {
 
     /// Create a new user.
     ///
+    /// # Responses
+    ///
+    /// 201: Json<User> - User created successfully
+    ///
+    /// # Metadata
+    ///
     /// @tag users
-    /// @response 201 Json<User> User created successfully
     #[rovo]
     async fn create_user(
         State(_state): State<AppState>,

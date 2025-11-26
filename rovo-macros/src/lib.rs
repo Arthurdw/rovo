@@ -26,10 +26,16 @@ use parser::parse_rovo_function;
 /// This macro automatically generates `OpenAPI` documentation for your handlers
 /// using doc comments with special annotations.
 ///
-/// # Supported Annotations
+/// # Documentation Format
 ///
-/// - `@response <code> <type> <description>` - Document a response status code
-/// - `@example <code> <expression>` - Provide an example response for a status code
+/// Use Rust-style doc comment sections and metadata annotations:
+///
+/// ## Sections
+/// - `# Responses` - Document response status codes
+/// - `# Examples` - Provide example responses
+/// - `# Metadata` - Add tags, security, and other metadata
+///
+/// ## Metadata Annotations
 /// - `@tag <tag_name>` - Add a tag for grouping operations (can be used multiple times)
 /// - `@security <scheme_name>` - Add security requirements (can be used multiple times)
 /// - `@id <operation_id>` - Set a custom operation ID (defaults to function name)
@@ -46,10 +52,18 @@ use parser::parse_rovo_function;
 /// ///
 /// /// Retrieve a Todo item by its ID from the database.
 /// ///
+/// /// # Responses
+/// ///
+/// /// 200: Json<TodoItem> - Successfully retrieved the todo item
+/// /// 404: () - Todo item was not found
+/// ///
+/// /// # Examples
+/// ///
+/// /// 200: TodoItem::default()
+/// ///
+/// /// # Metadata
+/// ///
 /// /// @tag todos
-/// /// @response 200 Json<TodoItem> Successfully retrieved the todo item.
-/// /// @example 200 TodoItem::default()
-/// /// @response 404 () Todo item was not found.
 /// #[rovo]
 /// async fn get_todo(
 ///     State(app): State<AppState>,
@@ -59,6 +73,8 @@ use parser::parse_rovo_function;
 /// }
 ///
 /// /// This is a deprecated endpoint.
+/// ///
+/// /// # Metadata
 /// ///
 /// /// @tag admin
 /// /// @security bearer_auth

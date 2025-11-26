@@ -14,9 +14,18 @@ struct Error {
 }
 
 /// @tag users
-/// @response 200 Json<User> Successfully retrieved user
-/// @response 404 Json<Error> User not found
-/// @example 200 {"id": 1, "name": "John Doe", "email": "john@example.com"}
+///
+/// # Responses
+///
+/// 200: Json<User> - Successfully retrieved user
+/// 404: Json<Error> - User not found
+///
+/// # Examples
+///
+/// 200: {"id": 1, "name": "John Doe", "email": "john@example.com"}
+///
+/// # Metadata
+///
 /// @id get_user
 #[rovo]
 async fn get_user(id: i32) -> Result<Json<User>, StatusCode> {
@@ -28,16 +37,25 @@ async fn get_user(id: i32) -> Result<Json<User>, StatusCode> {
 }
 
 /// @tag users
-/// @response 201 Json<User> User created successfully
-/// @response 400 Json<Error> Invalid request
-/// @example 201 {"id": 2, "name": "Jane Smith", "email": "jane@example.com"}
+///
+/// # Responses
+///
+/// 201: Json<User> - User created successfully
+/// 400: Json<Error> - Invalid request
+///
+/// # Examples
+///
+/// 201: {"id": 2, "name": "Jane Smith", "email": "jane@example.com"}
 #[rovo]
 async fn create_user(user: Json<User>) -> Result<Json<User>, StatusCode> {
     Ok(user)
 }
 
 /// This should trigger an error - invalid status code
-/// @response 999 Json<User> Invalid status
+///
+/// # Responses
+///
+/// 999: Json<User> - Invalid status
 #[rovo]
 async fn invalid_handler() -> Json<User> {
     Json(User {
@@ -47,10 +65,15 @@ async fn invalid_handler() -> Json<User> {
     })
 }
 
+/// # Responses
+///
+/// 200: Json<Vec<User>> - List of all users
+/// 401: Json<Error> - Unauthorized
+///
+/// # Metadata
+///
 /// @security bearer
 /// @tag admin
-/// @response 200 Json<Vec<User>> List of all users
-/// @response 401 Json<Error> Unauthorized
 #[rovo]
 async fn list_users() -> Json<Vec<User>> {
     Json(vec![])

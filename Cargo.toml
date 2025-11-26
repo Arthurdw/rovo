@@ -45,3 +45,7 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 trybuild = "1.0"
 tower = "0.5"
 version_check = "0.9"
+
+[[example]]
+name = "todo_api"
+required-features = ["swagger"]

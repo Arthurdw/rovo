@@ -12,6 +12,7 @@ pub struct ResponseInfo {
 pub struct ExampleInfo {
     pub status_code: u16,
     pub example_code: TokenStream,
+    pub span: Span,
 }
 
 #[derive(Debug, Clone, Default)]

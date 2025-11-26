@@ -8,7 +8,9 @@ struct User {
     name: String,
 }
 
-/// @response 200 Json<User> Success
+/// # Responses
+///
+/// 200: Json<User> - Success
 #[rovo]
 async fn handler() {}
 "#;
@@ -24,7 +26,9 @@ enum Status {
     Inactive,
 }
 
-/// @response 200 Json<Status> Success
+/// # Responses
+///
+/// 200: Json<Status> - Success
 #[rovo]
 async fn handler() {}
 "#;
@@ -37,7 +41,9 @@ fn finds_type_alias_definition() {
     let content = r#"
 type UserId = u64;
 
-/// @response 200 UserId Success
+/// # Responses
+///
+/// 200: UserId - Success
 #[rovo]
 async fn handler() {}
 "#;
@@ -54,7 +60,9 @@ struct User {
     name: String,
 }
 
-/// @response 200 Json<User> Success
+/// # Responses
+///
+/// 200: Json<User> - Success
 #[rovo]
 async fn handler() {}
 "#;
@@ -84,28 +92,28 @@ fn extracts_type_from_result() {
 
 #[test]
 fn gets_type_at_position_in_response() {
-    let line = "/// @response 200 Json<TodoItem> Success";
+    let line = "/// 200: Json<TodoItem> - Success";
     // Position on "TodoItem"
-    let result = type_resolver::get_type_at_position(line, 23);
+    let result = type_resolver::get_type_at_position(line, 15);
     assert!(result.is_some());
     let (response_type, start, end) = result.unwrap();
     assert_eq!(response_type, "Json<TodoItem>");
-    assert!(start <= 18 && end >= 32); // Should cover the type
+    assert!(start <= 9 && end >= 23); // Should cover the type
 }
 
 #[test]
 fn gets_type_at_position_in_example() {
-    let line = "/// @example 200 Vec<User> Example data";
+    let line = "/// 200: Vec<User>";
     // Position on "Vec<User>"
-    let result = type_resolver::get_type_at_position(line, 20);
+    let result = type_resolver::get_type_at_position(line, 12);
     assert!(result.is_some());
 }
 
 #[test]
 fn no_type_at_wrong_position() {
-    let line = "/// @response 200 Json<TodoItem> Success";
+    let line = "/// 200: Json<TodoItem> - Success";
     // Position on "Success" (not the type)
-    let result = type_resolver::get_type_at_position(line, 35);
+    let result = type_resolver::get_type_at_position(line, 28);
     assert!(result.is_none());
 }
 
@@ -120,18 +128,18 @@ fn utf16_conversion_ascii() {
 #[test]
 fn utf16_conversion_chinese_characters() {
     // "User世界" - Chinese characters are 3 bytes in UTF-8, 1 UTF-16 code unit each
-    let line = "/// @response 200 User世界 Success";
-    // Position 22 in UTF-16 should be at byte index 22 (after "User")
-    let byte_idx = utils::utf16_pos_to_byte_index(line, 22);
-    assert_eq!(byte_idx, Some(22));
+    let line = "/// 200: User世界 - Success";
+    // Position 13 in UTF-16 should be at byte index 13 (after "User")
+    let byte_idx = utils::utf16_pos_to_byte_index(line, 13);
+    assert_eq!(byte_idx, Some(13));
 }
 
 #[test]
 fn utf16_conversion_emoji() {
     // Emoji is 4 bytes in UTF-8, 2 UTF-16 code units (surrogate pair)
-    let line = "/// @response 200 Json<User👋> Success";
-    // Position 27 in UTF-16 (after "User👋") should account for surrogate pair
-    let byte_idx = utils::utf16_pos_to_byte_index(line, 27);
+    let line = "/// 200: Json<User👋> - Success";
+    // Position 18 in UTF-16 (after "User👋") should account for surrogate pair
+    let byte_idx = utils::utf16_pos_to_byte_index(line, 18);
     assert!(byte_idx.is_some());
 }
 

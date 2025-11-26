@@ -150,15 +150,26 @@ fn get_annotation_at_position(line: &str, char_idx: usize) -> Option<String> {
         return None;
     }
 
-    // Find the annotation keyword at the cursor position
-    let annotations = [
-        "@response",
-        "@tag",
-        "@security",
-        "@example",
-        "@id",
-        "@hidden",
-    ];
+    let content = line.trim_start().trim_start_matches("///").trim();
+
+    // Check for section headers first
+    if content.starts_with("# ") {
+        let section_name = content.trim_start_matches("# ").trim();
+        let section_start = line.find('#').unwrap_or(0);
+        let section_end = section_start + content.len();
+
+        if char_idx >= section_start && char_idx <= section_end {
+            match section_name {
+                "Responses" => return Some("section:responses".to_string()),
+                "Examples" => return Some("section:examples".to_string()),
+                "Metadata" => return Some("section:metadata".to_string()),
+                _ => {}
+            }
+        }
+    }
+
+    // Find the annotation keyword at the cursor position (for metadata section)
+    let annotations = ["@tag", "@security", "@id", "@hidden"];
 
     for annotation in annotations {
         if let Some(pos) = line.find(annotation) {
@@ -206,6 +217,20 @@ pub fn text_document_did_change(content: &str, _uri: Url) -> Vec<Diagnostic> {
                 .map(|idx| byte_index_to_utf16_col(line, idx))
                 .unwrap_or(line_utf16_len);
 
+            // Handle multi-line diagnostics
+            let (end_line, end_char) = if let Some(end_line_num) = diag.end_line {
+                let end_line_content = lines.get(end_line_num).map(|l| *l).unwrap_or("");
+                let end_line_utf16_len =
+                    byte_index_to_utf16_col(end_line_content, end_line_content.len());
+                let end_char_pos = diag
+                    .end_char
+                    .map(|idx| byte_index_to_utf16_col(end_line_content, idx))
+                    .unwrap_or(end_line_utf16_len);
+                (end_line_num as u32, end_char_pos as u32)
+            } else {
+                (diag.line as u32, char_end as u32)
+            };
+
             Diagnostic {
                 range: Range {
                     start: Position {
@@ -213,14 +238,18 @@ pub fn text_document_did_change(content: &str, _uri: Url) -> Vec<Diagnostic> {
                         character: char_start as u32,
                     },
                     end: Position {
-                        line: diag.line as u32,
-                        character: char_end as u32,
+                        line: end_line,
+                        character: end_char,
                     },
                 },
                 severity: Some(severity),
                 source: Some("rovo-lsp".to_string()),
                 message: diag.message,
-                ..Default::default()
+                code: None,
+                code_description: None,
+                related_information: None,
+                tags: None,
+                data: None,
             }
         })
         .collect()
@@ -457,12 +486,22 @@ pub fn rename_tag(
 }
 
 fn get_status_code_at_position(line: &str, char_idx: usize) -> Option<String> {
-    // Check if we're in a doc comment with @response or @example
+    // Check if we're in a doc comment
     if !line.trim_start().starts_with("///") {
         return None;
     }
 
-    if !line.contains("@response") && !line.contains("@example") {
+    let content = line.trim_start().trim_start_matches("///").trim();
+
+    // Check if line contains status code patterns
+    // Format: "200: Type - Description" or "200: example_code"
+    let has_status_context = content
+        .chars()
+        .next()
+        .map(|c| c.is_ascii_digit())
+        .unwrap_or(false);
+
+    if !has_status_context {
         return None;
     }
 
@@ -475,8 +514,9 @@ fn get_status_code_at_position(line: &str, char_idx: usize) -> Option<String> {
 
             // Check if cursor is within this word
             if char_idx >= abs_start && char_idx <= abs_end {
-                // Check if it's a valid status code
-                if let Ok(code) = word.parse::<u16>() {
+                // Check if it's a status code potentially followed by a colon
+                let trimmed_word = word.trim_end_matches(':');
+                if let Ok(code) = trimmed_word.parse::<u16>() {
                     if (100..=599).contains(&code) {
                         return Some(get_status_code_info(code));
                     }
@@ -551,7 +591,7 @@ fn get_security_scheme_at_position(line: &str, char_idx: usize) -> Option<String
 /// Generate semantic tokens for the document
 ///
 /// Token types (indices in legend):
-/// 0: KEYWORD - for annotations (@response, @tag, etc.)
+/// 0: KEYWORD - for annotations (@tag, @security, @id, @hidden, @rovo-ignore)
 /// 1: NUMBER - for status codes (200, 404, etc.)
 /// 2: TYPE - for security schemes (bearer, oauth2, etc.)
 pub fn semantic_tokens_full(content: &str) -> Option<SemanticTokensResult> {
@@ -564,11 +604,11 @@ pub fn semantic_tokens_full(content: &str) -> Option<SemanticTokensResult> {
     let mut prev_start: u32 = 0;
 
     // Compile regexes once outside the loop for efficiency
-    let annotation_regex =
-        regex::Regex::new(r"@(response|tag|security|example|id|hidden|rovo-ignore)\b").unwrap();
+    let annotation_regex = regex::Regex::new(r"@(tag|security|id|hidden|rovo-ignore)\b").unwrap();
     let tag_value_regex = regex::Regex::new(r"@(?:tag|id)\s+(\w+)").unwrap();
     let status_regex = regex::Regex::new(r"\b([1-5][0-9]{2})\b").unwrap();
     let security_regex = regex::Regex::new(r"\b(bearer|basic|apiKey|oauth2)\b").unwrap();
+    let section_regex = regex::Regex::new(r"^///\s*#\s+(Responses|Examples|Metadata)\b").unwrap();
 
     for (line_idx, line) in content.lines().enumerate() {
         // Only process lines near #[rovo] attributes
@@ -576,7 +616,39 @@ pub fn semantic_tokens_full(content: &str) -> Option<SemanticTokensResult> {
             continue;
         }
 
-        // Match annotations: @response, @tag, @security, @example, @id, @hidden, @rovo-ignore
+        // Match section headers: # Responses, # Examples, # Metadata
+        for cap in section_regex.captures_iter(line) {
+            if let Some(_m) = cap.get(0) {
+                // Find the position of the '#' character
+                if let Some(hash_pos) = line.find('#') {
+                    let start_col = byte_index_to_utf16_col(line, hash_pos) as u32;
+                    // Length is from '#' to end of section name
+                    let section_text = cap.get(1).unwrap().as_str();
+                    let length: u32 = (2 + section_text.len()) as u32; // "# " + section_name
+
+                    // Calculate delta encoding (UTF-16 units)
+                    let delta_line = (line_idx as u32).saturating_sub(prev_line);
+                    let delta_start = if delta_line == 0 {
+                        start_col.saturating_sub(prev_start)
+                    } else {
+                        start_col
+                    };
+
+                    tokens.push(SemanticToken {
+                        delta_line,
+                        delta_start,
+                        length,
+                        token_type: 4,             // KEYWORD type for section headers
+                        token_modifiers_bitset: 1, // DOCUMENTATION modifier (bit 0)
+                    });
+
+                    prev_line = line_idx as u32;
+                    prev_start = start_col;
+                }
+            }
+        }
+
+        // Match annotations: @tag, @security, @id, @hidden, @rovo-ignore
         for cap in annotation_regex.captures_iter(line) {
             if let Some(m) = cap.get(0) {
                 let start_byte = m.start();

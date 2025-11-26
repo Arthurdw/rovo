@@ -57,10 +57,18 @@ pub struct UpdateTodoRequest {
 ///
 /// Retrieve a Todo item by its ID from the database.
 ///
+/// # Responses
+///
+/// 200: Json<TodoItem> - Successfully retrieved the todo item
+/// 404: () - Todo item was not found
+///
+/// # Examples
+///
+/// 200: TodoItem::default()
+///
+/// # Metadata
+///
 /// @tag todos
-/// @response 200 Json<TodoItem> Successfully retrieved the todo item.
-/// @example 200 TodoItem::default()
-/// @response 404 () Todo item was not found.
 #[rovo]
 async fn get_todo(
     State(app): State<AppState>,
@@ -77,8 +85,13 @@ async fn get_todo(
 ///
 /// Returns a list of all todo items in the system.
 ///
+/// # Responses
+///
+/// 200: Json<Vec<TodoItem>> - List of all todo items
+///
+/// # Metadata
+///
 /// @tag todos
-/// @response 200 Json<Vec<TodoItem>> List of all todo items.
 #[rovo]
 async fn list_todos(State(app): State<AppState>) -> Json<Vec<TodoItem>> {
     let todos: Vec<TodoItem> = app.todos.lock().unwrap().values().cloned().collect();
@@ -89,9 +102,24 @@ async fn list_todos(State(app): State<AppState>) -> Json<Vec<TodoItem>> {
 ///
 /// Creates a new todo item with the provided description.
 ///
+/// # Responses
+///
+/// 201: Json<TodoItem> - Todo item created successfully
+///
+/// # Examples
+///
+/// 201:
+/// ```
+/// TodoItem {
+///     id: Uuid::nil(),
+///     description: "Buy milk".into(),
+///     ..Default::default()
+/// }
+/// ```
+///
+/// # Metadata
+///
 /// @tag todos
-/// @response 201 Json<TodoItem> Todo item created successfully.
-/// @example 201 TodoItem::default()
 #[rovo]
 async fn create_todo(
     State(app): State<AppState>,
@@ -110,10 +138,18 @@ async fn create_todo(
 ///
 /// Updates the description and/or completion status of a todo item.
 ///
+/// # Responses
+///
+/// 200: Json<TodoItem> - Todo item updated successfully
+/// 404: () - Todo item was not found
+///
+/// # Examples
+///
+/// 200: TodoItem::default()
+///
+/// # Metadata
+///
 /// @tag todos
-/// @response 200 Json<TodoItem> Todo item updated successfully.
-/// @example 200 TodoItem::default()
-/// @response 404 () Todo item was not found.
 #[rovo]
 async fn update_todo(
     State(app): State<AppState>,
@@ -139,9 +175,14 @@ async fn update_todo(
 ///
 /// Permanently deletes a todo item by its ID.
 ///
+/// # Responses
+///
+/// 204: () - Todo item deleted successfully
+/// 404: () - Todo item was not found
+///
+/// # Metadata
+///
 /// @tag todos
-/// @response 204 () Todo item deleted successfully.
-/// @response 404 () Todo item was not found.
 #[rovo]
 async fn delete_todo(
     State(app): State<AppState>,

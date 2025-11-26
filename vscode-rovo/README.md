@@ -22,10 +22,15 @@ Language Server Protocol (LSP) support for [Rovo](https://github.com/arthurdw/ro
 ```rust
 /// Get user by ID
 ///
+/// # Responses
+///
+/// 200: Json<User> - Successfully retrieved user
+/// 404: Json<Error> - User not found
+///
+/// # Metadata
+///
 /// @tag users
 /// @security bearer
-/// @response 200 Json<User> Successfully retrieved user
-/// @response 404 Json<Error> User not found
 #[rovo]
 async fn get_user(State(state): State<AppState>, Path(id): Path<i64>) -> impl IntoApiResponse {
     // Implementation

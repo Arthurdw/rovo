@@ -30,8 +30,13 @@
 //!
 //! /// Get user by ID
 //! ///
-//! /// @response 200 Json<User> User found successfully
-//! /// @response 404 () User not found
+//! /// # Responses
+//! ///
+//! /// 200: Json<User> - User found successfully
+//! /// 404: () - User not found
+//! ///
+//! /// # Metadata
+//! ///
 //! /// @tag users
 //! #[rovo]
 //! async fn get_user(Path(id): Path<u32>) -> impl IntoApiResponse {
@@ -45,19 +50,50 @@
 //!
 //! let app = Router::new()
 //!     .route("/users/{id}", get(get_user))
-//!     .with_oas(api)
-//!     .with_swagger("/swagger");
+//!     .with_oas(api);
 //! # }
 //! ```
 //!
-//! ## Supported Annotations
+//! ## Documentation Format
 //!
-//! - `@response <code> <type> <description>` - Document response types
-//! - `@example <code> <expression>` - Provide response examples
+//! Rovo uses Rust-style markdown sections in doc comments:
+//!
+//! ### Responses Section
+//! Document HTTP response codes and their types:
+//! ```text
+//! /// # Responses
+//! ///
+//! /// 200: Json<User> - User found successfully
+//! /// 404: () - User not found
+//! ```
+//!
+//! ### Examples Section
+//! Provide response examples with valid Rust expressions:
+//! ```text
+//! /// # Examples
+//! ///
+//! /// 200: User { id: 1, name: "Alice".into() }
+//! /// 404: ()
+//! ```
+//!
+//! ### Metadata Section
+//! Add API metadata with annotations:
+//! ```text
+//! /// # Metadata
+//! ///
+//! /// @tag users
+//! /// @security bearer_auth
+//! /// @id getUserById
+//! /// @hidden
+//! ```
+//!
+//! **Available metadata annotations:**
 //! - `@tag <name>` - Group endpoints by tags
 //! - `@security <scheme>` - Specify security requirements
 //! - `@id <operation_id>` - Set custom operation ID
 //! - `@hidden` - Hide endpoint from documentation
+//!
+//! **Special directives:**
 //! - `@rovo-ignore` - Stop processing annotations after this point
 
 pub use rovo_macros::rovo;
@@ -93,8 +129,7 @@ use aide::openapi::OpenApi;
 ///
 /// let app = Router::new()
 ///     .route("/documented", get(documented_handler))
-///     .with_oas(api)
-///     .with_swagger("/");
+///     .with_oas(api);
 /// # }
 /// ```
 pub struct Router<S = ()> {

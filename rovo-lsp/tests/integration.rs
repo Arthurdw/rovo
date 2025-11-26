@@ -3,16 +3,22 @@ use rovo_lsp::parser::{parse_annotations, AnnotationKind};
 #[test]
 fn detects_response_annotation() {
     let content = r#"
-/// @response 200 Json<User> Success
+/// # Responses
+///
+/// 200: Json<User> - Success
 #[rovo]
 async fn handler() {}
 "#;
     let annotations = parse_annotations(content);
-    assert_eq!(annotations.len(), 1);
-    assert_eq!(annotations[0].kind, AnnotationKind::Response);
-    assert_eq!(annotations[0].status, Some(200));
-    assert_eq!(annotations[0].response_type, Some("Json<User>".to_string()));
-    assert_eq!(annotations[0].description, Some("Success".to_string()));
+    // Returns 2: ResponsesSection header + Response entry
+    assert_eq!(annotations.len(), 2);
+    // First annotation is the section header
+    assert_eq!(annotations[0].kind, AnnotationKind::ResponsesSection);
+    // Second annotation is the response entry
+    assert_eq!(annotations[1].kind, AnnotationKind::Response);
+    assert_eq!(annotations[1].status, Some(200));
+    assert_eq!(annotations[1].response_type, Some("Json<User>".to_string()));
+    assert_eq!(annotations[1].description, Some("Success".to_string()));
 }
 
 #[test]
@@ -32,16 +38,21 @@ async fn handler() {}
 fn detects_multiple_annotations() {
     let content = r#"
 /// @tag users
-/// @response 200 Json<User> Success
-/// @response 404 Json<Error> Not found
+///
+/// # Responses
+///
+/// 200: Json<User> - Success
+/// 404: Json<Error> - Not found
 #[rovo]
 async fn handler() {}
 "#;
     let annotations = parse_annotations(content);
-    assert_eq!(annotations.len(), 3);
+    // Returns 4: Tag + ResponsesSection header + 2 Response entries
+    assert_eq!(annotations.len(), 4);
     assert_eq!(annotations[0].kind, AnnotationKind::Tag);
-    assert_eq!(annotations[1].kind, AnnotationKind::Response);
+    assert_eq!(annotations[1].kind, AnnotationKind::ResponsesSection);
     assert_eq!(annotations[2].kind, AnnotationKind::Response);
+    assert_eq!(annotations[3].kind, AnnotationKind::Response);
 }
 
 #[test]
@@ -60,17 +71,26 @@ async fn handler() {}
 #[test]
 fn detects_example_annotation() {
     let content = r#"
-/// @response 200 Json<User> Success
-/// @example 200 {"name": "John", "age": 30}
+/// # Responses
+///
+/// 200: Json<User> - Success
+///
+/// # Examples
+///
+/// 200: {"name": "John", "age": 30}
 #[rovo]
 async fn handler() {}
 "#;
     let annotations = parse_annotations(content);
-    assert_eq!(annotations.len(), 2);
-    assert_eq!(annotations[1].kind, AnnotationKind::Example);
-    assert_eq!(annotations[1].status, Some(200));
+    // Returns 4: ResponsesSection + Response + ExamplesSection + Example
+    assert_eq!(annotations.len(), 4);
+    assert_eq!(annotations[0].kind, AnnotationKind::ResponsesSection);
+    assert_eq!(annotations[1].kind, AnnotationKind::Response);
+    assert_eq!(annotations[2].kind, AnnotationKind::ExamplesSection);
+    assert_eq!(annotations[3].kind, AnnotationKind::Example);
+    assert_eq!(annotations[3].status, Some(200));
     assert_eq!(
-        annotations[1].example_value,
+        annotations[3].example_value,
         Some(r#"{"name": "John", "age": 30}"#.to_string())
     );
 }
@@ -115,35 +135,51 @@ async fn handler() {}
 #[test]
 fn parses_annotations_only_near_rovo_attribute() {
     let content = r#"
-/// @response 200 Json<User> Success
+/// # Responses
+///
+/// 200: Json<User> - Success
 #[rovo]
 async fn handler1() {}
 
-/// @response 200 Json<Post> Success
+/// # Responses
+///
+/// 200: Json<Post> - Success
 async fn handler2() {}
 "#;
     let annotations = parse_annotations(content);
-    // Should only find the annotation near #[rovo]
-    assert_eq!(annotations.len(), 1);
+    // Should only find annotations near #[rovo]: ResponsesSection + Response
+    assert_eq!(annotations.len(), 2);
 }
 
 #[test]
 fn detects_multiple_rovo_blocks() {
     let content = r#"
-/// @response 200 Json<User> Success
+/// # Responses
+///
+/// 200: Json<User> - Success
+///
+/// # Metadata
+///
 /// @tag users
 #[rovo]
 async fn get_user() {}
 
-/// @response 200 Json<Post> Success
+/// # Responses
+///
+/// 200: Json<Post> - Success
+///
+/// # Metadata
+///
 /// @tag posts
 /// @security bearer
 #[rovo]
 async fn get_post() {}
 "#;
     let annotations = parse_annotations(content);
-    // Should find all annotations from both blocks
-    assert_eq!(annotations.len(), 5);
+    // Should find all annotations from both blocks:
+    // Block 1: ResponsesSection + Response + MetadataSection + Tag
+    // Block 2: ResponsesSection + Response + MetadataSection + Tag + Security
+    assert_eq!(annotations.len(), 9);
 
     // Check both blocks have their annotations
     let user_response = annotations.iter().find(|a| {

@@ -2,13 +2,13 @@ use rovo_lsp::completion::{get_completions, Position};
 
 #[test]
 fn completes_annotation_keywords() {
-    let content = "/// @r";
+    let content = "/// @t";
     let position = Position {
         line: 0,
         character: 6,
     };
     let completions = get_completions(content, position);
-    assert!(completions.iter().any(|c| c.label == "@response"));
+    assert!(completions.iter().any(|c| c.label == "@tag"));
 }
 
 #[test]
@@ -20,35 +20,35 @@ fn completes_all_annotations_on_at_sign() {
     };
     let completions = get_completions(content, position);
 
-    assert!(completions.iter().any(|c| c.label == "@response"));
+    // Only metadata annotations (use sections for responses/examples)
+    assert_eq!(completions.len(), 4);
     assert!(completions.iter().any(|c| c.label == "@tag"));
     assert!(completions.iter().any(|c| c.label == "@security"));
-    assert!(completions.iter().any(|c| c.label == "@example"));
     assert!(completions.iter().any(|c| c.label == "@id"));
     assert!(completions.iter().any(|c| c.label == "@hidden"));
 }
 
 #[test]
-fn includes_snippet_for_response() {
-    let content = "/// @res";
+fn includes_snippet_for_tag() {
+    let content = "/// @t";
     let position = Position {
         line: 0,
-        character: 8,
+        character: 6,
     };
     let completions = get_completions(content, position);
 
-    let response_completion = completions.iter().find(|c| c.label == "@response").unwrap();
-    assert!(response_completion.insert_text.is_some());
-    assert!(response_completion
+    let tag_completion = completions.iter().find(|c| c.label == "@tag").unwrap();
+    assert!(tag_completion.insert_text.is_some());
+    assert!(tag_completion
         .insert_text
         .as_ref()
         .unwrap()
-        .contains("${1:200}"));
+        .contains("@tag"));
 }
 
 #[test]
 fn no_completions_outside_doc_comment() {
-    let content = "@response";
+    let content = "@tag";
     let position = Position {
         line: 0,
         character: 1,
@@ -59,7 +59,7 @@ fn no_completions_outside_doc_comment() {
 
 #[test]
 fn no_completions_in_regular_comment() {
-    let content = "// @response";
+    let content = "// @tag";
     let position = Position {
         line: 0,
         character: 4,
@@ -99,8 +99,8 @@ fn completes_security_prefix() {
 }
 
 #[test]
-fn completes_example_prefix() {
-    let content = "/// @e";
+fn completes_id_prefix() {
+    let content = "/// @i";
     let position = Position {
         line: 0,
         character: 6,
@@ -108,8 +108,8 @@ fn completes_example_prefix() {
     let completions = get_completions(content, position);
     assert!(!completions.is_empty(), "Should have completions");
     assert!(
-        completions.iter().any(|c| c.label == "@example"),
-        "Should include @example completion"
+        completions.iter().any(|c| c.label == "@id"),
+        "Should include @id completion"
     );
 }
 
@@ -130,11 +130,11 @@ fn completes_hidden_prefix() {
 
 #[test]
 fn handles_multiline_doc_comments() {
-    let content = "/// This is a comment\n/// @r";
+    let content = "/// This is a comment\n/// @t";
     let position = Position {
         line: 1,
         character: 6,
     };
     let completions = get_completions(content, position);
-    assert!(completions.iter().any(|c| c.label == "@response"));
+    assert!(completions.iter().any(|c| c.label == "@tag"));
 }

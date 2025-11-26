@@ -1,0 +1,5 @@
+error: Example status code 201 is not defined in responses. Available status codes: 200, 404
+  --> tests/ui/example_status_not_in_responses.rs:21:1
+   |
+21 | /// 201: User { id: 1, name: "Alice".into() }
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

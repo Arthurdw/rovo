@@ -1,7 +1,5 @@
-error[E0412]: cannot find type `Todo` in this scope
- --> tests/ui/missing_type_with_identifier.rs:9:1
-  |
-9 | #[rovo]
-  | ^^^^^^^ not found in this scope
-  |
-  = note: this error originates in the attribute macro `rovo` (in Nightly builds, run with -Z macro-backtrace for more info)
+error: Invalid response format. Expected: <status>: <type> - <description>
+  --> tests/ui/missing_type_with_identifier.rs:10:1
+   |
+10 | /// 200: Todo user information
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

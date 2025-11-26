@@ -48,6 +48,34 @@ fn main() {
         }
     }
 
+    // Add section documentation
+    let sections_dir = Path::new(&manifest_dir).join("docs/sections");
+    if sections_dir.exists() {
+        let mut entries: Vec<_> = fs::read_dir(&sections_dir)
+            .unwrap()
+            .filter_map(|e| e.ok())
+            .filter(|e| e.path().extension().map(|ext| ext == "md").unwrap_or(false))
+            .collect();
+
+        entries.sort_by_key(|e| e.path());
+
+        for entry in entries {
+            let path = entry.path();
+            let filename = path.file_stem().unwrap().to_str().unwrap();
+            let section_name = format!("section:{}", filename);
+
+            // Convert path to string with forward slashes (works on all platforms)
+            let path_str = path.to_str().unwrap().replace('\\', "/");
+
+            writeln!(f, "        \"{}\" => {{", section_name).unwrap();
+            writeln!(f, "            include_str!(\"{}\").trim()", path_str).unwrap();
+            writeln!(f, "        }}").unwrap();
+
+            // Tell Cargo to rerun if the file changes
+            println!("cargo:rerun-if-changed={}", path.display());
+        }
+    }
+
     writeln!(
         f,
         "        _ => \"Unknown annotation - check available annotations\","
@@ -56,6 +84,9 @@ fn main() {
     writeln!(f, "    }}").unwrap();
     writeln!(f, "}}").unwrap();
     writeln!(f, "").unwrap();
+
+    // Tell Cargo to rerun if the sections directory changes
+    println!("cargo:rerun-if-changed={}", sections_dir.display());
 
     // Generate annotation summary by extracting first line after # heading
     writeln!(

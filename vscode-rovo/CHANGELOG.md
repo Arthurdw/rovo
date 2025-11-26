@@ -9,7 +9,7 @@ All notable changes to the Rovo Language Support extension will be documented in
 - Initial VSCode extension release
 - Language Server Protocol client for rovo-lsp
 - Automatic installation of rovo-lsp via cargo
-- Intelligent completions for Rovo annotations (@response, @tag, @security, @example, @id, @hidden)
+- Intelligent completions for Rovo section headers (Responses, Examples, Metadata) and metadata annotations (@tag, @security, @id, @hidden)
 - Context-aware completions for HTTP status codes and security schemes
 - Hover information for annotations with detailed documentation
 - Real-time diagnostics for annotation syntax errors

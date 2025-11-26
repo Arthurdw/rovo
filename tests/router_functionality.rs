@@ -23,32 +23,56 @@ struct CreateItem {
 }
 
 /// List items
+///
+/// # Responses
+///
+/// 200: Json<Vec<Item>> - List of items
+///
+/// # Metadata
+///
 /// @tag items
-/// @response 200 Json<Vec<Item>> List of items
 #[rovo]
 async fn list_items(State(_state): State<AppState>) -> Json<Vec<Item>> {
     Json(vec![])
 }
 
 /// Create item
+///
+/// # Responses
+///
+/// 201: Json<Item> - Item created
+///
+/// # Metadata
+///
 /// @tag items
-/// @response 201 Json<Item> Item created
 #[rovo]
 async fn create_item(State(_state): State<AppState>, Json(_req): Json<CreateItem>) -> Response {
     (StatusCode::CREATED, Json(Item::default())).into_response()
 }
 
 /// Update item
+///
+/// # Responses
+///
+/// 200: Json<Item> - Item updated
+///
+/// # Metadata
+///
 /// @tag items
-/// @response 200 Json<Item> Item updated
 #[rovo]
 async fn update_item(State(_state): State<AppState>, Json(_req): Json<CreateItem>) -> Json<Item> {
     Json(Item::default())
 }
 
 /// Delete item
+///
+/// # Responses
+///
+/// 204: () - Item deleted
+///
+/// # Metadata
+///
 /// @tag items
-/// @response 204 () Item deleted
 #[rovo]
 async fn delete_item(State(_state): State<AppState>) -> StatusCode {
     StatusCode::NO_CONTENT
@@ -273,8 +297,14 @@ fn test_custom_oas_route() {
 #[allow(deprecated)]
 fn test_deprecated_endpoint() {
     /// Old endpoint
+    ///
+    /// # Responses
+    ///
+    /// 200: Json<Vec<Item>> - Old response
+    ///
+    /// # Metadata
+    ///
     /// @tag items
-    /// @response 200 Json<Vec<Item>> Old response
     #[deprecated]
     #[rovo]
     async fn old_list_items(State(_state): State<AppState>) -> Json<Vec<Item>> {
@@ -304,9 +334,15 @@ fn test_deprecated_endpoint() {
 #[test]
 fn test_security_annotation() {
     /// Protected endpoint
+    ///
+    /// # Responses
+    ///
+    /// 200: Json<Vec<Item>> - Protected response
+    ///
+    /// # Metadata
+    ///
     /// @tag items
     /// @security bearer_auth
-    /// @response 200 Json<Vec<Item>> Protected response
     #[rovo]
     async fn protected_items(State(_state): State<AppState>) -> Json<Vec<Item>> {
         Json(vec![])
@@ -345,9 +381,15 @@ fn test_security_annotation() {
 #[test]
 fn test_custom_operation_id() {
     /// Get items
+    ///
+    /// # Responses
+    ///
+    /// 200: Json<Vec<Item>> - Items list
+    ///
+    /// # Metadata
+    ///
     /// @tag items
     /// @id getItemsList
-    /// @response 200 Json<Vec<Item>> Items list
     #[rovo]
     async fn custom_id_items(State(_state): State<AppState>) -> Json<Vec<Item>> {
         Json(vec![])
@@ -377,6 +419,9 @@ fn test_custom_operation_id() {
 #[test]
 fn test_hidden_endpoint() {
     /// Hidden endpoint
+    ///
+    /// # Metadata
+    ///
     /// @hidden
     #[rovo]
     async fn hidden_endpoint(State(_state): State<AppState>) -> StatusCode {
@@ -410,10 +455,16 @@ fn test_hidden_endpoint() {
 #[test]
 fn test_multiple_tags() {
     /// Multi-tagged endpoint
+    ///
+    /// # Responses
+    ///
+    /// 200: () - Success
+    ///
+    /// # Metadata
+    ///
     /// @tag items
     /// @tag admin
     /// @tag deprecated
-    /// @response 200 () Success
     #[rovo]
     async fn multi_tag_endpoint(State(_state): State<AppState>) -> StatusCode {
         StatusCode::OK

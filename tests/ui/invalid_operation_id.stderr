@@ -1,7 +1,7 @@
 error: Invalid operation ID 'get-user-by-id'
        help: operation IDs must contain only alphanumeric characters and underscores
        note: valid examples: 'getUserById', 'create_user', 'deleteItem123'
- --> tests/ui/invalid_operation_id.rs:8:1
-  |
-8 | /// @id get-user-by-id
-  | ^^^^^^^^^^^^^^^^^^^^^^
+  --> tests/ui/invalid_operation_id.rs:10:1
+   |
+10 | /// @id get-user-by-id
+   | ^^^^^^^^^^^^^^^^^^^^^^

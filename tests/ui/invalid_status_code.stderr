@@ -1,7 +1,7 @@
 error: Status code 999 is out of valid range
        help: HTTP status codes must be between 100-599
        note: common codes: 200 (OK), 201 (Created), 400 (Bad Request), 404 (Not Found), 500 (Internal Error)
- --> tests/ui/invalid_status_code.rs:8:1
-  |
-8 | /// @response 999 Json<String> Invalid status code
-  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  --> tests/ui/invalid_status_code.rs:10:1
+   |
+10 | /// 999: Json<String> - Invalid status code
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

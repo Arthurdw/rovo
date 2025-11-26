@@ -5,7 +5,9 @@ use rovo::rovo;
 
 /// Test handler
 ///
-/// @respons 200 Json<String> Typo in annotation
+/// # Metadata
+///
+/// @respons typo_annotation
 #[rovo]
 async fn test_handler() -> impl IntoApiResponse {
     Json("test".to_string())

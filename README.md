@@ -19,7 +19,7 @@ Built on [aide](https://github.com/tamasfe/aide), Rovo provides a declarative ap
 - Drop-in replacement for `axum::Router`
 - Doc-comment driven documentation
 - Compile-time validation of annotations
-- Method chaining support (`.post()`, `.patch()`, `.delete()`)
+- Method chaining support (`.get()`, `.post()`, `.patch()`, `.delete()`)
 - Built-in Swagger/Redoc/Scalar UI integration
 - Type-safe response definitions
 - Minimal runtime overhead
@@ -49,8 +49,13 @@ struct User {
 ///
 /// Returns the current user's profile information.
 ///
+/// # Responses
+///
+/// 200: Json<User> - User profile retrieved successfully
+///
+/// # Metadata
+///
 /// @tag users
-/// @response 200 Json<User> User profile retrieved successfully.
 #[rovo]
 async fn get_user(State(_state): State<AppState>) -> impl IntoApiResponse {
     Json(User {
@@ -102,63 +107,127 @@ Choose one or more documentation UIs (none enabled by default):
 - `redoc` - Redoc UI
 - `scalar` - Scalar UI
 
-## Annotations
+## Documentation Format
 
-### `@response <code> <type> <description>`
+Rovo uses Rust-style documentation with markdown sections and metadata annotations.
 
-Document response status codes:
-
-```rust
-/// @response 200 Json<User> User found successfully
-/// @response 404 () User not found
-/// @response 500 Json<ErrorResponse> Internal server error
-```
-
-### `@example <code> <expression>`
-
-Provide example responses:
+### Complete Example
 
 ```rust
-/// @response 200 Json<User> User information
-/// @example 200 User { id: 1, name: "Alice".into(), email: "alice@example.com".into() }
+/// Get a todo item by ID.
+///
+/// Retrieves a single todo item from the database. Returns 404
+/// if the item doesn't exist.
+///
+/// # Responses
+///
+/// 200: Json<TodoItem> - Successfully retrieved the todo item
+/// 404: () - Todo item was not found
+/// 500: Json<ErrorResponse> - Internal server error
+///
+/// # Examples
+///
+/// 200: TodoItem {
+///   title: "Buy milk".into(),
+///   ..Default::default()
+/// }
+/// 404: ()
+///
+/// # Metadata
+///
+/// @tag todos
+/// @security bearer_auth
+#[rovo]
+async fn get_todo(Path(id): Path<i32>) -> impl IntoApiResponse {
+    // ...
+}
 ```
 
-### `@tag <tag_name>`
+### Responses Section
+
+Document HTTP responses with status codes, types, and descriptions:
+
+```rust
+/// # Responses
+///
+/// 200: Json<User> - User found successfully
+/// 404: () - User not found
+/// 500: Json<ErrorResponse> - Internal server error
+```
+
+**Format:** `<status_code>: <type> - <description>`
+
+- Status codes must be valid HTTP codes (100-599)
+- Type must be valid Rust syntax
+- Description explains when this response occurs
+
+### Examples Section
+
+Provide concrete response examples:
+
+```rust
+/// # Examples
+///
+/// 200: User { id: 1, name: "Alice".into(), email: "alice@example.com".into() }
+/// 404: ()
+```
+
+**Format:** `<status_code>: <rust_expression>`
+
+Examples should match the types defined in the Responses section.
+
+### Metadata Section
+
+Contains API metadata using `@` annotations:
+
+#### `@tag`
 
 Group operations by tags (can be used multiple times):
 
 ```rust
+/// # Metadata
+///
 /// @tag users
 /// @tag authentication
 ```
 
-### `@security <scheme_name>`
+#### `@security`
 
 Specify security requirements (can be used multiple times):
 
 ```rust
+/// # Metadata
+///
 /// @security bearer_auth
 ```
 
 Security schemes must be defined in your OpenAPI spec. See [Tips](#tips) for details.
 
-### `@id <operation_id>`
+#### `@id`
 
 Set custom operation ID (defaults to function name):
 
 ```rust
+/// # Metadata
+///
 /// @id getUserById
 ```
 
-### `@hidden`
+Must contain only alphanumeric characters and underscores.
+
+#### `@hidden`
 
 Hide an operation from documentation:
 
 ```rust
+/// # Metadata
+///
 /// @hidden
 ```
 
-### `#[deprecated]`
+### Special Directives
+
+#### `#[deprecated]`
 
 Mark endpoints as deprecated using Rust's built-in attribute:
 
@@ -170,16 +239,23 @@ async fn old_handler() -> impl IntoApiResponse {
 }
 ```
 
-### `@rovo-ignore`
+#### `@rovo-ignore`
 
-Stop processing annotations after this point:
+Stop processing annotations after this point (location-independent):
 
 ```rust
 /// Get user information.
 ///
+/// # Responses
+///
+/// 200: Json<User> - User found successfully
+///
+/// # Metadata
+///
 /// @tag users
-/// @response 200 Json<User> User found successfully
+///
 /// @rovo-ignore
+///
 /// Additional documentation here won't be processed.
 /// You can write @anything without causing errors.
 #[rovo]
@@ -281,8 +357,13 @@ use rovo::aide::axum::IntoApiResponse;
 
 /// Handler description
 ///
+/// # Responses
+///
+/// 200: Json<Data> - Success
+///
+/// # Metadata
+///
 /// @tag category
-/// @response 200 Json<Data> Success
 #[rovo]
 async fn handler() -> impl IntoApiResponse {
     Json(data)
@@ -350,6 +431,15 @@ api.components.get_or_insert_default()
 Reference in handlers:
 
 ```rust
+/// Protected endpoint requiring authentication.
+///
+/// # Responses
+///
+/// 200: Json<Data> - Success
+/// 401: () - Unauthorized
+///
+/// # Metadata
+///
 /// @security bearer_auth
 #[rovo]
 async fn protected_handler() -> impl IntoApiResponse {

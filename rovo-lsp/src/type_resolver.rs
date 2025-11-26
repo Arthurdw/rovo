@@ -11,8 +11,7 @@ static ENUM_RE: Lazy<Regex> =
     Lazy::new(|| Regex::new(r"^\s*(?:pub(?:\([^)]+\))?\s+)?enum\s+").unwrap());
 static TYPE_RE: Lazy<Regex> =
     Lazy::new(|| Regex::new(r"^\s*(?:pub(?:\([^)]+\))?\s+)?type\s+").unwrap());
-static ANNOTATION_TYPE_RE: Lazy<Regex> =
-    Lazy::new(|| Regex::new(r"///\s*@(?:response|example)\s+\d+\s+(\S+)").unwrap());
+static ANNOTATION_TYPE_RE: Lazy<Regex> = Lazy::new(|| Regex::new(r"///\s*\d+:\s*(\S+)").unwrap());
 
 /// Extract innermost type name from annotation response type by recursively unwrapping
 ///
@@ -58,7 +57,7 @@ pub fn find_type_definition(content: &str, type_name: &str) -> Option<usize> {
 
 /// Check if cursor is on a type in an annotation
 pub fn get_type_at_position(line: &str, char_idx: usize) -> Option<(String, usize, usize)> {
-    // Pattern: /// @response 200 Json<TodoItem> Description
+    // Pattern: /// 200: Json<TodoItem> - Description (in # Responses section)
     if let Some(captures) = ANNOTATION_TYPE_RE.captures(line) {
         let response_type = captures.get(1)?.as_str();
         let start = captures.get(1)?.start();

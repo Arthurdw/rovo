@@ -8,12 +8,12 @@
 
     <h3>Features</h3>
     <ul>
-        <li><strong>Smart completions</strong> - Auto-complete for Rovo annotations with helpful snippets</li>
-        <li><strong>Hover documentation</strong> - Detailed information for annotations, status codes, and security schemes</li>
-        <li><strong>Real-time diagnostics</strong> - Instant feedback on syntax errors and invalid annotations</li>
+        <li><strong>Smart completions</strong> - Auto-complete for Rovo section headers and metadata annotations with helpful snippets</li>
+        <li><strong>Hover documentation</strong> - Detailed information for section headers, metadata annotations, status codes, and security schemes</li>
+        <li><strong>Real-time diagnostics</strong> - Instant feedback on syntax errors and invalid section headers or metadata annotations</li>
         <li><strong>Code actions</strong> - Quick fixes for common issues</li>
         <li><strong>Navigation</strong> - Go to definition, find usages, and rename support for tags</li>
-        <li><strong>Syntax highlighting</strong> - Context-aware highlighting for annotations, status codes, and security schemes</li>
+        <li><strong>Syntax highlighting</strong> - Context-aware highlighting for section headers, metadata annotations, status codes, and security schemes</li>
     </ul>
 
     <h3>Requirements</h3>
@@ -25,10 +25,15 @@
     <pre>
 /// Get user by ID
 ///
+/// # Responses
+///
+/// 200: Json&lt;User&gt; - Successfully retrieved user
+/// 404: Json&lt;Error&gt; - User not found
+///
+/// # Metadata
+///
 /// @tag users
 /// @security bearer
-/// @response 200 Json&lt;User&gt; Successfully retrieved user
-/// @response 404 Json&lt;Error&gt; User not found
 #[rovo]
 async fn get_user(id: i64) -&gt; impl IntoApiResponse {
     // Implementation

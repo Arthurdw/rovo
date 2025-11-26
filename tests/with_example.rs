@@ -36,9 +36,14 @@ struct UserId {
 ///
 /// Retrieves a user's information using their unique identifier.
 ///
-/// @response 200 Json<User> User found and returned successfully.
-/// @example 200 User::default()
-/// @response 404 () User not found in the system.
+/// # Responses
+///
+/// 200: Json<User> - User found and returned successfully
+/// 404: () - User not found in the system
+///
+/// # Examples
+///
+/// 200: User::default()
 #[rovo]
 async fn get_user(State(_state): State<AppState>, Path(_id): Path<UserId>) -> impl IntoApiResponse {
     Json(User::default())

@@ -21,13 +21,11 @@ Language Server Protocol support for Rovo annotations in Neovim.
 ## Features
 
 - **Auto-Installation** - Automatically installs `rovo-lsp` if not found (requires Cargo)
-- **Completions** - Intelligent suggestions for annotations, status codes, and
-  security schemes
-- **Diagnostics** - Real-time validation of annotation syntax
-- **Hover Documentation** - Detailed docs for annotations, status codes, and
-  security schemes
-- **Code Actions** - Quick fixes for adding annotations and macros
-- **Go-to-Definition** - Navigate to type definitions from annotations
+- **Completions** - Intelligent suggestions for section headers, metadata annotations, status codes, and security schemes
+- **Diagnostics** - Real-time validation of response/example syntax and metadata annotations
+- **Hover Documentation** - Detailed docs for sections, annotations, status codes, and security schemes
+- **Code Actions** - Quick fixes for adding sections, annotations, and macros
+- **Go-to-Definition** - Navigate to type definitions from responses
 - **Find References** - Find all usages of tags
 - **Syntax Highlighting** - LSP semantic tokens for consistent highlighting (same as VSCode)
 
@@ -128,14 +126,27 @@ require('rovo').setup()
 
 The LSP activates automatically for Rust files in a workspace with `Cargo.toml`.
 
-Type `/// @` in a doc comment above a `#[rovo]` function to see completions.
+Type `/// #` in a doc comment above a `#[rovo]` function to see section completions.
+Within the `# Metadata` section, type `@` to see annotation completions.
 
 ### Example
 
 ```rust
+/// Get user by ID.
+///
+/// # Responses
+///
+/// 200: Json<User> - Successfully retrieved user
+/// 404: Json<Error> - User not found
+///
+/// # Examples
+///
+/// 200: User { id: 1, name: "Alice".into() }
+/// 404: Error { message: "User not found".into() }
+///
+/// # Metadata
+///
 /// @tag users
-/// @response 200 Json<User> Successfully retrieved user
-/// @response 404 Json<Error> User not found
 #[rovo]
 async fn get_user(id: i32) -> Result<Json<User>, StatusCode> {
     // ...
@@ -170,10 +181,13 @@ require('rovo').setup({
 Rovo uses LSP semantic tokens for syntax highlighting. Customize colors by linking these highlight groups:
 
 ```lua
--- Annotation keywords (@tag, @response, etc.)
+-- Section headers (# Responses, # Examples, # Metadata)
+vim.api.nvim_set_hl(0, '@lsp.type.keyword.rust', { link = 'Title' })
+
+-- Metadata annotation keywords (@tag, @security, etc.)
 vim.api.nvim_set_hl(0, '@lsp.type.macro.rust', { link = 'Macro' })
 
--- Tag values (e.g., "Users" in @tag Users)
+-- Tag values (e.g., "users" in @tag users)
 vim.api.nvim_set_hl(0, '@lsp.type.string.rust', { link = 'String' })
 
 -- Status codes (200, 404, etc.)
@@ -195,7 +209,7 @@ The plugin sets these by default, but you can override them in your config.
 **No completions?**
 
 - Ensure you're in a doc comment (`///`)
-- Type `@` to trigger completions
+- Type `#` to trigger section completions, or `@` within `# Metadata` for annotations
 - Verify you're in a Rust workspace with `Cargo.toml`
 
 ## License

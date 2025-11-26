@@ -1,7 +1,6 @@
 error: Unknown annotation '@respons'
-       help: did you mean '@response'?
-       note: valid annotations are @response, @example, @tag, @security, @id, @hidden, @rovo-ignore
- --> tests/ui/unknown_annotation.rs:8:1
-  |
-8 | /// @respons 200 Json<String> Typo in annotation
-  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+       note: valid annotations are @tag, @security, @id, @hidden
+  --> tests/ui/unknown_annotation.rs:10:1
+   |
+10 | /// @respons typo_annotation
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^

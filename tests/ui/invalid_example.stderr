@@ -1,53 +1,8 @@
-error: expected one of `!`, `)`, `,`, `.`, `::`, `?`, `{`, or an operator, found `is`
+error: Invalid example expression 'This is not valid Rust code!!!'
+       help: expression must be valid Rust syntax
+       note: parse error: unexpected token
+       note: examples: 'User::default()', 'User { id: 1, name: "Alice".into() }', 'vec![1, 2, 3]'
   --> tests/ui/invalid_example.rs:10:1
    |
-10 | #[rovo]
-   | ^^^^^^^- help: missing `,`
-   | |
-   | expected one of 8 possible tokens
-   |
-   = note: this error originates in the attribute macro `rovo` (in Nightly builds, run with -Z macro-backtrace for more info)
-
-error: unexpected `valid` after identifier
-  --> tests/ui/invalid_example.rs:10:1
-   |
-10 | #[rovo]
-   | ^^^^^^^
-   |
-   = note: this error originates in the attribute macro `rovo` (in Nightly builds, run with -Z macro-backtrace for more info)
-help: use `!` to perform logical negation or bitwise not
-   |
-10 - #[rovo]
-10 + !
-   |
-
-error: expected one of `!`, `)`, `,`, `.`, `::`, `?`, `{`, or an operator, found `not`
-  --> tests/ui/invalid_example.rs:10:1
-   |
-10 | #[rovo]
-   | ^^^^^^^ expected one of 8 possible tokens
-   |
-   = note: this error originates in the attribute macro `rovo` (in Nightly builds, run with -Z macro-backtrace for more info)
-help: there is a keyword `as` with a similar name
-   |
-10 - #[rovo]
-10 + as
-   |
-
-error: expected one of `!`, `)`, `,`, `.`, `::`, `?`, `{`, or an operator, found `Rust`
-  --> tests/ui/invalid_example.rs:10:1
-   |
-10 | #[rovo]
-   | ^^^^^^^- help: missing `,`
-   | |
-   | expected one of 8 possible tokens
-   |
-   = note: this error originates in the attribute macro `rovo` (in Nightly builds, run with -Z macro-backtrace for more info)
-
-error: expected one of `!`, `)`, `,`, `.`, `::`, `?`, `{`, or an operator, found `code`
-  --> tests/ui/invalid_example.rs:10:1
-   |
-10 | #[rovo]
-   | ^^^^^^^ expected one of 8 possible tokens
-   |
-   = note: this error originates in the attribute macro `rovo` (in Nightly builds, run with -Z macro-backtrace for more info)
+10 | /// 200: This is not valid Rust code!!!
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
