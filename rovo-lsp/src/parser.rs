@@ -293,13 +293,16 @@ fn parse_multiline_response(doc_lines: &[(usize, &str)]) -> Option<(Annotation, 
             break;
         }
 
-        // New response entry (starts with digit followed by colon) ends the description
-        let starts_new_response = next_content
-            .chars()
-            .next()
-            .map(|c| c.is_ascii_digit())
-            .unwrap_or(false)
-            && next_content.contains(':');
+        // New response entry (valid STATUS: format) ends the description
+        // Must look like a status code (3+ digits, parseable as u16)
+        let starts_new_response = if let Some(colon_pos) = next_content.find(':') {
+            let before_colon = next_content[..colon_pos].trim();
+            before_colon.len() >= 3
+                && before_colon.chars().all(|c| c.is_ascii_digit())
+                && before_colon.parse::<u16>().is_ok()
+        } else {
+            false
+        };
 
         if starts_new_response {
             break;
@@ -451,7 +454,7 @@ fn parse_multiline_example(doc_lines: &[(usize, &str)]) -> Option<(Annotation, u
         // Skip the opening ``` line
         lines_consumed += 1;
 
-        // Collect lines until we hit closing ```
+        // Collect lines until we hit closing ``` or a safety boundary
         while lines_consumed < doc_lines.len() {
             let (_, line) = doc_lines[lines_consumed];
             let line_content = line.trim_start_matches("///").trim();
@@ -459,6 +462,12 @@ fn parse_multiline_example(doc_lines: &[(usize, &str)]) -> Option<(Annotation, u
             // Check for closing ```
             if line_content == "```" || line_content.starts_with("```") {
                 lines_consumed += 1;
+                break;
+            }
+
+            // Safety cutoff: stop at section headers or annotations if code block is unterminated
+            // This prevents consuming the rest of the doc block on missing closing fence
+            if line_content.starts_with("# ") || line_content.starts_with('@') {
                 break;
             }
 

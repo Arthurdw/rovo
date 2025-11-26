@@ -81,7 +81,7 @@ fn reports_multiple_errors() {
 /// # Responses
 ///
 /// 999: Json<User> - Invalid
-/// 50: Json<Error> - Also invalid
+/// 998: Json<Error> - Also invalid
 #[rovo]
 async fn handler() {}
 "#;
