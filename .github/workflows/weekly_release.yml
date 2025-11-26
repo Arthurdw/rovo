@@ -80,9 +80,9 @@ jobs:
 
           # Get all merged PRs since the last release with full details for debugging
           RAW_RESPONSE=$(gh api graphql -f query='
-            query($owner: String!, $repo: String!, $since: DateTime!) {
+            query($owner: String!, $repo: String!) {
               repository(owner: $owner, name: $repo) {
-                pullRequests(states: MERGED, first: 100, orderBy: {field: MERGED_AT, direction: DESC}) {
+                pullRequests(states: MERGED, first: 100, orderBy: {field: UPDATED_AT, direction: DESC}) {
                   nodes {
                     number
                     title
@@ -96,7 +96,7 @@ jobs:
                 }
               }
             }
-          ' -f owner='${{ github.repository_owner }}' -f repo='${{ github.event.repository.name }}' -f since='${{ steps.last_release.outputs.last_release_date }}')
+          ' -f owner='${{ github.repository_owner }}' -f repo='${{ github.event.repository.name }}')
 
           # Debug: Show all recent PRs and their labels
           echo "=== Recent merged PRs ==="
