@@ -1037,13 +1037,7 @@ fn create_smart_metadata_action(
         else {
             // Fallback - shouldn't happen if has_metadata is true
             return create_smart_section_action(
-                content,
-                title,
-                "Metadata",
-                annotation,
-                doc_start,
-                doc_end,
-                uri,
+                content, title, "Metadata", annotation, doc_start, doc_end, uri,
             );
         };
 
