@@ -44,8 +44,8 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
-          cache: 'npm'
+          node-version: "20"
+          cache: "npm"
           cache-dependency-path: vscode-rovo/package-lock.json
 
       - name: Fix repository permissions
@@ -69,13 +69,17 @@ jobs:
       - name: Get merged PRs since last release
         id: merged_prs
         run: |
-          # Get all merged PRs since the last release
-          MERGED_PRS=$(gh api graphql -f query='
+          LAST_RELEASE='${{ steps.last_release.outputs.last_release_date }}'
+          echo "Looking for PRs merged after: $LAST_RELEASE"
+
+          # Get all merged PRs since the last release with full details for debugging
+          RAW_RESPONSE=$(gh api graphql -f query='
             query($owner: String!, $repo: String!, $since: DateTime!) {
               repository(owner: $owner, name: $repo) {
                 pullRequests(states: MERGED, first: 100, orderBy: {field: MERGED_AT, direction: DESC}) {
                   nodes {
                     number
+                    title
                     mergedAt
                     labels(first: 10) {
                       nodes {
@@ -86,10 +90,28 @@ jobs:
                 }
               }
             }
-          ' -f owner='${{ github.repository_owner }}' -f repo='${{ github.event.repository.name }}' -f since='${{ steps.last_release.outputs.last_release_date }}' --jq '.data.repository.pullRequests.nodes[] | select(.mergedAt > "${{ steps.last_release.outputs.last_release_date }}") | .labels.nodes[].name' | grep "^release:" | sort | uniq || echo "")
+          ' -f owner='${{ github.repository_owner }}' -f repo='${{ github.event.repository.name }}' -f since='${{ steps.last_release.outputs.last_release_date }}')
 
-          echo "Merged PR labels since last release:"
-          echo "$MERGED_PRS"
+          # Debug: Show all recent PRs and their labels
+          echo "=== Recent merged PRs ==="
+          echo "$RAW_RESPONSE" | jq -r '.data.repository.pullRequests.nodes[:10][] | "PR #\(.number): \(.title) (merged: \(.mergedAt)) - labels: \([.labels.nodes[].name] | join(", "))"'
+
+          # Filter PRs merged after last release and extract release labels
+          echo ""
+          echo "=== PRs merged after $LAST_RELEASE ==="
+          FILTERED_PRS=$(echo "$RAW_RESPONSE" | jq -r --arg since "$LAST_RELEASE" '.data.repository.pullRequests.nodes[] | select(.mergedAt > $since)')
+          echo "$FILTERED_PRS" | jq -r '"PR #\(.number): \(.title) - labels: \([.labels.nodes[].name] | join(", "))"' 2>/dev/null || echo "(none)"
+
+          # Extract release: labels from filtered PRs
+          MERGED_PRS=$(echo "$FILTERED_PRS" | jq -r '.labels.nodes[].name' 2>/dev/null | grep "^release:" | sort | uniq || echo "")
+
+          echo ""
+          echo "=== Found release labels ==="
+          if [ -n "$MERGED_PRS" ]; then
+            echo "$MERGED_PRS"
+          else
+            echo "(none)"
+          fi
 
           # Store for next step
           echo "$MERGED_PRS" > /tmp/pr_labels.txt
@@ -122,7 +144,6 @@ jobs:
       - name: Check if release is needed
         id: check_release
         run: |
-          # Check if there are any merged PRs since last release
           if [ -f /tmp/pr_labels.txt ] && [ -s /tmp/pr_labels.txt ]; then
             echo "needs_release=true" >> $GITHUB_OUTPUT
             echo "Release needed - found merged PRs with release labels"
@@ -131,7 +152,7 @@ jobs:
             COMMITS_SINCE_RELEASE=$(git rev-list --count HEAD --since="${{ steps.last_release.outputs.last_release_date }}" --grep="chore(release):" --invert-grep)
             if [ "$COMMITS_SINCE_RELEASE" -gt 0 ]; then
               echo "needs_release=true" >> $GITHUB_OUTPUT
-              echo "Release needed - found $COMMITS_SINCE_RELEASE commits since last release"
+              echo "Release needed - found $COMMITS_SINCE_RELEASE commits since last release (defaulting to patch)"
             else
               echo "needs_release=false" >> $GITHUB_OUTPUT
               echo "No release needed - no changes since last release"
