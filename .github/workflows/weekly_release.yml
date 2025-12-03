@@ -216,6 +216,15 @@ jobs:
           branch: ${{ github.ref }}
           tags: true
 
+      - name: Create GitHub Release
+        if: steps.check_release.outputs.needs_release == 'true'
+        run: |
+          gh release create "v${{ env.VERSION }}" \
+            --title "v${{ env.VERSION }}" \
+            --generate-notes
+        env:
+          GITHUB_TOKEN: ${{ steps.get_token.outputs.token }}
+
       - name: Publish VSCode extension
         if: steps.check_release.outputs.needs_release == 'true'
         working-directory: vscode-rovo
