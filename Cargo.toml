@@ -6,9 +6,9 @@ resolver = "2"
 version = "0.2.2"
 edition = "2021"
 license = "MIT"
-repository = "https://github.com/a-line/rovo"
+repository = "https://github.com/Arthurdw/rovo"
 documentation = "https://docs.rs/rovo"
-homepage = "https://github.com/a-line/rovo"
+homepage = "https://github.com/Arthurdw/rovo"
 
 [package]
 name = "rovo"

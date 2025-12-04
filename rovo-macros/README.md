@@ -1,6 +1,6 @@
 # rovo-macros
 
-Internal procedural macros for [rovo](https://github.com/a-line/rovo).
+Internal procedural macros for [rovo](https://github.com/Arthurdw/rovo).
 
 **You're probably looking for the main [rovo](https://crates.io/crates/rovo) crate instead.**
 
