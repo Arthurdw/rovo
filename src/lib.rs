@@ -212,7 +212,7 @@ where
     ///
     /// # Memory Efficiency
     ///
-    /// The OpenAPI spec is serialized to JSON and YAML at startup, then the
+    /// The `OpenAPI` spec is serialized to JSON and YAML at startup, then the
     /// original struct is dropped to minimize memory usage. Only the pre-serialized
     /// strings are kept in memory.
     ///
@@ -234,7 +234,7 @@ where
     ///
     /// # Memory Efficiency
     ///
-    /// The OpenAPI spec is serialized to JSON and YAML at startup, then the
+    /// The `OpenAPI` spec is serialized to JSON and YAML at startup, then the
     /// original struct is dropped to minimize memory usage. Only the pre-serialized
     /// strings are kept in memory.
     ///
@@ -321,7 +321,7 @@ where
             let base_route = oas_route.strip_suffix(".json").unwrap_or(&oas_route);
 
             // Add JSON endpoint - returns pre-serialized bytes
-            let json_for_handler = json_bytes.clone();
+            let json_for_handler = json_bytes;
             let router_with_json = axum_router.route(
                 &oas_route,
                 ::axum::routing::get(move || {
@@ -416,7 +416,7 @@ where
     /// Finish the API with `OpenAPI` spec embedded via Extension layer
     ///
     /// The spec is wrapped in `Arc<OpenApi>` for efficient sharing. Use this method
-    /// when you need runtime access to the OpenAPI spec in your handlers.
+    /// when you need runtime access to the `OpenAPI` spec in your handlers.
     ///
     /// # Example
     ///
