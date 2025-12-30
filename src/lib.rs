@@ -353,7 +353,7 @@ where
 
             // Add YML endpoint (alias for YAML) - reuses pre-serialized bytes
             let yml_route = format!("{base_route}.yml");
-            let yml_for_handler = yaml_bytes.clone();
+            let yml_for_handler = yaml_bytes;
             let router_with_yml = router_with_yaml.route(
                 &yml_route,
                 ::axum::routing::get(move || {
