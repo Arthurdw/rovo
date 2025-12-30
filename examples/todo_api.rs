@@ -230,12 +230,13 @@ async fn main() {
         .with_swagger("/")
         .with_state(state);
 
-    let listener = tokio::net::TcpListener::bind("127.0.0.1:3000")
-        .await
-        .unwrap();
+    let port = std::env::var("PORT").unwrap_or_else(|_| "3000".to_string());
+    let addr = format!("127.0.0.1:{port}");
+
+    let listener = tokio::net::TcpListener::bind(&addr).await.unwrap();
 
     info!("Server started successfully");
-    info!("Address: http://127.0.0.1:3000");
+    info!("Address: http://{addr}");
 
     axum::serve(listener, app).await.unwrap();
 }

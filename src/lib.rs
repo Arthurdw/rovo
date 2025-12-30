@@ -134,9 +134,10 @@ pub use ::axum::response;
 /// ```
 pub use ::axum::http;
 
-use ::axum::{response::IntoResponse, Extension};
+use ::axum::Extension;
 use aide::axum::ApiRouter as AideApiRouter;
 use aide::openapi::OpenApi;
+use std::sync::Arc;
 
 /// A drop-in replacement for `axum::Router` that adds `OpenAPI` documentation support.
 ///
@@ -208,6 +209,15 @@ where
     /// Configure `OpenAPI` spec with default routes (/api.json and /api.yaml)
     ///
     /// This automatically sets up endpoints for both JSON and YAML formats.
+    ///
+    /// # Memory Efficiency
+    ///
+    /// The `OpenAPI` spec is serialized to JSON and YAML at startup, then the
+    /// original struct is dropped to minimize memory usage. Only the pre-serialized
+    /// strings are kept in memory.
+    ///
+    /// If you need runtime access to the `OpenApi` struct (e.g., in handlers via
+    /// `Extension<Arc<OpenApi>>`), use [`finish_api_with_extension`](Self::finish_api_with_extension) instead.
     #[must_use]
     pub fn with_oas(mut self, api: OpenApi) -> Self {
         self.oas_spec = Some(api);
@@ -221,6 +231,15 @@ where
     /// For example, "/openapi" creates:
     /// - /openapi.json
     /// - /openapi.yaml
+    ///
+    /// # Memory Efficiency
+    ///
+    /// The `OpenAPI` spec is serialized to JSON and YAML at startup, then the
+    /// original struct is dropped to minimize memory usage. Only the pre-serialized
+    /// strings are kept in memory.
+    ///
+    /// If you need runtime access to the `OpenApi` struct (e.g., in handlers via
+    /// `Extension<Arc<OpenApi>>`), use [`finish_api_with_extension`](Self::finish_api_with_extension) instead.
     pub fn with_oas_route(mut self, api: OpenApi, route: impl Into<String>) -> Self {
         self.oas_spec = Some(api);
         let route_str = route.into();
@@ -290,72 +309,68 @@ where
             let mut api_mut = api;
             let axum_router = self.inner.finish_api(&mut api_mut);
 
-            // Now api_mut is populated with all the routes
-            // Clone it for the JSON/YAML/YML handlers
-            let api_for_json = api_mut.clone();
-            let api_for_yaml = api_mut.clone();
-            let api_for_yml = api_mut.clone();
+            // Pre-serialize once at startup to avoid cloning on each request
+            let json_bytes: ::axum::body::Bytes = serde_json::to_vec(&api_mut)
+                .expect("Failed to serialize OpenAPI spec to JSON")
+                .into();
+            let yaml_bytes: ::axum::body::Bytes = serde_yaml::to_string(&api_mut)
+                .expect("Failed to serialize OpenAPI spec to YAML")
+                .into();
 
             // Determine base route (without extension)
             let base_route = oas_route.strip_suffix(".json").unwrap_or(&oas_route);
 
-            // Add JSON endpoint to the axum::Router
+            // Add JSON endpoint - returns pre-serialized bytes
+            let json_for_handler = json_bytes;
             let router_with_json = axum_router.route(
                 &oas_route,
                 ::axum::routing::get(move || {
-                    let api = api_for_json.clone();
-                    async move { ::axum::Json(api) }
+                    let json = json_for_handler.clone();
+                    async move {
+                        (
+                            [(::axum::http::header::CONTENT_TYPE, "application/json")],
+                            json,
+                        )
+                    }
                 }),
             );
 
-            // Add YAML endpoint
+            // Add YAML endpoint - returns pre-serialized bytes
             let yaml_route = format!("{base_route}.yaml");
+            let yaml_for_handler = yaml_bytes.clone();
             let router_with_yaml = router_with_json.route(
                 &yaml_route,
                 ::axum::routing::get(move || {
-                    let api = api_for_yaml.clone();
+                    let yaml = yaml_for_handler.clone();
                     async move {
-                        match serde_yaml::to_string(&api) {
-                            Ok(yaml) => (
-                                [(::axum::http::header::CONTENT_TYPE, "application/x-yaml")],
-                                yaml,
-                            )
-                                .into_response(),
-                            Err(e) => (
-                                ::axum::http::StatusCode::INTERNAL_SERVER_ERROR,
-                                format!("Failed to serialize OpenAPI spec to YAML: {e}"),
-                            )
-                                .into_response(),
-                        }
+                        (
+                            [(::axum::http::header::CONTENT_TYPE, "application/x-yaml")],
+                            yaml,
+                        )
                     }
                 }),
             );
 
-            // Add YML endpoint (alias for YAML)
+            // Add YML endpoint (alias for YAML) - reuses pre-serialized bytes
             let yml_route = format!("{base_route}.yml");
+            let yml_for_handler = yaml_bytes;
             let router_with_yml = router_with_yaml.route(
                 &yml_route,
                 ::axum::routing::get(move || {
-                    let api = api_for_yml.clone();
+                    let yaml = yml_for_handler.clone();
                     async move {
-                        match serde_yaml::to_string(&api) {
-                            Ok(yaml) => (
-                                [(::axum::http::header::CONTENT_TYPE, "application/x-yaml")],
-                                yaml,
-                            )
-                                .into_response(),
-                            Err(e) => (
-                                ::axum::http::StatusCode::INTERNAL_SERVER_ERROR,
-                                format!("Failed to serialize OpenAPI spec to YAML: {e}"),
-                            )
-                                .into_response(),
-                        }
+                        (
+                            [(::axum::http::header::CONTENT_TYPE, "application/x-yaml")],
+                            yaml,
+                        )
                     }
                 }),
             );
 
-            // Add extension
-            (Some(router_with_yml.layer(Extension(api_mut))), None)
+            // No Extension layer - the OpenApi struct is dropped after serialization
+            // to minimize memory usage. Use finish_api_with_extension() if you need
+            // runtime access to the spec.
+            (Some(router_with_yml), None)
         } else {
             // No OAS spec, return the inner router
             (None, Some(self.inner))
@@ -399,14 +414,35 @@ where
     }
 
     /// Finish the API with `OpenAPI` spec embedded via Extension layer
+    ///
+    /// The spec is wrapped in `Arc<OpenApi>` for efficient sharing. Use this method
+    /// when you need runtime access to the `OpenAPI` spec in your handlers.
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// use std::sync::Arc;
+    /// use axum::Extension;
+    /// use aide::openapi::OpenApi;
+    ///
+    /// async fn handler(Extension(api): Extension<Arc<OpenApi>>) {
+    ///     // Access the OpenAPI spec at runtime
+    ///     println!("API title: {}", api.info.title);
+    /// }
+    /// ```
+    ///
+    /// # Note
+    ///
+    /// This keeps the full `OpenApi` struct in memory. For large APIs where you don't
+    /// need runtime access, prefer using [`with_oas`](Self::with_oas) which only keeps
+    /// pre-serialized strings in memory.
     pub fn finish_api_with_extension(self, api: aide::openapi::OpenApi) -> ::axum::Router<S>
     where
         S: Clone + Send + Sync + 'static,
     {
         let mut api_mut = api;
-        self.inner
-            .finish_api(&mut api_mut)
-            .layer(Extension(api_mut))
+        let router = self.inner.finish_api(&mut api_mut);
+        router.layer(Extension(Arc::new(api_mut)))
     }
 
     /// Convert into the underlying aide `ApiRouter`
