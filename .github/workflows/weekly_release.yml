@@ -119,8 +119,8 @@ jobs:
             echo "(none)"
           fi
 
-          # Store for next step
-          echo "$MERGED_PRS" > /tmp/pr_labels.txt
+          # Store for next step (use -n to avoid empty file with just newline)
+          echo -n "$MERGED_PRS" > /tmp/pr_labels.txt
         env:
           GITHUB_TOKEN: ${{ steps.get_token.outputs.token }}
 
