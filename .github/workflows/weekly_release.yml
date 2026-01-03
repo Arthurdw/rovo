@@ -6,7 +6,12 @@ on:
   schedule:
     # Every Wednesday at 9:00 AM UTC
     - cron: "0 9 * * 3"
-  workflow_dispatch: # Allow manual trigger for testing
+  workflow_dispatch:
+    inputs:
+      include_ci_changes:
+        description: "Include .github/ changes in release check"
+        type: boolean
+        default: false
 
 concurrency:
   group: ${{ github.workflow }}
@@ -168,17 +173,33 @@ jobs:
 
           echo "Last release tag: $LAST_TAG"
 
-          # Count commits between last tag and HEAD, excluding version bumps
-          COMMITS_SINCE_RELEASE=$(git rev-list --count ${LAST_TAG}..HEAD --grep="chore(release):" --invert-grep 2>/dev/null || echo "0")
+          # Get files changed since last release (excluding version bump commits)
+          CHANGED_FILES=$(git log ${LAST_TAG}..HEAD --grep="chore(release):" --invert-grep --name-only --pretty=format: | sort -u | grep -v '^$' || echo "")
 
-          echo "Commits since $LAST_TAG (excluding version bumps): $COMMITS_SINCE_RELEASE"
+          if [ -z "$CHANGED_FILES" ]; then
+            echo "No files changed since last release"
+            echo "needs_release=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
 
-          if [ "$COMMITS_SINCE_RELEASE" -gt 0 ]; then
+          echo "Files changed since $LAST_TAG:"
+          echo "$CHANGED_FILES"
+
+          # Filter out .github/ changes unless override is set
+          INCLUDE_CI="${{ inputs.include_ci_changes }}"
+          if [ "$INCLUDE_CI" != "true" ]; then
+            RELEASE_FILES=$(echo "$CHANGED_FILES" | grep -v '^\.github/' || echo "")
+          else
+            RELEASE_FILES="$CHANGED_FILES"
+            echo "(including .github/ changes due to manual override)"
+          fi
+
+          if [ -n "$RELEASE_FILES" ]; then
             echo "needs_release=true" >> $GITHUB_OUTPUT
-            echo "Release needed - found $COMMITS_SINCE_RELEASE commits since last release (defaulting to patch)"
+            echo "Release needed - found changes outside .github/"
           else
             echo "needs_release=false" >> $GITHUB_OUTPUT
-            echo "No release needed - no changes since last release"
+            echo "No release needed - only .github/ changes detected"
           fi
         env:
           GITHUB_TOKEN: ${{ steps.get_token.outputs.token }}
