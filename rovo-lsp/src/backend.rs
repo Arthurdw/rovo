@@ -223,7 +223,11 @@ impl LanguageServer for Backend {
         if let Some(location) = handlers::goto_path_param_definition(
             &content,
             position,
-            params.text_document_position_params.text_document.uri.clone(),
+            params
+                .text_document_position_params
+                .text_document
+                .uri
+                .clone(),
         ) {
             return Ok(Some(GotoDefinitionResponse::Scalar(location)));
         }

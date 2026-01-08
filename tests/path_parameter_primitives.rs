@@ -193,7 +193,10 @@ fn test_bool_path_parameter() {
     let get_op = path.get.as_ref().unwrap();
 
     let active_param = find_path_parameter(&get_op.parameters, "active");
-    assert!(active_param.is_some(), "Should have 'active' path parameter");
+    assert!(
+        active_param.is_some(),
+        "Should have 'active' path parameter"
+    );
 }
 
 // =============================================================================

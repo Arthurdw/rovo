@@ -1548,7 +1548,11 @@ async fn get_item(Path(id): Path<String>) -> impl IntoApiResponse {
     let edits = changes.values().next().unwrap();
 
     // Should have at least 3 edits: doc param, binding, and usage in body
-    assert!(edits.len() >= 2, "Expected at least 2 edits, got {}", edits.len());
+    assert!(
+        edits.len() >= 2,
+        "Expected at least 2 edits, got {}",
+        edits.len()
+    );
 
     // Check that one edit is for the doc line
     let doc_edit = edits.iter().find(|e| e.range.start.line == 3);
@@ -1616,7 +1620,10 @@ async fn get_item(Path((collection_id, index)): Path<(String, u32)>) -> impl Int
     let edits = changes.values().next().unwrap();
 
     // Should have multiple edits for doc, binding, and usages
-    assert!(edits.len() >= 2, "Expected at least 2 edits for tuple param rename");
+    assert!(
+        edits.len() >= 2,
+        "Expected at least 2 edits for tuple param rename"
+    );
 }
 
 #[test]
@@ -1661,7 +1668,10 @@ async fn get_item(Path(id): Path<String>) -> impl IntoApiResponse {
 
     let result = handlers::prepare_rename(content, position);
     // Should return None - no doc to update, let rust-analyzer handle it
-    assert!(result.is_none(), "Should not claim rename for undocumented binding");
+    assert!(
+        result.is_none(),
+        "Should not claim rename for undocumented binding"
+    );
 }
 
 #[test]
@@ -1684,7 +1694,10 @@ async fn get_item(Path(id): Path<String>) -> impl IntoApiResponse {
 
     let result = handlers::prepare_rename(content, position);
     // Should return Some - we have a doc to update
-    assert!(result.is_some(), "Should claim rename for documented binding");
+    assert!(
+        result.is_some(),
+        "Should claim rename for documented binding"
+    );
     let (_, name) = result.unwrap();
     assert_eq!(name, "id");
 }
@@ -1791,7 +1804,11 @@ async fn get_item(Path(id): Path<String>) -> impl IntoApiResponse {
     assert!(result.is_some(), "Should find references");
     let refs = result.unwrap();
     // Should find: doc, binding, body usage
-    assert!(refs.len() >= 3, "Should find at least 3 references (doc, binding, body), got {}", refs.len());
+    assert!(
+        refs.len() >= 3,
+        "Should find at least 3 references (doc, binding, body), got {}",
+        refs.len()
+    );
 }
 
 #[test]
@@ -1868,7 +1885,10 @@ async fn get_item(Path((a, b)): Path<(String, u32)>) -> impl IntoApiResponse {
     assert!(result.is_some(), "Should find references for tuple param");
     let refs = result.unwrap();
     // Should find: doc, binding, body usage
-    assert!(refs.len() >= 3, "Should find references for 'a': doc, binding, body");
+    assert!(
+        refs.len() >= 3,
+        "Should find references for 'a': doc, binding, body"
+    );
 }
 
 #[test]
@@ -1889,5 +1909,8 @@ async fn get_item() -> impl IntoApiResponse {
     let uri = Url::parse("file:///test.rs").unwrap();
     let result = handlers::find_path_param_references(content, position, uri);
 
-    assert!(result.is_none(), "Should return None when not on a path param");
+    assert!(
+        result.is_none(),
+        "Should return None when not on a path param"
+    );
 }

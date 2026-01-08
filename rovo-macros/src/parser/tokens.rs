@@ -62,7 +62,9 @@ pub fn extract_path_info(tokens: &TokenStream) -> Option<PathParamInfo> {
         if !binding_content.contains('{') {
             if binding_content.starts_with('(') {
                 // Tuple pattern like "(a, b)"
-                let inner = binding_content.trim_start_matches('(').trim_end_matches(')');
+                let inner = binding_content
+                    .trim_start_matches('(')
+                    .trim_end_matches(')');
                 for s in inner.split(',') {
                     let binding = s.trim().to_string();
                     if !binding.is_empty() && !all_bindings.contains(&binding) {
@@ -224,10 +226,16 @@ mod tests {
 
     #[test]
     fn extracts_from_full_function() {
-        let tokens: TokenStream = "async fn get_user_by_u64(Path(id): Path<u64>) -> Json<String> { }".parse().unwrap();
+        let tokens: TokenStream =
+            "async fn get_user_by_u64(Path(id): Path<u64>) -> Json<String> { }"
+                .parse()
+                .unwrap();
         eprintln!("Full function token string: '{}'", tokens.to_string());
         let result = extract_path_info(&tokens);
-        assert!(result.is_some(), "Should extract path info from full function");
+        assert!(
+            result.is_some(),
+            "Should extract path info from full function"
+        );
         let info = result.unwrap();
         eprintln!("Bindings: {:?}", info.bindings);
         eprintln!("Inner type: '{}'", info.inner_type);
@@ -250,7 +258,10 @@ mod tests {
         let tokens: TokenStream = code.parse().unwrap();
         eprintln!("With docs token string: '{}'", tokens.to_string());
         let result = extract_path_info(&tokens);
-        assert!(result.is_some(), "Should extract path info from function with docs");
+        assert!(
+            result.is_some(),
+            "Should extract path info from function with docs"
+        );
         let info = result.unwrap();
         eprintln!("Bindings: {:?}", info.bindings);
         eprintln!("Inner type: '{}'", info.inner_type);
@@ -284,12 +295,19 @@ mod tests {
         eprintln!("func_item.path_params: {:?}", func_item.path_params);
         eprintln!("doc_info.path_params: {:?}", doc_info.path_params);
 
-        assert!(func_item.path_params.is_some(), "Should have path_params in func_item");
+        assert!(
+            func_item.path_params.is_some(),
+            "Should have path_params in func_item"
+        );
         let path_info = func_item.path_params.unwrap();
         assert_eq!(path_info.bindings, vec!["id"]);
         assert!(!path_info.is_struct_pattern);
 
-        assert_eq!(doc_info.path_params.len(), 1, "Should have one path param doc");
+        assert_eq!(
+            doc_info.path_params.len(),
+            1,
+            "Should have one path param doc"
+        );
         assert_eq!(doc_info.path_params[0].name, "id");
     }
 
@@ -306,7 +324,9 @@ mod tests {
 
     #[test]
     fn extracts_tuple_bindings() {
-        let tokens: TokenStream = "Path((collection_id, index)): Path<(Uuid, u32)>".parse().unwrap();
+        let tokens: TokenStream = "Path((collection_id, index)): Path<(Uuid, u32)>"
+            .parse()
+            .unwrap();
         let result = extract_path_info(&tokens);
         assert!(result.is_some());
         let info = result.unwrap();
@@ -328,7 +348,9 @@ mod tests {
 
     #[test]
     fn handles_path_with_state() {
-        let tokens: TokenStream = "State(_state): State<AppState>, Path(id): Path<String>".parse().unwrap();
+        let tokens: TokenStream = "State(_state): State<AppState>, Path(id): Path<String>"
+            .parse()
+            .unwrap();
         let result = extract_path_info(&tokens);
         assert!(result.is_some());
         let info = result.unwrap();
@@ -338,14 +360,22 @@ mod tests {
 
     #[test]
     fn handles_multiple_path_extractors() {
-        let tokens: TokenStream = "Path(id): Path<Uuid>, Path(name): Path<String>".parse().unwrap();
+        let tokens: TokenStream = "Path(id): Path<Uuid>, Path(name): Path<String>"
+            .parse()
+            .unwrap();
         eprintln!("Multiple path extractors: '{}'", tokens.to_string());
         let result = extract_path_info(&tokens);
         assert!(result.is_some(), "Should extract multiple path extractors");
         let info = result.unwrap();
         eprintln!("Bindings: {:?}", info.bindings);
-        assert!(info.bindings.contains(&"id".to_string()), "Should have 'id'");
-        assert!(info.bindings.contains(&"name".to_string()), "Should have 'name'");
+        assert!(
+            info.bindings.contains(&"id".to_string()),
+            "Should have 'id'"
+        );
+        assert!(
+            info.bindings.contains(&"name".to_string()),
+            "Should have 'name'"
+        );
         assert_eq!(info.bindings.len(), 2);
     }
 
@@ -356,14 +386,25 @@ mod tests {
                 Path(id): Path<Uuid>,
                 Path(id2): Path<String>,
             ) -> impl IntoApiResponse { }
-        "#.parse().unwrap();
+        "#
+        .parse()
+        .unwrap();
         eprintln!("Multiline path extractors: '{}'", tokens.to_string());
         let result = extract_path_info(&tokens);
-        assert!(result.is_some(), "Should extract multiple path extractors from multiline");
+        assert!(
+            result.is_some(),
+            "Should extract multiple path extractors from multiline"
+        );
         let info = result.unwrap();
         eprintln!("Bindings: {:?}", info.bindings);
-        assert!(info.bindings.contains(&"id".to_string()), "Should have 'id'");
-        assert!(info.bindings.contains(&"id2".to_string()), "Should have 'id2'");
+        assert!(
+            info.bindings.contains(&"id".to_string()),
+            "Should have 'id'"
+        );
+        assert!(
+            info.bindings.contains(&"id2".to_string()),
+            "Should have 'id2'"
+        );
         assert_eq!(info.bindings.len(), 2);
     }
 

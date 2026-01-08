@@ -88,7 +88,12 @@ pub fn get_completions(content: &str, position: Position) -> Vec<CompletionItem>
         SectionContext::PathParametersSection => {
             // In # Path Parameters section, complete parameter lines
             if after_doc.is_empty() || after_doc.chars().all(|c| c.is_alphanumeric() || c == '_') {
-                return get_path_parameter_line_completions(content, &lines, position.line, after_doc);
+                return get_path_parameter_line_completions(
+                    content,
+                    &lines,
+                    position.line,
+                    after_doc,
+                );
             }
         }
         SectionContext::ResponsesSection => {
@@ -331,9 +336,7 @@ fn extract_path_bindings_from_context(
             // Parse the bindings
             for binding in bindings_str.split(',') {
                 let binding = binding.trim();
-                if !binding.is_empty()
-                    && binding.chars().all(|c| c.is_alphanumeric() || c == '_')
-                {
+                if !binding.is_empty() && binding.chars().all(|c| c.is_alphanumeric() || c == '_') {
                     bindings.push(binding.to_string());
                 }
             }
@@ -844,7 +847,8 @@ mod tests {
 
     #[test]
     fn test_path_parameters_completion_from_signature() {
-        let content = "/// # Path Parameters\n/// \n#[rovo]\nasync fn get_user(Path(user_id): Path<u64>) {}";
+        let content =
+            "/// # Path Parameters\n/// \n#[rovo]\nasync fn get_user(Path(user_id): Path<u64>) {}";
         let position = Position {
             line: 1,
             character: 4,
@@ -889,7 +893,10 @@ mod tests {
             completions.iter().any(|c| c.label == "collection_id"),
             "Should find collection_id"
         );
-        assert!(completions.iter().any(|c| c.label == "index"), "Should find index");
+        assert!(
+            completions.iter().any(|c| c.label == "index"),
+            "Should find index"
+        );
     }
 
     #[test]

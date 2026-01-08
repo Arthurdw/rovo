@@ -39,7 +39,10 @@ fn is_primitive_tuple(type_str: &str) -> bool {
 
 /// Extract individual types from a tuple type string like "(Uuid, u32)"
 fn extract_tuple_types(type_str: &str) -> Vec<String> {
-    let inner = type_str.trim().trim_start_matches('(').trim_end_matches(')');
+    let inner = type_str
+        .trim()
+        .trim_start_matches('(')
+        .trim_end_matches(')');
     inner
         .split(',')
         .map(|t| t.trim().to_string())
@@ -357,10 +360,8 @@ pub fn rovo(_attr: TokenStream, item: TokenStream) -> TokenStream {
             };
 
             // Generate path parameter setters for primitive types
-            let path_param_setters = generate_path_param_setters(
-                func_item.path_params.as_ref(),
-                &doc_info.path_params,
-            );
+            let path_param_setters =
+                generate_path_param_setters(func_item.path_params.as_ref(), &doc_info.path_params);
 
             // Generate an internal implementation name
             let impl_name = quote::format_ident!("__{}_impl", func_name);

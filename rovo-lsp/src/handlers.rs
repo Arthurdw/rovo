@@ -294,7 +294,12 @@ pub fn find_path_param_references(
 
     // Find in # Path Parameters section
     let mut in_path_params = false;
-    for (idx, line) in lines.iter().enumerate().skip(doc_start).take(fn_end - doc_start + 1) {
+    for (idx, line) in lines
+        .iter()
+        .enumerate()
+        .skip(doc_start)
+        .take(fn_end - doc_start + 1)
+    {
         let trimmed = line.trim_start().trim_start_matches("///").trim();
 
         if trimmed.starts_with("# ") {
@@ -334,7 +339,12 @@ pub fn find_path_param_references(
     }
 
     // Find in Path binding
-    for (idx, line) in lines.iter().enumerate().skip(doc_start).take(fn_end - doc_start + 1) {
+    for (idx, line) in lines
+        .iter()
+        .enumerate()
+        .skip(doc_start)
+        .take(fn_end - doc_start + 1)
+    {
         if let Some(path_pos) = line.find("Path(") {
             let after_path = &line[path_pos + 5..];
 
@@ -384,7 +394,12 @@ pub fn find_path_param_references(
     let re = regex::Regex::new(&word_pattern).ok()?;
 
     let mut in_fn_body = false;
-    for (idx, line) in lines.iter().enumerate().skip(doc_start).take(fn_end - doc_start + 1) {
+    for (idx, line) in lines
+        .iter()
+        .enumerate()
+        .skip(doc_start)
+        .take(fn_end - doc_start + 1)
+    {
         if !in_fn_body {
             if line.contains('{') {
                 in_fn_body = true;
@@ -420,11 +435,7 @@ pub fn find_path_param_references(
 }
 
 /// Go to the definition of a path parameter (the doc comment)
-pub fn goto_path_param_definition(
-    content: &str,
-    position: Position,
-    uri: Url,
-) -> Option<Location> {
+pub fn goto_path_param_definition(content: &str, position: Position, uri: Url) -> Option<Location> {
     let line_idx = position.line as usize;
     let lines: Vec<&str> = content.lines().collect();
 
@@ -453,7 +464,12 @@ pub fn goto_path_param_definition(
 
     // Find the definition in # Path Parameters section
     let mut in_path_params = false;
-    for (idx, line) in lines.iter().enumerate().skip(doc_start).take(fn_end - doc_start + 1) {
+    for (idx, line) in lines
+        .iter()
+        .enumerate()
+        .skip(doc_start)
+        .take(fn_end - doc_start + 1)
+    {
         let trimmed = line.trim_start().trim_start_matches("///").trim();
 
         if trimmed.starts_with("# ") {
@@ -506,7 +522,12 @@ fn goto_path_param_binding(
     let (doc_start, fn_end) = find_rovo_block_boundaries(content, line_idx)?;
 
     // Find the Path( binding in the function signature
-    for (idx, line) in lines.iter().enumerate().skip(doc_start).take(fn_end - doc_start + 1) {
+    for (idx, line) in lines
+        .iter()
+        .enumerate()
+        .skip(doc_start)
+        .take(fn_end - doc_start + 1)
+    {
         if let Some(path_pos) = line.find("Path(") {
             let after_path = &line[path_pos + 5..];
 
@@ -1011,7 +1032,9 @@ fn rename_path_parameter(
     // Try to get the old name from either doc or binding
     let old_name = get_path_param_at_position(content, line_idx, char_idx)
         .map(|(name, _)| name)
-        .or_else(|| get_path_binding_at_position(content, line_idx, char_idx).map(|(name, _)| name))?;
+        .or_else(|| {
+            get_path_binding_at_position(content, line_idx, char_idx).map(|(name, _)| name)
+        })?;
 
     // Find the rovo block boundaries
     let (doc_start, fn_end) = find_rovo_block_boundaries(content, line_idx)?;
@@ -1020,7 +1043,12 @@ fn rename_path_parameter(
 
     // Find and rename in # Path Parameters section
     let mut in_path_params = false;
-    for (idx, line) in lines.iter().enumerate().skip(doc_start).take(fn_end - doc_start + 1) {
+    for (idx, line) in lines
+        .iter()
+        .enumerate()
+        .skip(doc_start)
+        .take(fn_end - doc_start + 1)
+    {
         let trimmed = line.trim_start().trim_start_matches("///").trim();
 
         if trimmed.starts_with("# ") {
@@ -1062,7 +1090,12 @@ fn rename_path_parameter(
     }
 
     // Find and rename Path binding in function signature
-    for (idx, line) in lines.iter().enumerate().skip(doc_start).take(fn_end - doc_start + 1) {
+    for (idx, line) in lines
+        .iter()
+        .enumerate()
+        .skip(doc_start)
+        .take(fn_end - doc_start + 1)
+    {
         if let Some(path_pos) = line.find("Path(") {
             let after_path = &line[path_pos + 5..];
 
@@ -1123,7 +1156,12 @@ fn rename_path_parameter(
     // Find function body start (after the opening brace)
     let mut in_fn_body = false;
 
-    for (idx, line) in lines.iter().enumerate().skip(doc_start).take(fn_end - doc_start + 1) {
+    for (idx, line) in lines
+        .iter()
+        .enumerate()
+        .skip(doc_start)
+        .take(fn_end - doc_start + 1)
+    {
         // Track when we enter the function body (start AFTER the line with opening brace)
         if !in_fn_body {
             if line.contains('{') {
@@ -1388,7 +1426,8 @@ pub fn semantic_tokens_full(content: &str) -> Option<SemanticTokensResult> {
     let tag_value_regex = regex::Regex::new(r"@(?:tag|id)\s+(\w+)").unwrap();
     let status_regex = regex::Regex::new(r"\b([1-5][0-9]{2})\b").unwrap();
     let security_regex = regex::Regex::new(r"\b(bearer|basic|apiKey|oauth2)\b").unwrap();
-    let section_regex = regex::Regex::new(r"^///\s*#\s+(Path Parameters|Responses|Examples|Metadata)\b").unwrap();
+    let section_regex =
+        regex::Regex::new(r"^///\s*#\s+(Path Parameters|Responses|Examples|Metadata)\b").unwrap();
     // Match path param lines: "/// param_name: description"
     let path_param_regex = regex::Regex::new(r"^///\s+(\w+):\s").unwrap();
 
@@ -1462,7 +1501,7 @@ pub fn semantic_tokens_full(content: &str) -> Option<SemanticTokensResult> {
                         delta_line,
                         delta_start,
                         length,
-                        token_type: 5,             // PARAMETER type for path param names
+                        token_type: 5, // PARAMETER type for path param names
                         token_modifiers_bitset: 1, // DOCUMENTATION modifier (bit 0)
                     });
 
