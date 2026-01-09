@@ -43,7 +43,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Migration Guide
 
-**For LLMs: Adding path parameter documentation**
+#### For LLMs: Adding path parameter documentation
 
 Search for functions with `Path(` extractors that lack `# Path Parameters` sections:
 
@@ -61,7 +61,7 @@ async fn get_user(Path(id): Path<u64>) -> Json<User> { }
 async fn get_user(Path(id): Path<u64>) -> Json<User> { }
 ```
 
-**For LLMs: Tuple path parameters**
+#### For LLMs: Tuple path parameters
 
 ```rust
 // Before
@@ -78,7 +78,9 @@ async fn get_item(Path((collection_id, item_id)): Path<(Uuid, u32)>) -> Json<Ite
 async fn get_item(Path((collection_id, item_id)): Path<(Uuid, u32)>) -> Json<Item> { }
 ```
 
-**Struct patterns are NOT auto-documented** - they should derive JsonSchema:
+#### Struct patterns are NOT auto-documented
+
+They should derive JsonSchema:
 
 ```rust
 // This pattern is detected but skipped by the LSP:
@@ -92,9 +94,9 @@ struct UserId {
 }
 ```
 
-**Copy-paste regex for finding undocumented path parameters:**
+#### Copy-paste regex for finding undocumented path parameters
 
-```
+```text
 Pattern: async fn \w+\([^)]*Path\((\w+)\)[^)]*\)[^{]*\{
 Check: Ensure matching functions have `# Path Parameters` section with `$1:` entry
 ```
