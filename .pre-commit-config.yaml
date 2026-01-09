@@ -74,7 +74,7 @@ repos:
 
       - id: vscode-lint
         name: VSCode extension lint
-        entry: bash -c 'cd vscode-rovo && [ -d node_modules ] || npm install && npm run lint'
+        entry: bash -c 'cd vscode-rovo && ( [ -d node_modules ] || npm install ) && npm run lint'
         language: system
         files: ^vscode-rovo/.*\.(ts|js)$
         pass_filenames: false
@@ -82,7 +82,7 @@ repos:
 
       - id: vscode-typecheck
         name: VSCode extension type check
-        entry: bash -c 'cd vscode-rovo && [ -d node_modules ] || npm install && npm test'
+        entry: bash -c 'cd vscode-rovo && ( [ -d node_modules ] || npm install ) && npm test'
         language: system
         files: ^vscode-rovo/.*\.(ts|js)$
         pass_filenames: false
@@ -90,7 +90,7 @@ repos:
 
       - id: vscode-compile
         name: VSCode extension compile
-        entry: bash -c 'cd vscode-rovo && [ -d node_modules ] || npm install && npm run compile'
+        entry: bash -c 'cd vscode-rovo && ( [ -d node_modules ] || npm install ) && npm run compile'
         language: system
         files: ^vscode-rovo/.*\.(ts|js)$
         pass_filenames: false

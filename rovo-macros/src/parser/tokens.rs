@@ -486,4 +486,159 @@ mod tests {
         let result = extract_doc_text(attr);
         assert_eq!(result, r"Line 1\nLine 2\nLine 3");
     }
+
+    // Additional edge case tests for coverage
+
+    #[test]
+    fn returns_none_for_empty_tokens() {
+        let tokens: TokenStream = "".parse().unwrap();
+        let result = extract_path_info(&tokens);
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn returns_none_for_non_path_tokens() {
+        let tokens: TokenStream = "Json<User>, Query<Params>".parse().unwrap();
+        let result = extract_path_info(&tokens);
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn handles_path_type_without_binding() {
+        // Just the type annotation without the binding pattern
+        let tokens: TokenStream = "Path<u64>".parse().unwrap();
+        let result = extract_path_info(&tokens);
+        // Path<u64> without Path(binding) pattern should return None
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn handles_path_followed_by_angle_brackets() {
+        // Path followed by angle brackets (not a binding pattern)
+        let tokens: TokenStream = "Path<String>".parse().unwrap();
+        let result = extract_path_info(&tokens);
+        // Should return None since there's no Path(binding) pattern
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn handles_empty_binding() {
+        let tokens: TokenStream = "Path(): Path<u64>".parse().unwrap();
+        let result = extract_path_info(&tokens);
+        // Empty binding should be handled
+        assert!(result.is_none() || result.unwrap().bindings.is_empty());
+    }
+
+    #[test]
+    fn handles_empty_tuple_binding() {
+        let tokens: TokenStream = "Path(()): Path<()>".parse().unwrap();
+        let result = extract_path_info(&tokens);
+        // Empty tuple should be handled
+        let _ = result;
+    }
+
+    #[test]
+    fn handles_nested_generics_in_type() {
+        let tokens: TokenStream = "Path(data): Path<Vec<Option<String>>>".parse().unwrap();
+        let result = extract_path_info(&tokens);
+        assert!(result.is_some());
+        let info = result.unwrap();
+        assert_eq!(info.bindings, vec!["data"]);
+        assert!(info.inner_type.contains("Vec"));
+        assert!(info.inner_type.contains("Option"));
+    }
+
+    #[test]
+    fn handles_path_with_spaces() {
+        let tokens: TokenStream = "Path ( id ) : Path < u64 >".parse().unwrap();
+        let result = extract_path_info(&tokens);
+        assert!(result.is_some());
+        let info = result.unwrap();
+        assert_eq!(info.bindings, vec!["id"]);
+    }
+
+    #[test]
+    fn handles_duplicate_bindings() {
+        // Same binding name appearing twice (unusual but possible)
+        let tokens: TokenStream = "Path(id): Path<u64>, Path(id): Path<String>"
+            .parse()
+            .unwrap();
+        let result = extract_path_info(&tokens);
+        assert!(result.is_some());
+        let info = result.unwrap();
+        // Should not duplicate
+        assert_eq!(info.bindings.len(), 1);
+        assert_eq!(info.bindings[0], "id");
+    }
+
+    #[test]
+    fn handles_complex_struct_destructure() {
+        let tokens: TokenStream = "Path(MyStruct { field1, field2 }): Path<MyStruct>"
+            .parse()
+            .unwrap();
+        let result = extract_path_info(&tokens);
+        assert!(result.is_some());
+        let info = result.unwrap();
+        assert!(info.is_struct_pattern);
+    }
+
+    #[test]
+    fn find_path_pattern_returns_none_for_path_type_only() {
+        // Test the find_path_pattern helper with just Path<T> (no binding)
+        let s = "Path<u64>";
+        let result = find_path_pattern(s);
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn find_path_pattern_finds_path_with_space() {
+        let s = "Path (id)";
+        let result = find_path_pattern(s);
+        assert!(result.is_some());
+        assert_eq!(result.unwrap(), 0);
+    }
+
+    #[test]
+    fn extract_state_handles_malformed_input() {
+        // No closing bracket
+        let tokens: TokenStream = "State<AppState".parse().unwrap();
+        let result = extract_state_type(&tokens);
+        // Should handle gracefully
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn extract_state_handles_empty_type() {
+        let tokens: TokenStream = "State<>".parse().unwrap();
+        let result = extract_state_type(&tokens);
+        // Empty type should be handled
+        let _ = result;
+    }
+
+    #[test]
+    fn extract_path_with_three_extractors() {
+        let tokens: TokenStream = "Path(a): Path<u64>, Path(b): Path<String>, Path(c): Path<bool>"
+            .parse()
+            .unwrap();
+        let result = extract_path_info(&tokens);
+        assert!(result.is_some());
+        let info = result.unwrap();
+        assert_eq!(info.bindings.len(), 3);
+        // Types should be combined into tuple format
+        assert!(info.inner_type.contains("u64"));
+        assert!(info.inner_type.contains("String"));
+        assert!(info.inner_type.contains("bool"));
+    }
+
+    #[test]
+    fn extract_path_with_no_type_annotation() {
+        // Just the binding without type (unusual but possible)
+        let tokens: TokenStream = "Path(id)".parse().unwrap();
+        let result = extract_path_info(&tokens);
+        assert!(result.is_some());
+        let info = result.unwrap();
+        assert_eq!(info.bindings, vec!["id"]);
+        // No type should result in empty inner_type
+        assert!(info.inner_type.is_empty());
+    }
 }

@@ -941,4 +941,177 @@ mod tests {
         let context = detect_section_context(&lines, 4);
         assert_eq!(context, SectionContext::PathParametersSection);
     }
+
+    // Additional coverage tests
+
+    #[test]
+    fn test_detect_responses_section_context() {
+        let lines = vec!["/// # Responses", "///", "/// "];
+        let context = detect_section_context(&lines, 2);
+        assert_eq!(context, SectionContext::ResponsesSection);
+    }
+
+    #[test]
+    fn test_detect_examples_section_context() {
+        let lines = vec!["/// # Examples", "///", "/// "];
+        let context = detect_section_context(&lines, 2);
+        assert_eq!(context, SectionContext::ExamplesSection);
+    }
+
+    #[test]
+    fn test_detect_metadata_section_context() {
+        let lines = vec!["/// # Metadata", "///", "/// "];
+        let context = detect_section_context(&lines, 2);
+        assert_eq!(context, SectionContext::MetadataSection);
+    }
+
+    #[test]
+    fn test_detect_no_section_context() {
+        let lines = vec!["/// Just a description", "///", "/// More text"];
+        let context = detect_section_context(&lines, 2);
+        assert_eq!(context, SectionContext::None);
+    }
+
+    #[test]
+    fn test_responses_section_completions() {
+        let content = "/// # Responses\n/// ";
+        let position = Position {
+            line: 1,
+            character: 4,
+        };
+        let completions = get_completions(content, position);
+        // Should offer response completions
+        assert!(
+            completions.iter().any(|c| c.label.contains("200")),
+            "Should have 200 response completion"
+        );
+    }
+
+    #[test]
+    fn test_examples_section_completions() {
+        let content = "/// # Examples\n/// ";
+        let position = Position {
+            line: 1,
+            character: 4,
+        };
+        let completions = get_completions(content, position);
+        // Should offer example completions
+        assert!(
+            completions.iter().any(|c| c.label.contains("example")),
+            "Should have example completion"
+        );
+    }
+
+    #[test]
+    fn test_metadata_section_completions() {
+        let content = "/// # Metadata\n/// @";
+        let position = Position {
+            line: 1,
+            character: 5,
+        };
+        let completions = get_completions(content, position);
+        // Should offer metadata annotations
+        assert!(completions.iter().any(|c| c.label == "@tag"));
+        assert!(completions.iter().any(|c| c.label == "@security"));
+    }
+
+    #[test]
+    fn test_security_scheme_completions_no_filter() {
+        let completions = get_security_scheme_completions("");
+        // Should return all 4 schemes
+        assert_eq!(completions.len(), 4);
+        assert!(completions.iter().any(|c| c.label == "bearer"));
+        assert!(completions.iter().any(|c| c.label == "basic"));
+        assert!(completions.iter().any(|c| c.label == "apiKey"));
+        assert!(completions.iter().any(|c| c.label == "oauth2"));
+    }
+
+    #[test]
+    fn test_security_scheme_completions_no_match() {
+        let completions = get_security_scheme_completions("xyz");
+        // No schemes match "xyz"
+        assert!(completions.is_empty());
+    }
+
+    #[test]
+    fn test_section_completions_all_sections() {
+        let completions = get_section_completions("# ", &SectionContext::None);
+        assert_eq!(completions.len(), 4);
+        assert!(completions.iter().any(|c| c.label == "# Responses"));
+        assert!(completions.iter().any(|c| c.label == "# Examples"));
+        assert!(completions.iter().any(|c| c.label == "# Metadata"));
+        assert!(completions.iter().any(|c| c.label == "# Path Parameters"));
+    }
+
+    #[test]
+    fn test_section_completions_filter() {
+        let completions = get_section_completions("# R", &SectionContext::None);
+        // Should only match "# Responses"
+        assert_eq!(completions.len(), 1);
+        assert_eq!(completions[0].label, "# Responses");
+    }
+
+    #[test]
+    fn test_response_line_completions() {
+        let completions = get_response_line_completions();
+        assert!(!completions.is_empty());
+        // Should have 200, 201, 404 responses
+        assert!(completions.iter().any(|c| c.label.contains("200")));
+        assert!(completions.iter().any(|c| c.label.contains("201")));
+        assert!(completions.iter().any(|c| c.label.contains("404")));
+    }
+
+    #[test]
+    fn test_example_line_completions() {
+        let completions = get_example_line_completions();
+        assert!(!completions.is_empty());
+        assert!(completions.iter().any(|c| c.label.contains("200")));
+    }
+
+    #[test]
+    fn test_path_params_with_filter() {
+        let content =
+            "/// # Path Parameters\n/// u\n#[rovo]\nasync fn get_user(Path(user_id): Path<u64>) {}";
+        let position = Position {
+            line: 1,
+            character: 5,
+        };
+        let completions = get_completions(content, position);
+        // Should filter to bindings starting with 'u'
+        assert!(completions.iter().any(|c| c.label == "user_id"));
+    }
+
+    #[test]
+    fn test_completions_out_of_bounds() {
+        let content = "/// @tag";
+        let position = Position {
+            line: 5, // Out of bounds
+            character: 0,
+        };
+        let completions = get_completions(content, position);
+        assert!(completions.is_empty());
+    }
+
+    #[test]
+    fn test_detect_context_stops_at_non_comment() {
+        let lines = vec!["fn foo() {}", "/// # Responses", "/// "];
+        let context = detect_section_context(&lines, 2);
+        assert_eq!(context, SectionContext::ResponsesSection);
+    }
+
+    #[test]
+    fn test_extract_path_bindings_no_path() {
+        let content =
+            "/// # Path Parameters\n/// \n#[rovo]\nasync fn get_user(Query(q): Query<String>) {}";
+        let lines: Vec<&str> = content.lines().collect();
+        let bindings = extract_path_bindings_from_context(content, &lines, 1);
+        assert!(bindings.is_empty());
+    }
+
+    #[test]
+    fn test_get_documented_params_not_in_section() {
+        let lines = vec!["/// Just a comment", "/// id: some text"];
+        let documented = get_documented_path_params(&lines, 1);
+        assert!(documented.is_empty());
+    }
 }

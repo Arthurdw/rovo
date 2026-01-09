@@ -580,3 +580,165 @@ async fn handler2(Path(id2): Path<u64>) {}
     assert_eq!(diagnostics.len(), 1);
     assert!(diagnostics[0].message.contains("'id1'"));
 }
+
+// Additional coverage tests
+
+#[test]
+fn reports_example_with_incomplete_expression() {
+    let content = r#"
+/// # Examples
+///
+/// 200: { id: 1
+#[rovo]
+async fn handler() {}
+"#;
+    let diagnostics = validate_annotations(content);
+    assert!(!diagnostics.is_empty());
+    let has_example_error = diagnostics
+        .iter()
+        .any(|d| d.message.contains("example") || d.message.contains("expression"));
+    assert!(has_example_error, "Should report incomplete example error");
+}
+
+#[test]
+fn reports_example_with_missing_comma() {
+    let content = r#"
+/// # Examples
+///
+/// 200: { id: 1 name: "test" }
+#[rovo]
+async fn handler() {}
+"#;
+    let diagnostics = validate_annotations(content);
+    assert!(!diagnostics.is_empty());
+    let has_example_error = diagnostics
+        .iter()
+        .any(|d| d.message.contains("example") || d.message.contains("Syntax"));
+    assert!(has_example_error, "Should report syntax error in example");
+}
+
+#[test]
+fn accepts_valid_example() {
+    let content = r#"
+/// # Examples
+///
+/// 200: User { id: 1, name: "test".to_string() }
+#[rovo]
+async fn handler() {}
+"#;
+    let diagnostics = validate_annotations(content);
+    let example_errors = diagnostics
+        .iter()
+        .filter(|d| d.message.contains("example"))
+        .count();
+    assert_eq!(
+        example_errors, 0,
+        "Should not report error for valid example"
+    );
+}
+
+#[test]
+fn handles_multiline_example() {
+    let content = r#"
+/// # Examples
+///
+/// 200: User {
+///     id: 1,
+///     name: "test".to_string()
+/// }
+#[rovo]
+async fn handler() {}
+"#;
+    let diagnostics = validate_annotations(content);
+    let example_errors: Vec<_> = diagnostics
+        .iter()
+        .filter(|d| d.message.contains("example"))
+        .collect();
+    assert!(
+        example_errors.is_empty(),
+        "Should not report error for valid multiline example"
+    );
+}
+
+#[test]
+fn reports_multiline_example_error_with_span() {
+    let content = r#"
+/// # Examples
+///
+/// 200: User {
+///     id: 1
+///     name: "test"
+/// }
+#[rovo]
+async fn handler() {}
+"#;
+    let diagnostics = validate_annotations(content);
+    let example_errors: Vec<_> = diagnostics
+        .iter()
+        .filter(|d| d.message.contains("example") || d.message.contains("Syntax"))
+        .collect();
+    assert!(
+        !example_errors.is_empty(),
+        "Should report multiline example error"
+    );
+    // The error should have an end_line for multiline spans
+    if let Some(error) = example_errors.first() {
+        // Check that char_start is set (position after the colon)
+        assert!(
+            error.char_start.is_some(),
+            "Should have char_start for example error"
+        );
+    }
+}
+
+#[test]
+fn handles_pub_fn_after_rovo() {
+    let content = r#"
+#[rovo]
+pub fn handler(Path(id): Path<u64>) {}
+"#;
+    let diagnostics = validate_annotations(content);
+    assert!(!diagnostics.is_empty());
+    assert!(diagnostics[0].message.contains("'id'"));
+}
+
+#[test]
+fn no_warning_when_no_path_params() {
+    let content = r#"
+#[rovo]
+async fn handler(Query(q): Query<String>) {}
+"#;
+    let diagnostics = validate_annotations(content);
+    assert!(
+        diagnostics.is_empty(),
+        "Should not warn when no path params"
+    );
+}
+
+#[test]
+fn handles_rovo_without_function() {
+    // Edge case: #[rovo] not followed by a function
+    let content = r#"
+#[rovo]
+const VALUE: u32 = 42;
+"#;
+    let diagnostics = validate_annotations(content);
+    // Should not crash, no diagnostics expected
+    let _ = diagnostics;
+}
+
+#[test]
+fn handles_empty_content() {
+    let content = "";
+    let diagnostics = validate_annotations(content);
+    assert!(diagnostics.is_empty());
+}
+
+#[test]
+fn handles_content_without_rovo() {
+    let content = r#"
+fn regular_function() {}
+"#;
+    let diagnostics = validate_annotations(content);
+    assert!(diagnostics.is_empty());
+}
