@@ -1,0 +1,6 @@
+error: Documented path parameter 'id' but function has no Path<T> extractor
+       help: add a Path<T> parameter to your function signature
+  --> tests/ui/path_param_no_extractor.rs:10:1
+   |
+10 | /// id: The item identifier
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^

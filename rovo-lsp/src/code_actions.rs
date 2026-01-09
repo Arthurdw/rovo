@@ -76,7 +76,52 @@ pub fn get_code_actions(content: &str, range: Range, uri: Url) -> Vec<CodeAction
         .filter(|ann| ann.line >= doc_start_line && ann.line < insert_line)
         .collect();
 
-    // Action 1: Add response entry
+    // Action 1: Add path parameter entries for undocumented params
+    let undocumented_params = get_undocumented_path_params(content, insert_line);
+    if !undocumented_params.is_empty() {
+        // Add action for each undocumented param
+        for param in &undocumented_params {
+            actions.push(create_smart_section_action(
+                content,
+                &format!("Document path param '{}'", param),
+                "Path Parameters",
+                &format!("{}: Description of {}", param, param),
+                doc_start_line,
+                insert_line,
+                uri.clone(),
+            ));
+        }
+        // Add action to document all at once if multiple
+        if undocumented_params.len() > 1 {
+            let all_params = undocumented_params
+                .iter()
+                .map(|p| format!("{}: Description of {}", p, p))
+                .collect::<Vec<_>>()
+                .join("\n/// ");
+            actions.push(create_smart_section_action(
+                content,
+                "Document all path params",
+                "Path Parameters",
+                &all_params,
+                doc_start_line,
+                insert_line,
+                uri.clone(),
+            ));
+        }
+    } else {
+        // Fallback generic action if no Path() found
+        actions.push(create_smart_section_action(
+            content,
+            "Add path parameter",
+            "Path Parameters",
+            "id: The unique identifier",
+            doc_start_line,
+            insert_line,
+            uri.clone(),
+        ));
+    }
+
+    // Action 2: Add response entry
     actions.push(create_smart_section_action(
         content,
         "Add response",
@@ -87,7 +132,7 @@ pub fn get_code_actions(content: &str, range: Range, uri: Url) -> Vec<CodeAction
         uri.clone(),
     ));
 
-    // Action 2: Add example entry
+    // Action 3: Add example entry
     actions.push(create_smart_section_action(
         content,
         "Add example",
@@ -101,7 +146,7 @@ pub fn get_code_actions(content: &str, range: Range, uri: Url) -> Vec<CodeAction
     // Check if Metadata section exists
     let (has_metadata, _, _) = find_section(content, "Metadata", doc_start_line, insert_line);
 
-    // Action 3: Add @tag
+    // Action 4: Add @tag
     actions.push(create_smart_metadata_action(
         content,
         "Add @tag",
@@ -112,7 +157,7 @@ pub fn get_code_actions(content: &str, range: Range, uri: Url) -> Vec<CodeAction
         uri.clone(),
     ));
 
-    // Action 4: Add @security
+    // Action 5: Add @security
     actions.push(create_smart_metadata_action(
         content,
         "Add @security",
@@ -123,7 +168,7 @@ pub fn get_code_actions(content: &str, range: Range, uri: Url) -> Vec<CodeAction
         uri.clone(),
     ));
 
-    // Action 5: Add @id annotation (only if missing in this block)
+    // Action 6: Add @id annotation (only if missing in this block)
     let has_id = filtered_annotations
         .iter()
         .any(|ann| ann.kind == AnnotationKind::Id);
@@ -140,7 +185,7 @@ pub fn get_code_actions(content: &str, range: Range, uri: Url) -> Vec<CodeAction
         ));
     }
 
-    // Action 6: Add @hidden annotation (only if missing in this block)
+    // Action 7: Add @hidden annotation (only if missing in this block)
     let has_hidden = filtered_annotations
         .iter()
         .any(|ann| ann.kind == AnnotationKind::Hidden);
@@ -157,7 +202,7 @@ pub fn get_code_actions(content: &str, range: Range, uri: Url) -> Vec<CodeAction
         ));
     }
 
-    // Action 7: Add full REST response set (only if this block has no responses yet)
+    // Action 8: Add full REST response set (only if this block has no responses yet)
     let has_responses = filtered_annotations.iter().any(|ann| {
         matches!(
             ann.kind,
@@ -794,7 +839,7 @@ fn find_section_insertion_point(
     let effective_end = find_effective_doc_end(content, doc_start, doc_end);
 
     // Define section order
-    let section_order = ["Responses", "Examples", "Metadata"];
+    let section_order = ["Path Parameters", "Responses", "Examples", "Metadata"];
     let Some(target_index) = section_order.iter().position(|&s| s == section_name) else {
         return effective_end;
     };
@@ -1211,4 +1256,130 @@ fn create_smart_rest_responses_action(
         disabled: None,
         data: None,
     })
+}
+
+/// Get path parameters from function signature that are not yet documented
+fn get_undocumented_path_params(content: &str, rovo_line: usize) -> Vec<String> {
+    let lines: Vec<&str> = content.lines().collect();
+
+    // Collect the entire function signature (from rovo_line to opening brace)
+    let mut signature = String::new();
+    for line in lines.iter().skip(rovo_line) {
+        let trimmed = line.trim();
+
+        // Skip doc comments and attributes
+        if trimmed.starts_with("///") || trimmed.starts_with("#[") {
+            continue;
+        }
+
+        // Stop if we've gone past the function signature (found opening brace)
+        if let Some(brace_pos) = line.find('{') {
+            signature.push_str(&line[..brace_pos]);
+            break;
+        }
+
+        signature.push_str(line);
+        signature.push(' ');
+    }
+
+    // Now extract all Path bindings from the collected signature
+    let mut bindings = Vec::new();
+    let mut search_start = 0;
+
+    while let Some(rel_pos) = signature[search_start..].find("Path(") {
+        let path_pos = search_start + rel_pos;
+        let after_path = &signature[path_pos + 5..];
+
+        // Find the matching closing paren, handling nested parens
+        let mut depth = 1;
+        let mut end_pos = 0;
+        let is_tuple = after_path.starts_with('(');
+
+        for (i, ch) in after_path.char_indices() {
+            match ch {
+                '(' => depth += 1,
+                ')' => {
+                    depth -= 1;
+                    if depth == 0 {
+                        end_pos = i;
+                        break;
+                    }
+                }
+                _ => {}
+            }
+        }
+
+        // Extract bindings string
+        let bindings_str = if is_tuple && end_pos > 1 {
+            // Tuple: Path((a, b)) - skip the inner opening paren
+            &after_path[1..end_pos - 1]
+        } else {
+            &after_path[..end_pos]
+        };
+
+        // Parse the bindings
+        for binding in bindings_str.split(',') {
+            let binding = binding.trim();
+            if !binding.is_empty()
+                && binding.chars().all(|c| c.is_alphanumeric() || c == '_')
+                && !bindings.contains(&binding.to_string())
+            {
+                bindings.push(binding.to_string());
+            }
+        }
+
+        // Move search position past this Path(
+        search_start = path_pos + 5;
+    }
+
+    if bindings.is_empty() {
+        return Vec::new();
+    }
+
+    // Find already documented params in # Path Parameters section
+    // First, find the start of the doc block by searching backwards
+    let mut doc_start = rovo_line;
+    for i in (0..rovo_line).rev() {
+        let line = lines.get(i).unwrap_or(&"");
+        let trimmed = line.trim();
+        if trimmed.starts_with("///") {
+            doc_start = i;
+        } else {
+            break;
+        }
+    }
+
+    // Now search forward through the doc block to find documented params
+    let mut documented = Vec::new();
+    let mut in_path_params = false;
+
+    for i in doc_start..rovo_line {
+        let line = lines.get(i).unwrap_or(&"");
+        let trimmed = line.trim();
+
+        if !trimmed.starts_with("///") {
+            continue;
+        }
+
+        let content = trimmed.trim_start_matches("///").trim();
+
+        if content == "# Path Parameters" {
+            in_path_params = true;
+        } else if content.starts_with("# ") {
+            in_path_params = false;
+        } else if in_path_params {
+            if let Some(colon_pos) = content.find(':') {
+                let name = content[..colon_pos].trim();
+                if !name.is_empty() && name.chars().all(|c| c.is_alphanumeric() || c == '_') {
+                    documented.push(name.to_string());
+                }
+            }
+        }
+    }
+
+    // Return only undocumented bindings
+    bindings
+        .into_iter()
+        .filter(|b| !documented.contains(b))
+        .collect()
 }

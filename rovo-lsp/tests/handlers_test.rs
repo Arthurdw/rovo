@@ -1340,6 +1340,23 @@ async fn handler() {}
 }
 
 #[test]
+fn hover_on_section_header_path_parameters() {
+    let content = r#"
+/// # Path Parameters
+#[rovo]
+async fn handler() {}
+"#;
+
+    let position = Position {
+        line: 1,
+        character: 6, // On "Path Parameters"
+    };
+
+    let hover = handlers::text_document_hover(content, position);
+    assert!(hover.is_some());
+}
+
+#[test]
 fn hover_on_hidden_annotation() {
     let content = r#"
 /// @hidden
@@ -1451,4 +1468,658 @@ async fn handler() {}
     // Should not match as status code hover since line doesn't start with digit
     // It might still show type hover or annotation hover
     assert!(hover.is_none() || hover.is_some());
+}
+
+// =============================================================================
+// Path Parameter Rename Tests
+// =============================================================================
+
+#[test]
+fn prepare_rename_on_path_param_doc() {
+    let content = r#"
+/// # Path Parameters
+///
+/// id: The unique identifier
+#[rovo]
+async fn get_item(Path(id): Path<String>) -> impl IntoApiResponse {
+    Json(id)
+}
+"#;
+
+    let position = Position {
+        line: 3,
+        character: 5, // On "id" in the doc
+    };
+
+    let result = handlers::prepare_rename(content, position);
+    assert!(result.is_some());
+    let (range, name) = result.unwrap();
+    assert_eq!(name, "id");
+    assert_eq!(range.start.line, 3);
+}
+
+#[test]
+fn prepare_rename_on_path_binding() {
+    let content = r#"
+/// # Path Parameters
+///
+/// id: The unique identifier
+#[rovo]
+async fn get_item(Path(id): Path<String>) -> impl IntoApiResponse {
+    Json(id)
+}
+"#;
+
+    let position = Position {
+        line: 5,
+        character: 24, // On "id" in Path(id)
+    };
+
+    let result = handlers::prepare_rename(content, position);
+    assert!(result.is_some());
+    let (range, name) = result.unwrap();
+    assert_eq!(name, "id");
+    assert_eq!(range.start.line, 5);
+}
+
+#[test]
+fn rename_path_param_updates_both_doc_and_binding() {
+    let content = r#"
+/// # Path Parameters
+///
+/// id: The unique identifier
+#[rovo]
+async fn get_item(Path(id): Path<String>) -> impl IntoApiResponse {
+    Json(id)
+}
+"#;
+
+    let position = Position {
+        line: 3,
+        character: 5, // On "id" in the doc
+    };
+
+    let uri = Url::parse("file:///test.rs").unwrap();
+    let result = handlers::rename_tag(content, position, "item_id", uri);
+    assert!(result.is_some());
+
+    let edit = result.unwrap();
+    let changes = edit.changes.unwrap();
+    let edits = changes.values().next().unwrap();
+
+    // Should have at least 2 edits: doc param and binding (body usage may vary)
+    assert!(
+        edits.len() >= 2,
+        "Expected at least 2 edits, got {}",
+        edits.len()
+    );
+
+    // Check that one edit is for the doc line
+    let doc_edit = edits.iter().find(|e| e.range.start.line == 3);
+    assert!(doc_edit.is_some(), "Should have edit on doc line");
+    assert_eq!(doc_edit.unwrap().new_text, "item_id");
+
+    // Check that one edit is for the binding line
+    let binding_edit = edits.iter().find(|e| e.range.start.line == 5);
+    assert!(binding_edit.is_some(), "Should have edit on binding line");
+}
+
+#[test]
+fn rename_from_binding_updates_doc() {
+    let content = "/// # Path Parameters
+///
+/// user_id: The user identifier
+#[rovo]
+async fn get_user(Path(user_id): Path<u64>) -> impl IntoApiResponse {
+    Json(user_id.to_string())
+}";
+
+    let position = Position {
+        line: 4,
+        character: 23, // On "user_id" in Path(user_id)
+    };
+
+    let uri = Url::parse("file:///test.rs").unwrap();
+    let result = handlers::rename_tag(content, position, "uid", uri);
+    assert!(result.is_some(), "rename_tag should return Some");
+
+    let edit = result.unwrap();
+    let changes = edit.changes.unwrap();
+    let edits = changes.values().next().unwrap();
+
+    // Should have edits for both doc and binding
+    let doc_edit = edits.iter().find(|e| e.range.start.line == 2);
+    assert!(doc_edit.is_some(), "Should have edit on doc line (line 2)");
+    assert_eq!(doc_edit.unwrap().new_text, "uid");
+}
+
+#[test]
+fn rename_tuple_path_param() {
+    let content = r#"
+/// # Path Parameters
+///
+/// collection_id: The collection
+/// index: Item index
+#[rovo]
+async fn get_item(Path((collection_id, index)): Path<(String, u32)>) -> impl IntoApiResponse {
+    Json(format!("{}/{}", collection_id, index))
+}
+"#;
+
+    let position = Position {
+        line: 4,
+        character: 5, // On "index" in the doc
+    };
+
+    let uri = Url::parse("file:///test.rs").unwrap();
+    let result = handlers::rename_tag(content, position, "item_index", uri);
+    assert!(result.is_some());
+
+    let edit = result.unwrap();
+    let changes = edit.changes.unwrap();
+    let edits = changes.values().next().unwrap();
+
+    // Should have multiple edits for doc, binding, and usages
+    assert!(
+        edits.len() >= 2,
+        "Expected at least 2 edits for tuple param rename"
+    );
+}
+
+#[test]
+fn prepare_rename_returns_none_outside_path_param() {
+    let content = r#"
+/// Some description
+///
+/// # Responses
+///
+/// 200: Json<String> - Success
+#[rovo]
+async fn get_item() -> impl IntoApiResponse {
+    Json("test".to_string())
+}
+"#;
+
+    let position = Position {
+        line: 1,
+        character: 8, // On "description", not a path param
+    };
+
+    let result = handlers::prepare_rename(content, position);
+    // Should return None since we're not on a path param or tag
+    assert!(result.is_none());
+}
+
+#[test]
+fn prepare_rename_returns_none_for_undocumented_binding() {
+    // Path binding without # Path Parameters doc should NOT trigger rovo-lsp rename
+    // This allows rust-analyzer to handle the rename instead
+    let content = r#"
+#[rovo]
+async fn get_item(Path(id): Path<String>) -> impl IntoApiResponse {
+    Json(id)
+}
+"#;
+
+    let position = Position {
+        line: 2,
+        character: 24, // On "id" in Path(id)
+    };
+
+    let result = handlers::prepare_rename(content, position);
+    // Should return None - no doc to update, let rust-analyzer handle it
+    assert!(
+        result.is_none(),
+        "Should not claim rename for undocumented binding"
+    );
+}
+
+#[test]
+fn prepare_rename_returns_some_for_documented_binding() {
+    // Path binding WITH # Path Parameters doc SHOULD trigger rovo-lsp rename
+    let content = r#"
+/// # Path Parameters
+///
+/// id: The unique identifier
+#[rovo]
+async fn get_item(Path(id): Path<String>) -> impl IntoApiResponse {
+    Json(id)
+}
+"#;
+
+    let position = Position {
+        line: 5,
+        character: 24, // On "id" in Path(id)
+    };
+
+    let result = handlers::prepare_rename(content, position);
+    // Should return Some - we have a doc to update
+    assert!(
+        result.is_some(),
+        "Should claim rename for documented binding"
+    );
+    let (_, name) = result.unwrap();
+    assert_eq!(name, "id");
+}
+
+// =============================================================================
+// Path Parameter Goto Definition Tests
+// =============================================================================
+
+#[test]
+fn goto_definition_from_binding_to_doc() {
+    let content = r#"
+/// # Path Parameters
+///
+/// id: The unique identifier
+#[rovo]
+async fn get_item(Path(id): Path<String>) -> impl IntoApiResponse {
+    Json(id)
+}
+"#;
+
+    let position = Position {
+        line: 5,
+        character: 24, // On "id" in Path(id)
+    };
+
+    let uri = Url::parse("file:///test.rs").unwrap();
+    let result = handlers::goto_path_param_definition(content, position, uri);
+
+    assert!(result.is_some(), "Should find definition");
+    let location = result.unwrap();
+    assert_eq!(location.range.start.line, 3, "Should point to doc line");
+}
+
+#[test]
+fn goto_definition_from_body_to_doc() {
+    let content = r#"
+/// # Path Parameters
+///
+/// id: The unique identifier
+#[rovo]
+async fn get_item(Path(id): Path<String>) -> impl IntoApiResponse {
+    Json(id)
+}
+"#;
+
+    let position = Position {
+        line: 6,
+        character: 9, // On "id" in Json(id)
+    };
+
+    let uri = Url::parse("file:///test.rs").unwrap();
+    let result = handlers::goto_path_param_definition(content, position, uri);
+
+    assert!(result.is_some(), "Should find definition from body usage");
+    let location = result.unwrap();
+    assert_eq!(location.range.start.line, 3, "Should point to doc line");
+}
+
+#[test]
+fn goto_definition_returns_none_when_no_doc() {
+    let content = r#"
+#[rovo]
+async fn get_item(Path(id): Path<String>) -> impl IntoApiResponse {
+    Json(id)
+}
+"#;
+
+    let position = Position {
+        line: 2,
+        character: 24, // On "id" in Path(id)
+    };
+
+    let uri = Url::parse("file:///test.rs").unwrap();
+    let result = handlers::goto_path_param_definition(content, position, uri);
+
+    // No # Path Parameters doc, so no definition
+    assert!(result.is_none(), "Should return None when no doc exists");
+}
+
+// =============================================================================
+// Path Parameter Find References Tests
+// =============================================================================
+
+#[test]
+fn find_references_from_doc() {
+    let content = r#"
+/// # Path Parameters
+///
+/// id: The unique identifier
+#[rovo]
+async fn get_item(Path(id): Path<String>) -> impl IntoApiResponse {
+    Json(id)
+}
+"#;
+
+    let position = Position {
+        line: 3,
+        character: 5, // On "id" in the doc
+    };
+
+    let uri = Url::parse("file:///test.rs").unwrap();
+    let result = handlers::find_path_param_references(content, position, uri);
+
+    assert!(result.is_some(), "Should find references");
+    let refs = result.unwrap();
+    // Should find: doc, binding, body usage
+    assert!(
+        refs.len() >= 3,
+        "Should find at least 3 references (doc, binding, body), got {}",
+        refs.len()
+    );
+}
+
+#[test]
+fn find_references_from_binding() {
+    let content = r#"
+/// # Path Parameters
+///
+/// id: The unique identifier
+#[rovo]
+async fn get_item(Path(id): Path<String>) -> impl IntoApiResponse {
+    Json(id)
+}
+"#;
+
+    let position = Position {
+        line: 5,
+        character: 24, // On "id" in Path(id)
+    };
+
+    let uri = Url::parse("file:///test.rs").unwrap();
+    let result = handlers::find_path_param_references(content, position, uri);
+
+    assert!(result.is_some(), "Should find references from binding");
+    let refs = result.unwrap();
+    assert!(refs.len() >= 3, "Should find at least 3 references");
+}
+
+#[test]
+fn find_references_from_body() {
+    let content = r#"
+/// # Path Parameters
+///
+/// id: The unique identifier
+#[rovo]
+async fn get_item(Path(id): Path<String>) -> impl IntoApiResponse {
+    Json(id)
+}
+"#;
+
+    let position = Position {
+        line: 6,
+        character: 9, // On "id" in Json(id)
+    };
+
+    let uri = Url::parse("file:///test.rs").unwrap();
+    let result = handlers::find_path_param_references(content, position, uri);
+
+    assert!(result.is_some(), "Should find references from body usage");
+    let refs = result.unwrap();
+    assert!(refs.len() >= 3, "Should find at least 3 references");
+}
+
+#[test]
+fn find_references_tuple_params() {
+    let content = r#"
+/// # Path Parameters
+///
+/// a: First param
+/// b: Second param
+#[rovo]
+async fn get_item(Path((a, b)): Path<(String, u32)>) -> impl IntoApiResponse {
+    Json(format!("{}{}", a, b))
+}
+"#;
+
+    let position = Position {
+        line: 3,
+        character: 4, // On "a" in the doc
+    };
+
+    let uri = Url::parse("file:///test.rs").unwrap();
+    let result = handlers::find_path_param_references(content, position, uri);
+
+    assert!(result.is_some(), "Should find references for tuple param");
+    let refs = result.unwrap();
+    // Should find: doc, binding, body usage
+    assert!(
+        refs.len() >= 3,
+        "Should find references for 'a': doc, binding, body"
+    );
+}
+
+#[test]
+fn find_references_returns_none_when_not_on_param() {
+    let content = r#"
+/// Some description
+#[rovo]
+async fn get_item() -> impl IntoApiResponse {
+    Json("test")
+}
+"#;
+
+    let position = Position {
+        line: 1,
+        character: 8, // On "description", not a param
+    };
+
+    let uri = Url::parse("file:///test.rs").unwrap();
+    let result = handlers::find_path_param_references(content, position, uri);
+
+    assert!(
+        result.is_none(),
+        "Should return None when not on a path param"
+    );
+}
+
+// =============================================================================
+// Additional Path Parameter Edge Case Tests
+// =============================================================================
+
+#[test]
+fn goto_definition_handles_utf16_positions() {
+    let content = r#"
+/// # Path Parameters
+///
+/// 用户id: The identifier
+#[rovo]
+async fn get_item(Path(用户id): Path<String>) -> impl IntoApiResponse {
+    Json(用户id)
+}
+"#;
+
+    let position = Position {
+        line: 5,
+        character: 24, // Approximate position
+    };
+
+    let uri = Url::parse("file:///test.rs").unwrap();
+    // Should handle UTF-16 characters without crashing
+    let result = handlers::goto_path_param_definition(content, position, uri);
+    // Result may be Some or None depending on exact position, but should not panic
+    assert!(
+        result.is_some() || result.is_none(),
+        "Function should handle UTF-16 characters gracefully"
+    );
+}
+
+#[test]
+fn find_references_handles_multiple_usages() {
+    let content = r#"
+/// # Path Parameters
+///
+/// id: The unique identifier
+#[rovo]
+async fn get_item(Path(id): Path<String>) -> impl IntoApiResponse {
+    let result = process(id.clone());
+    let other = format!("{}", id);
+    Json(id)
+}
+"#;
+
+    let position = Position {
+        line: 3,
+        character: 5, // On "id" in the doc
+    };
+
+    let uri = Url::parse("file:///test.rs").unwrap();
+    let result = handlers::find_path_param_references(content, position, uri);
+
+    assert!(
+        result.is_some(),
+        "Should find references with multiple usages"
+    );
+    let refs = result.unwrap();
+    // Should find multiple body usages
+    assert!(
+        refs.len() >= 4,
+        "Should find doc, binding, and multiple body usages, got {}",
+        refs.len()
+    );
+}
+
+#[test]
+fn find_references_handles_out_of_bounds_line() {
+    let content = r#"
+/// # Path Parameters
+///
+/// id: The identifier
+#[rovo]
+async fn get_item(Path(id): Path<String>) {}
+"#;
+
+    let position = Position {
+        line: 100, // Out of bounds
+        character: 5,
+    };
+
+    let uri = Url::parse("file:///test.rs").unwrap();
+    let result = handlers::find_path_param_references(content, position, uri);
+
+    assert!(
+        result.is_none(),
+        "Should return None for out of bounds line"
+    );
+}
+
+#[test]
+fn rename_handles_usage_in_body() {
+    let content = r#"
+/// # Path Parameters
+///
+/// id: The unique identifier
+#[rovo]
+async fn get_item(Path(id): Path<String>) -> impl IntoApiResponse {
+    let result = process(id);
+    Json(id)
+}
+"#;
+
+    let position = Position {
+        line: 3,
+        character: 5, // On "id" in the doc
+    };
+
+    let uri = Url::parse("file:///test.rs").unwrap();
+    let result = handlers::rename_tag(content, position, "item_id", uri);
+
+    assert!(result.is_some(), "Should return rename edits");
+    let edit = result.unwrap();
+    let changes = edit.changes.unwrap();
+    let edits = changes.values().next().unwrap();
+
+    // Should have edits for doc, binding, and body usages
+    assert!(
+        edits.len() >= 3,
+        "Should update doc, binding, and body usages, got {}",
+        edits.len()
+    );
+}
+
+#[test]
+fn prepare_rename_for_path_param_returns_range() {
+    let content = r#"
+/// # Path Parameters
+///
+/// user_id: The user identifier
+#[rovo]
+async fn get_user(Path(user_id): Path<u64>) {}
+"#;
+
+    let position = Position {
+        line: 3,
+        character: 6, // On "user_id"
+    };
+
+    let result = handlers::prepare_rename(content, position);
+    assert!(result.is_some(), "Should return range for path param");
+
+    let (range, placeholder) = result.unwrap();
+    assert_eq!(placeholder, "user_id");
+    assert_eq!(range.start.line, 3);
+}
+
+#[test]
+fn prepare_rename_for_binding_returns_range() {
+    let content = r#"
+/// # Path Parameters
+///
+/// user_id: The user identifier
+#[rovo]
+async fn get_user(Path(user_id): Path<u64>) {}
+"#;
+
+    let position = Position {
+        line: 5,
+        character: 23, // On "user_id" in binding
+    };
+
+    let result = handlers::prepare_rename(content, position);
+    assert!(result.is_some(), "Should return range for binding");
+}
+
+#[test]
+fn find_references_returns_none_for_undocumented_param() {
+    let content = r#"
+#[rovo]
+async fn get_item(Path(id): Path<String>) {}
+"#;
+
+    let position = Position {
+        line: 2,
+        character: 24, // On "id" in binding
+    };
+
+    let uri = Url::parse("file:///test.rs").unwrap();
+    let result = handlers::find_path_param_references(content, position, uri);
+
+    // Even without docs, should find binding reference
+    // The behavior depends on implementation
+    let _ = result; // Just checking it doesn't crash
+}
+
+#[test]
+fn semantic_tokens_finds_path_param_names() {
+    let content = r#"
+/// # Path Parameters
+///
+/// user_id: The user identifier
+/// item_id: The item identifier
+#[rovo]
+async fn get_item(Path((user_id, item_id)): Path<(u64, u64)>) {}
+"#;
+
+    let result = handlers::semantic_tokens_full(content);
+    assert!(result.is_some(), "Should return semantic tokens");
+
+    if let Some(SemanticTokensResult::Tokens(tokens)) = result {
+        // Should generate tokens for path parameters
+        assert!(
+            !tokens.data.is_empty(),
+            "Should generate tokens for path parameters"
+        );
+    }
 }

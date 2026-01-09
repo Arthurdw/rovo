@@ -30,6 +30,10 @@
 //!
 //! /// Get user by ID
 //! ///
+//! /// # Path Parameters
+//! ///
+//! /// id: The user ID
+//! ///
 //! /// # Responses
 //! ///
 //! /// 200: Json<User> - User found successfully

@@ -33,11 +33,15 @@ impl Default for TodoItem {
     }
 }
 
-#[derive(Deserialize, JsonSchema)]
-struct TodoId {
-    /// The unique identifier of the todo item.
-    id: Uuid,
-}
+// Note: For complex path parameters, you can still use structs with JsonSchema:
+// #[derive(Deserialize, JsonSchema)]
+// struct TodoId {
+//     /// The unique identifier of the todo item.
+//     id: Uuid,
+// }
+//
+// But for primitives like Uuid, String, u64, etc., you can use them directly
+// with the # Path Parameters section in doc comments (see get_todo below).
 
 #[derive(Deserialize, JsonSchema)]
 pub struct CreateTodoRequest {
@@ -57,6 +61,10 @@ pub struct UpdateTodoRequest {
 ///
 /// Retrieve a Todo item by its ID from the database.
 ///
+/// # Path Parameters
+///
+/// id: The id of the todo item to retrieve
+///
 /// # Responses
 ///
 /// 200: Json<TodoItem> - Successfully retrieved the todo item
@@ -70,10 +78,7 @@ pub struct UpdateTodoRequest {
 ///
 /// @tag todos
 #[rovo]
-async fn get_todo(
-    State(app): State<AppState>,
-    Path(TodoId { id }): Path<TodoId>,
-) -> impl IntoApiResponse {
+async fn get_todo(State(app): State<AppState>, Path(id): Path<Uuid>) -> impl IntoApiResponse {
     if let Some(todo) = app.todos.lock().unwrap().get(&id) {
         (StatusCode::OK, Json(todo.clone())).into_response()
     } else {
@@ -138,6 +143,10 @@ async fn create_todo(
 ///
 /// Updates the description and/or completion status of a todo item.
 ///
+/// # Path Parameters
+///
+/// id: The unique identifier of the todo item to update
+///
 /// # Responses
 ///
 /// 200: Json<TodoItem> - Todo item updated successfully
@@ -153,7 +162,7 @@ async fn create_todo(
 #[rovo]
 async fn update_todo(
     State(app): State<AppState>,
-    Path(TodoId { id }): Path<TodoId>,
+    Path(id): Path<Uuid>,
     Json(req): Json<UpdateTodoRequest>,
 ) -> impl IntoApiResponse {
     let mut todos = app.todos.lock().unwrap();
@@ -175,6 +184,10 @@ async fn update_todo(
 ///
 /// Permanently deletes a todo item by its ID.
 ///
+/// # Path Parameters
+///
+/// id: The unique identifier of the todo item to delete
+///
 /// # Responses
 ///
 /// 204: () - Todo item deleted successfully
@@ -184,10 +197,7 @@ async fn update_todo(
 ///
 /// @tag todos
 #[rovo]
-async fn delete_todo(
-    State(app): State<AppState>,
-    Path(TodoId { id }): Path<TodoId>,
-) -> impl IntoApiResponse {
+async fn delete_todo(State(app): State<AppState>, Path(id): Path<Uuid>) -> impl IntoApiResponse {
     if app.todos.lock().unwrap().remove(&id).is_some() {
         StatusCode::NO_CONTENT
     } else {

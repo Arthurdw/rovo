@@ -238,6 +238,45 @@ jobs:
           sed -i 's/cargo install rovo-lsp --version [0-9.]\+/cargo install rovo-lsp --version '"${{ env.VERSION }}"'/' src/main/resources/META-INF/plugin.xml
           git add build.gradle.kts src/main/resources/META-INF/plugin.xml
 
+      - name: Update CHANGELOG
+        if: steps.check_release.outputs.needs_release == 'true'
+        run: |
+          if [ ! -f CHANGELOG.md ]; then
+            echo "No CHANGELOG.md found, skipping"
+            exit 0
+          fi
+
+          DATE=$(date +%Y-%m-%d)
+          VERSION="${{ env.VERSION }}"
+
+          # Create a temp file with the new content
+          # This replaces [Unreleased] with versioned section and adds fresh [Unreleased]
+          awk -v version="$VERSION" -v date="$DATE" '
+            /^## \[Unreleased\]/ {
+              print "## [Unreleased]"
+              print ""
+              print "### Breaking Changes"
+              print ""
+              print "### Added"
+              print ""
+              print "### Changed"
+              print ""
+              print "### Fixed"
+              print ""
+              print "### Migration Guide"
+              print ""
+              print "<!-- LLM-friendly migration commands go here -->"
+              print ""
+              print "---"
+              print ""
+              print "## [" version "] - " date
+              next
+            }
+            { print }
+          ' CHANGELOG.md > CHANGELOG.md.tmp && mv CHANGELOG.md.tmp CHANGELOG.md
+
+          git add CHANGELOG.md
+
       - name: Commit version bump
         if: steps.check_release.outputs.needs_release == 'true'
         run: |

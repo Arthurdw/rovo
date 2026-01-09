@@ -377,3 +377,368 @@ async fn handler() {}
         assert!(diagnostics[0].message.contains("Invalid example"));
     }
 }
+
+// =============================================================================
+// Path Parameter Diagnostic Tests
+// =============================================================================
+
+#[test]
+fn warns_on_undocumented_path_param() {
+    let content = r#"
+#[rovo]
+async fn get_user(Path(id): Path<u64>) {}
+"#;
+    let diagnostics = validate_annotations(content);
+    assert_eq!(diagnostics.len(), 1);
+    assert!(diagnostics[0]
+        .message
+        .contains("Undocumented path parameter"));
+    assert!(diagnostics[0].message.contains("'id'"));
+    assert_eq!(diagnostics[0].severity, DiagnosticSeverity::Warning);
+}
+
+#[test]
+fn no_warning_for_documented_path_param() {
+    let content = r#"
+/// # Path Parameters
+///
+/// id: The user's unique identifier
+#[rovo]
+async fn get_user(Path(id): Path<u64>) {}
+"#;
+    let diagnostics = validate_annotations(content);
+    assert!(
+        diagnostics.is_empty(),
+        "Should not warn when path param is documented"
+    );
+}
+
+#[test]
+fn no_warning_for_underscore_prefixed_param() {
+    let content = r#"
+#[rovo]
+async fn handler(Path(_internal): Path<String>) {}
+"#;
+    let diagnostics = validate_annotations(content);
+    assert!(
+        diagnostics.is_empty(),
+        "Should not warn for underscore-prefixed params"
+    );
+}
+
+#[test]
+fn warns_on_multiple_undocumented_params() {
+    let content = r#"
+#[rovo]
+async fn handler(Path((a, b)): Path<(u32, u32)>) {}
+"#;
+    let diagnostics = validate_annotations(content);
+    assert_eq!(diagnostics.len(), 1);
+    assert!(diagnostics[0].message.contains("'a'"));
+    assert!(diagnostics[0].message.contains("'b'"));
+}
+
+#[test]
+fn warns_only_for_undocumented_when_some_documented() {
+    let content = r#"
+/// # Path Parameters
+///
+/// id: The user ID
+#[rovo]
+async fn handler(Path((id, name)): Path<(u64, String)>) {}
+"#;
+    let diagnostics = validate_annotations(content);
+    assert_eq!(diagnostics.len(), 1);
+    assert!(diagnostics[0].message.contains("'name'"));
+    assert!(!diagnostics[0].message.contains("'id'"));
+}
+
+#[test]
+fn handles_multiple_path_extractors() {
+    let content = r#"
+#[rovo]
+async fn handler(Path(id): Path<u64>, Path(name): Path<String>) {}
+"#;
+    let diagnostics = validate_annotations(content);
+    assert_eq!(diagnostics.len(), 1);
+    assert!(diagnostics[0].message.contains("'id'"));
+    assert!(diagnostics[0].message.contains("'name'"));
+}
+
+#[test]
+fn handles_multiline_function_signature() {
+    let content = r#"
+#[rovo]
+async fn handler(
+    Path(id): Path<u64>,
+    Path(name): Path<String>,
+) {
+}
+"#;
+    let diagnostics = validate_annotations(content);
+    assert_eq!(diagnostics.len(), 1);
+    assert!(diagnostics[0].message.contains("'id'"));
+    assert!(diagnostics[0].message.contains("'name'"));
+}
+
+#[test]
+fn no_warning_without_path_extractor() {
+    let content = r#"
+#[rovo]
+async fn handler(Query(q): Query<String>) {}
+"#;
+    let diagnostics = validate_annotations(content);
+    assert!(
+        diagnostics.is_empty(),
+        "Should not warn when no Path extractor"
+    );
+}
+
+#[test]
+fn handles_path_params_section_with_other_sections() {
+    let content = r#"
+/// Get a user by ID.
+///
+/// # Path Parameters
+///
+/// id: The user's unique identifier
+///
+/// # Responses
+///
+/// 200: Json<User> - Success
+#[rovo]
+async fn get_user(Path(id): Path<u64>) {}
+"#;
+    let diagnostics = validate_annotations(content);
+    assert!(
+        diagnostics.is_empty(),
+        "Should not warn when path param documented with other sections"
+    );
+}
+
+#[test]
+fn handles_pub_async_fn() {
+    let content = r#"
+#[rovo]
+pub async fn handler(Path(id): Path<u64>) {}
+"#;
+    let diagnostics = validate_annotations(content);
+    assert_eq!(diagnostics.len(), 1);
+    assert!(diagnostics[0].message.contains("'id'"));
+}
+
+#[test]
+fn handles_pub_crate_async_fn() {
+    let content = r#"
+#[rovo]
+pub(crate) async fn handler(Path(id): Path<u64>) {}
+"#;
+    let diagnostics = validate_annotations(content);
+    assert_eq!(diagnostics.len(), 1);
+    assert!(diagnostics[0].message.contains("'id'"));
+}
+
+#[test]
+fn handles_attributes_between_rovo_and_fn() {
+    let content = r#"
+#[rovo]
+#[deprecated]
+async fn handler(Path(id): Path<u64>) {}
+"#;
+    let diagnostics = validate_annotations(content);
+    assert_eq!(diagnostics.len(), 1);
+    assert!(diagnostics[0].message.contains("'id'"));
+}
+
+#[test]
+fn diagnostic_line_points_to_function() {
+    let content = r#"
+/// Some doc
+#[rovo]
+async fn handler(Path(id): Path<u64>) {}
+"#;
+    let diagnostics = validate_annotations(content);
+    assert_eq!(diagnostics.len(), 1);
+    // Line 3 is the fn line (0-indexed)
+    assert_eq!(diagnostics[0].line, 3);
+}
+
+#[test]
+fn handles_multiple_rovo_blocks() {
+    let content = r#"
+#[rovo]
+async fn handler1(Path(id1): Path<u64>) {}
+
+/// # Path Parameters
+///
+/// id2: Documented
+#[rovo]
+async fn handler2(Path(id2): Path<u64>) {}
+"#;
+    let diagnostics = validate_annotations(content);
+    // Only handler1's id1 should be warned about
+    assert_eq!(diagnostics.len(), 1);
+    assert!(diagnostics[0].message.contains("'id1'"));
+}
+
+// Additional coverage tests
+
+#[test]
+fn reports_example_with_incomplete_expression() {
+    let content = r#"
+/// # Examples
+///
+/// 200: { id: 1
+#[rovo]
+async fn handler() {}
+"#;
+    let diagnostics = validate_annotations(content);
+    assert!(!diagnostics.is_empty());
+    let has_example_error = diagnostics
+        .iter()
+        .any(|d| d.message.contains("example") || d.message.contains("expression"));
+    assert!(has_example_error, "Should report incomplete example error");
+}
+
+#[test]
+fn reports_example_with_missing_comma() {
+    let content = r#"
+/// # Examples
+///
+/// 200: { id: 1 name: "test" }
+#[rovo]
+async fn handler() {}
+"#;
+    let diagnostics = validate_annotations(content);
+    assert!(!diagnostics.is_empty());
+    let has_example_error = diagnostics
+        .iter()
+        .any(|d| d.message.contains("example") || d.message.contains("Syntax"));
+    assert!(has_example_error, "Should report syntax error in example");
+}
+
+#[test]
+fn accepts_valid_example() {
+    let content = r#"
+/// # Examples
+///
+/// 200: User { id: 1, name: "test".to_string() }
+#[rovo]
+async fn handler() {}
+"#;
+    let diagnostics = validate_annotations(content);
+    let example_errors = diagnostics
+        .iter()
+        .filter(|d| d.message.contains("example"))
+        .count();
+    assert_eq!(
+        example_errors, 0,
+        "Should not report error for valid example"
+    );
+}
+
+#[test]
+fn handles_multiline_example() {
+    let content = r#"
+/// # Examples
+///
+/// 200: User {
+///     id: 1,
+///     name: "test".to_string()
+/// }
+#[rovo]
+async fn handler() {}
+"#;
+    let diagnostics = validate_annotations(content);
+    let example_errors: Vec<_> = diagnostics
+        .iter()
+        .filter(|d| d.message.contains("example"))
+        .collect();
+    assert!(
+        example_errors.is_empty(),
+        "Should not report error for valid multiline example"
+    );
+}
+
+#[test]
+fn reports_multiline_example_error_with_span() {
+    let content = r#"
+/// # Examples
+///
+/// 200: User {
+///     id: 1
+///     name: "test"
+/// }
+#[rovo]
+async fn handler() {}
+"#;
+    let diagnostics = validate_annotations(content);
+    let example_errors: Vec<_> = diagnostics
+        .iter()
+        .filter(|d| d.message.contains("example") || d.message.contains("Syntax"))
+        .collect();
+    assert!(
+        !example_errors.is_empty(),
+        "Should report multiline example error"
+    );
+    // The error should have an end_line for multiline spans
+    if let Some(error) = example_errors.first() {
+        // Check that char_start is set (position after the colon)
+        assert!(
+            error.char_start.is_some(),
+            "Should have char_start for example error"
+        );
+    }
+}
+
+#[test]
+fn handles_pub_fn_after_rovo() {
+    let content = r#"
+#[rovo]
+pub fn handler(Path(id): Path<u64>) {}
+"#;
+    let diagnostics = validate_annotations(content);
+    assert!(!diagnostics.is_empty());
+    assert!(diagnostics[0].message.contains("'id'"));
+}
+
+#[test]
+fn no_warning_when_no_path_params() {
+    let content = r#"
+#[rovo]
+async fn handler(Query(q): Query<String>) {}
+"#;
+    let diagnostics = validate_annotations(content);
+    assert!(
+        diagnostics.is_empty(),
+        "Should not warn when no path params"
+    );
+}
+
+#[test]
+fn handles_rovo_without_function() {
+    // Edge case: #[rovo] not followed by a function
+    let content = r#"
+#[rovo]
+const VALUE: u32 = 42;
+"#;
+    let diagnostics = validate_annotations(content);
+    // Should not crash, no diagnostics expected
+    let _ = diagnostics;
+}
+
+#[test]
+fn handles_empty_content() {
+    let content = "";
+    let diagnostics = validate_annotations(content);
+    assert!(diagnostics.is_empty());
+}
+
+#[test]
+fn handles_content_without_rovo() {
+    let content = r#"
+fn regular_function() {}
+"#;
+    let diagnostics = validate_annotations(content);
+    assert!(diagnostics.is_empty());
+}

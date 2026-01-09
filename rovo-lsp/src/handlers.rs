@@ -160,6 +160,7 @@ fn get_annotation_at_position(line: &str, char_idx: usize) -> Option<String> {
 
         if char_idx >= section_start && char_idx <= section_end {
             match section_name {
+                "Path Parameters" => return Some("section:path-parameters".to_string()),
                 "Responses" => return Some("section:responses".to_string()),
                 "Examples" => return Some("section:examples".to_string()),
                 "Metadata" => return Some("section:metadata".to_string()),
@@ -264,6 +265,380 @@ pub fn text_document_did_change(content: &str, _uri: Url) -> Vec<Diagnostic> {
 ///
 /// # Returns
 /// A vector of locations where the tag is referenced
+/// Find references to a path parameter (doc, binding, and body usages)
+pub fn find_path_param_references(
+    content: &str,
+    position: Position,
+    uri: Url,
+) -> Option<Vec<Location>> {
+    let line_idx = position.line as usize;
+    let lines: Vec<&str> = content.lines().collect();
+
+    if line_idx >= lines.len() {
+        return None;
+    }
+
+    let line = lines[line_idx];
+    let char_idx = utf16_pos_to_byte_index(line, position.character as usize)?;
+
+    // Get the param name from either doc or binding
+    let param_name = get_path_param_at_position(content, line_idx, char_idx)
+        .map(|(name, _)| name)
+        .or_else(|| get_path_binding_at_position(content, line_idx, char_idx).map(|(name, _)| name))
+        .or_else(|| get_path_param_usage_at_position(content, line_idx, char_idx))?;
+
+    // Find the rovo block boundaries
+    let (doc_start, fn_end) = find_rovo_block_boundaries(content, line_idx)?;
+
+    let mut locations = Vec::new();
+
+    // Find in # Path Parameters section
+    let mut in_path_params = false;
+    for (idx, line) in lines
+        .iter()
+        .enumerate()
+        .skip(doc_start)
+        .take(fn_end - doc_start + 1)
+    {
+        let trimmed = line.trim_start().trim_start_matches("///").trim();
+
+        if trimmed.starts_with("# ") {
+            in_path_params = trimmed == "# Path Parameters";
+            continue;
+        }
+
+        if in_path_params && !trimmed.is_empty() {
+            if let Some(colon_pos) = trimmed.find(':') {
+                let name = trimmed[..colon_pos].trim();
+                if name == param_name {
+                    let doc_start_pos = line.find("///")? + 3;
+                    let content_after = &line[doc_start_pos..];
+                    let leading_ws = content_after.len() - content_after.trim_start().len();
+                    let name_start = doc_start_pos + leading_ws;
+                    let name_end = name_start + name.len();
+
+                    let start_utf16 = byte_index_to_utf16_col(line, name_start);
+                    let end_utf16 = byte_index_to_utf16_col(line, name_end);
+
+                    locations.push(Location {
+                        uri: uri.clone(),
+                        range: Range {
+                            start: Position {
+                                line: idx as u32,
+                                character: start_utf16 as u32,
+                            },
+                            end: Position {
+                                line: idx as u32,
+                                character: end_utf16 as u32,
+                            },
+                        },
+                    });
+                }
+            }
+        }
+    }
+
+    // Find in Path binding
+    for (idx, line) in lines
+        .iter()
+        .enumerate()
+        .skip(doc_start)
+        .take(fn_end - doc_start + 1)
+    {
+        if let Some(path_pos) = line.find("Path(") {
+            let after_path = &line[path_pos + 5..];
+
+            let (bindings_str, bindings_start) = if after_path.starts_with('(') {
+                let close = after_path.find(')')?;
+                (&after_path[1..close], path_pos + 6)
+            } else {
+                let close = after_path.find(')')?;
+                (&after_path[..close], path_pos + 5)
+            };
+
+            let mut current_pos = bindings_start;
+            for binding in bindings_str.split(',') {
+                let binding = binding.trim();
+                if binding == param_name {
+                    if let Some(rel_pos) = line[current_pos..].find(binding) {
+                        let abs_start = current_pos + rel_pos;
+                        let abs_end = abs_start + binding.len();
+
+                        let start_utf16 = byte_index_to_utf16_col(line, abs_start);
+                        let end_utf16 = byte_index_to_utf16_col(line, abs_end);
+
+                        locations.push(Location {
+                            uri: uri.clone(),
+                            range: Range {
+                                start: Position {
+                                    line: idx as u32,
+                                    character: start_utf16 as u32,
+                                },
+                                end: Position {
+                                    line: idx as u32,
+                                    character: end_utf16 as u32,
+                                },
+                            },
+                        });
+                    }
+                }
+                if let Some(rel_pos) = line[current_pos..].find(binding) {
+                    current_pos = current_pos + rel_pos + binding.len();
+                }
+            }
+        }
+    }
+
+    // Find usages in function body
+    let word_pattern = format!(r"\b{}\b", regex::escape(&param_name));
+    let re = regex::Regex::new(&word_pattern).ok()?;
+
+    let mut in_fn_body = false;
+    for (idx, line) in lines
+        .iter()
+        .enumerate()
+        .skip(doc_start)
+        .take(fn_end - doc_start + 1)
+    {
+        if !in_fn_body {
+            if line.contains('{') {
+                in_fn_body = true;
+            }
+            continue;
+        }
+
+        for mat in re.find_iter(line) {
+            let start_utf16 = byte_index_to_utf16_col(line, mat.start());
+            let end_utf16 = byte_index_to_utf16_col(line, mat.end());
+
+            locations.push(Location {
+                uri: uri.clone(),
+                range: Range {
+                    start: Position {
+                        line: idx as u32,
+                        character: start_utf16 as u32,
+                    },
+                    end: Position {
+                        line: idx as u32,
+                        character: end_utf16 as u32,
+                    },
+                },
+            });
+        }
+    }
+
+    if locations.is_empty() {
+        None
+    } else {
+        Some(locations)
+    }
+}
+
+/// Go to the definition of a path parameter (the doc comment)
+pub fn goto_path_param_definition(content: &str, position: Position, uri: Url) -> Option<Location> {
+    let line_idx = position.line as usize;
+    let lines: Vec<&str> = content.lines().collect();
+
+    if line_idx >= lines.len() {
+        return None;
+    }
+
+    let line = lines[line_idx];
+    let char_idx = utf16_pos_to_byte_index(line, position.character as usize)?;
+
+    // Get the param name from doc, binding, or body usage
+    let doc_result = get_path_param_at_position(content, line_idx, char_idx);
+    let binding_result = get_path_binding_at_position(content, line_idx, char_idx);
+
+    // If we're on the doc comment, go to the binding instead
+    if let Some((param_name, _)) = doc_result {
+        return goto_path_param_binding(content, line_idx, &param_name, uri);
+    }
+
+    let param_name = binding_result
+        .map(|(name, _)| name)
+        .or_else(|| get_path_param_usage_at_position(content, line_idx, char_idx))?;
+
+    // Find the rovo block boundaries
+    let (doc_start, fn_end) = find_rovo_block_boundaries(content, line_idx)?;
+
+    // Find the definition in # Path Parameters section
+    let mut in_path_params = false;
+    for (idx, line) in lines
+        .iter()
+        .enumerate()
+        .skip(doc_start)
+        .take(fn_end - doc_start + 1)
+    {
+        let trimmed = line.trim_start().trim_start_matches("///").trim();
+
+        if trimmed.starts_with("# ") {
+            in_path_params = trimmed == "# Path Parameters";
+            continue;
+        }
+
+        if in_path_params && !trimmed.is_empty() {
+            if let Some(colon_pos) = trimmed.find(':') {
+                let name = trimmed[..colon_pos].trim();
+                if name == param_name {
+                    let doc_start_pos = line.find("///")? + 3;
+                    let content_after = &line[doc_start_pos..];
+                    let leading_ws = content_after.len() - content_after.trim_start().len();
+                    let name_start = doc_start_pos + leading_ws;
+                    let name_end = name_start + name.len();
+
+                    let start_utf16 = byte_index_to_utf16_col(line, name_start);
+                    let end_utf16 = byte_index_to_utf16_col(line, name_end);
+
+                    return Some(Location {
+                        uri,
+                        range: Range {
+                            start: Position {
+                                line: idx as u32,
+                                character: start_utf16 as u32,
+                            },
+                            end: Position {
+                                line: idx as u32,
+                                character: end_utf16 as u32,
+                            },
+                        },
+                    });
+                }
+            }
+        }
+    }
+
+    None
+}
+
+/// Go to the binding location of a path parameter (from doc to signature)
+fn goto_path_param_binding(
+    content: &str,
+    line_idx: usize,
+    param_name: &str,
+    uri: Url,
+) -> Option<Location> {
+    let lines: Vec<&str> = content.lines().collect();
+    let (doc_start, fn_end) = find_rovo_block_boundaries(content, line_idx)?;
+
+    // Find the Path( binding in the function signature
+    for (idx, line) in lines
+        .iter()
+        .enumerate()
+        .skip(doc_start)
+        .take(fn_end - doc_start + 1)
+    {
+        if let Some(path_pos) = line.find("Path(") {
+            let after_path = &line[path_pos + 5..];
+
+            let (bindings_str, bindings_start) = if after_path.starts_with('(') {
+                let close = after_path.find(')')?;
+                (&after_path[1..close], path_pos + 6)
+            } else {
+                let close = after_path.find(')')?;
+                (&after_path[..close], path_pos + 5)
+            };
+
+            let mut current_pos = bindings_start;
+            for binding in bindings_str.split(',') {
+                let binding = binding.trim();
+                if binding == param_name {
+                    if let Some(rel_pos) = line[current_pos..].find(binding) {
+                        let abs_start = current_pos + rel_pos;
+                        let abs_end = abs_start + binding.len();
+
+                        let start_utf16 = byte_index_to_utf16_col(line, abs_start);
+                        let end_utf16 = byte_index_to_utf16_col(line, abs_end);
+
+                        return Some(Location {
+                            uri,
+                            range: Range {
+                                start: Position {
+                                    line: idx as u32,
+                                    character: start_utf16 as u32,
+                                },
+                                end: Position {
+                                    line: idx as u32,
+                                    character: end_utf16 as u32,
+                                },
+                            },
+                        });
+                    }
+                }
+                if let Some(rel_pos) = line[current_pos..].find(binding) {
+                    current_pos = current_pos + rel_pos + binding.len();
+                }
+            }
+        }
+    }
+
+    None
+}
+
+/// Get path param usage at position (variable in function body)
+fn get_path_param_usage_at_position(
+    content: &str,
+    line_idx: usize,
+    byte_idx: usize,
+) -> Option<String> {
+    let lines: Vec<&str> = content.lines().collect();
+    let line = lines.get(line_idx)?;
+
+    // Must NOT be in a doc comment
+    if line.trim_start().starts_with("///") {
+        return None;
+    }
+
+    // Check if we're in a function body (after {)
+    let (doc_start, _) = find_rovo_block_boundaries(content, line_idx)?;
+
+    let mut in_fn_body = false;
+    for check_line in lines.iter().skip(doc_start).take(line_idx - doc_start + 1) {
+        if check_line.contains('{') {
+            in_fn_body = true;
+            break;
+        }
+    }
+
+    if !in_fn_body {
+        return None;
+    }
+
+    // Convert byte index to character index for non-ASCII support
+    let char_idx = line[..byte_idx.min(line.len())].chars().count();
+
+    // Extract identifier at position
+    let mut start = char_idx;
+    let mut end = char_idx;
+    let chars: Vec<char> = line.chars().collect();
+
+    // Find start of identifier
+    while start > 0 {
+        let prev = start - 1;
+        if prev < chars.len() && (chars[prev].is_alphanumeric() || chars[prev] == '_') {
+            start = prev;
+        } else {
+            break;
+        }
+    }
+
+    // Find end of identifier
+    while end < chars.len() && (chars[end].is_alphanumeric() || chars[end] == '_') {
+        end += 1;
+    }
+
+    if start == end {
+        return None;
+    }
+
+    let ident: String = chars[start..end].iter().collect();
+    if ident.is_empty() || ident.chars().next()?.is_numeric() {
+        return None;
+    }
+
+    Some(ident)
+}
+
 pub fn find_tag_references(content: &str, position: Position, uri: Url) -> Option<Vec<Location>> {
     let line_idx = position.line as usize;
     let lines: Vec<&str> = content.lines().collect();
@@ -372,9 +747,25 @@ pub fn prepare_rename(content: &str, position: Position) -> Option<(Range, Strin
     }
 
     let line = lines[line_idx];
-
-    // Extract tag name from current position
     let char_idx = utf16_pos_to_byte_index(line, position.character as usize)?;
+
+    // Check if we're on a path parameter in # Path Parameters section
+    if let Some((name, range)) = get_path_param_at_position(content, line_idx, char_idx) {
+        return Some((range, name));
+    }
+
+    // Check if we're on a Path binding in function signature
+    // Only claim rename if there's a corresponding doc comment to update
+    if let Some((name, range)) = get_path_binding_at_position(content, line_idx, char_idx) {
+        // Check if this param is documented in # Path Parameters
+        if has_path_param_doc(content, line_idx, &name) {
+            return Some((range, name));
+        }
+        // No doc to update - let rust-analyzer handle the rename
+        return None;
+    }
+
+    // Check for @tag rename (existing functionality)
     let tag_name = extract_tag_at_position(line, char_idx)?;
 
     // Find @tag in the line to get the range
@@ -405,6 +796,144 @@ pub fn prepare_rename(content: &str, position: Position) -> Option<(Range, Strin
     ))
 }
 
+/// Get path parameter name and range if cursor is on a path param in # Path Parameters section
+fn get_path_param_at_position(
+    content: &str,
+    line_idx: usize,
+    char_idx: usize,
+) -> Option<(String, Range)> {
+    let lines: Vec<&str> = content.lines().collect();
+    let line = lines.get(line_idx)?;
+
+    // Must be a doc comment
+    if !line.trim_start().starts_with("///") {
+        return None;
+    }
+
+    // Check if we're in a # Path Parameters section
+    let mut in_path_params_section = false;
+    for i in (0..line_idx).rev() {
+        let prev_line = lines.get(i)?;
+        let trimmed = prev_line.trim_start().trim_start_matches("///").trim();
+
+        if trimmed.starts_with("# ") {
+            in_path_params_section = trimmed == "# Path Parameters";
+            break;
+        }
+
+        // Stop if we hit non-doc-comment
+        if !prev_line.trim_start().starts_with("///") {
+            break;
+        }
+    }
+
+    if !in_path_params_section {
+        return None;
+    }
+
+    // Parse the path parameter line: "name: description"
+    let doc_content = line.trim_start().trim_start_matches("///").trim();
+    let colon_pos = doc_content.find(':')?;
+    let param_name = doc_content[..colon_pos].trim();
+
+    if param_name.is_empty() {
+        return None;
+    }
+
+    // Find the position of the param name in the line
+    let doc_start = line.find("///")? + 3;
+    let content_after_slashes = &line[doc_start..];
+    let leading_whitespace = content_after_slashes.len() - content_after_slashes.trim_start().len();
+    let name_start = doc_start + leading_whitespace;
+    let name_end = name_start + param_name.len();
+
+    // Check if cursor is on the param name
+    if char_idx < name_start || char_idx > name_end {
+        return None;
+    }
+
+    let start_utf16 = byte_index_to_utf16_col(line, name_start);
+    let end_utf16 = byte_index_to_utf16_col(line, name_end);
+
+    Some((
+        param_name.to_string(),
+        Range {
+            start: Position {
+                line: line_idx as u32,
+                character: start_utf16 as u32,
+            },
+            end: Position {
+                line: line_idx as u32,
+                character: end_utf16 as u32,
+            },
+        },
+    ))
+}
+
+/// Get path binding name and range if cursor is on Path(name) in function signature
+fn get_path_binding_at_position(
+    content: &str,
+    line_idx: usize,
+    char_idx: usize,
+) -> Option<(String, Range)> {
+    let lines: Vec<&str> = content.lines().collect();
+    let line = lines.get(line_idx)?;
+
+    // Look for Path( pattern
+    let path_pos = line.find("Path(")?;
+    let after_path = &line[path_pos + 5..];
+
+    // Handle tuple: Path((a, b))
+    let (bindings_str, bindings_start) = if after_path.starts_with('(') {
+        // Tuple pattern
+        let close_paren = after_path.find(')')?;
+        (&after_path[1..close_paren], path_pos + 6)
+    } else {
+        // Single binding: Path(name)
+        let close_paren = after_path.find(')')?;
+        (&after_path[..close_paren], path_pos + 5)
+    };
+
+    // Parse bindings
+    let mut current_pos = bindings_start;
+    for binding in bindings_str.split(',') {
+        let binding = binding.trim();
+        if binding.is_empty() {
+            continue;
+        }
+
+        // Find the actual position of this binding in the line
+        if let Some(rel_pos) = line[current_pos..].find(binding) {
+            let abs_start = current_pos + rel_pos;
+            let abs_end = abs_start + binding.len();
+
+            // Check if cursor is on this binding
+            if char_idx >= abs_start && char_idx <= abs_end {
+                let start_utf16 = byte_index_to_utf16_col(line, abs_start);
+                let end_utf16 = byte_index_to_utf16_col(line, abs_end);
+
+                return Some((
+                    binding.to_string(),
+                    Range {
+                        start: Position {
+                            line: line_idx as u32,
+                            character: start_utf16 as u32,
+                        },
+                        end: Position {
+                            line: line_idx as u32,
+                            character: end_utf16 as u32,
+                        },
+                    },
+                ));
+            }
+
+            current_pos = abs_end;
+        }
+    }
+
+    None
+}
+
 /// Rename a tag and update all its references in the document
 ///
 /// # Arguments
@@ -429,9 +958,14 @@ pub fn rename_tag(
     }
 
     let line = lines[line_idx];
-
-    // Extract tag name from current position
     let char_idx = utf16_pos_to_byte_index(line, position.character as usize)?;
+
+    // Check if we're renaming a path parameter
+    if let Some(edit) = rename_path_parameter(content, line_idx, char_idx, new_name, uri.clone()) {
+        return Some(edit);
+    }
+
+    // Otherwise, try tag rename
     let old_tag_name = extract_tag_at_position(line, char_idx)?;
 
     // Find all references and create text edits
@@ -483,6 +1017,290 @@ pub fn rename_tag(
         changes: Some(changes),
         ..Default::default()
     })
+}
+
+/// Rename a path parameter in both the doc comment and function signature
+fn rename_path_parameter(
+    content: &str,
+    line_idx: usize,
+    char_idx: usize,
+    new_name: &str,
+    uri: Url,
+) -> Option<WorkspaceEdit> {
+    let lines: Vec<&str> = content.lines().collect();
+
+    // Try to get the old name from either doc or binding
+    let old_name = get_path_param_at_position(content, line_idx, char_idx)
+        .map(|(name, _)| name)
+        .or_else(|| {
+            get_path_binding_at_position(content, line_idx, char_idx).map(|(name, _)| name)
+        })?;
+
+    // Find the rovo block boundaries
+    let (doc_start, fn_end) = find_rovo_block_boundaries(content, line_idx)?;
+
+    let mut text_edits = Vec::new();
+
+    // Find and rename in # Path Parameters section
+    let mut in_path_params = false;
+    for (idx, line) in lines
+        .iter()
+        .enumerate()
+        .skip(doc_start)
+        .take(fn_end - doc_start + 1)
+    {
+        let trimmed = line.trim_start().trim_start_matches("///").trim();
+
+        if trimmed.starts_with("# ") {
+            in_path_params = trimmed == "# Path Parameters";
+            continue;
+        }
+
+        if in_path_params && !trimmed.is_empty() {
+            // Check if this line has a path param with the old name
+            if let Some(colon_pos) = trimmed.find(':') {
+                let param_name = trimmed[..colon_pos].trim();
+                if param_name == old_name {
+                    // Find position in original line
+                    let doc_start_pos = line.find("///")? + 3;
+                    let content_after = &line[doc_start_pos..];
+                    let leading_ws = content_after.len() - content_after.trim_start().len();
+                    let name_start = doc_start_pos + leading_ws;
+                    let name_end = name_start + old_name.len();
+
+                    let start_utf16 = byte_index_to_utf16_col(line, name_start);
+                    let end_utf16 = byte_index_to_utf16_col(line, name_end);
+
+                    text_edits.push(TextEdit {
+                        range: Range {
+                            start: Position {
+                                line: idx as u32,
+                                character: start_utf16 as u32,
+                            },
+                            end: Position {
+                                line: idx as u32,
+                                character: end_utf16 as u32,
+                            },
+                        },
+                        new_text: new_name.to_string(),
+                    });
+                }
+            }
+        }
+    }
+
+    // Find and rename Path binding in function signature
+    for (idx, line) in lines
+        .iter()
+        .enumerate()
+        .skip(doc_start)
+        .take(fn_end - doc_start + 1)
+    {
+        if let Some(path_pos) = line.find("Path(") {
+            let after_path = &line[path_pos + 5..];
+
+            // Handle tuple: Path((a, b))
+            let (bindings_str, bindings_start) = if after_path.starts_with('(') {
+                let close = after_path.find(')')?;
+                (&after_path[1..close], path_pos + 6)
+            } else {
+                let close = after_path.find(')')?;
+                (&after_path[..close], path_pos + 5)
+            };
+
+            // Find and rename matching binding
+            let mut current_pos = bindings_start;
+            for binding in bindings_str.split(',') {
+                let binding = binding.trim();
+                if binding == old_name {
+                    if let Some(rel_pos) = line[current_pos..].find(binding) {
+                        let abs_start = current_pos + rel_pos;
+                        let abs_end = abs_start + binding.len();
+
+                        let start_utf16 = byte_index_to_utf16_col(line, abs_start);
+                        let end_utf16 = byte_index_to_utf16_col(line, abs_end);
+
+                        text_edits.push(TextEdit {
+                            range: Range {
+                                start: Position {
+                                    line: idx as u32,
+                                    character: start_utf16 as u32,
+                                },
+                                end: Position {
+                                    line: idx as u32,
+                                    character: end_utf16 as u32,
+                                },
+                            },
+                            new_text: new_name.to_string(),
+                        });
+                    }
+                }
+                if let Some(rel_pos) = line[current_pos..].find(binding) {
+                    current_pos = current_pos + rel_pos + binding.len();
+                }
+            }
+        }
+    }
+
+    // Find and rename variable usages in function body
+    // Look for the variable name as a whole word
+    let word_pattern = format!(r"\b{}\b", regex::escape(&old_name));
+    let re = regex::Regex::new(&word_pattern).ok()?;
+
+    // Track positions we've already edited to avoid duplicates
+    let edited_positions: std::collections::HashSet<(u32, u32)> = text_edits
+        .iter()
+        .map(|e| (e.range.start.line, e.range.start.character))
+        .collect();
+
+    // Find function body start (after the opening brace)
+    let mut in_fn_body = false;
+
+    for (idx, line) in lines
+        .iter()
+        .enumerate()
+        .skip(doc_start)
+        .take(fn_end - doc_start + 1)
+    {
+        // Track when we enter the function body (start AFTER the line with opening brace)
+        if !in_fn_body {
+            if line.contains('{') {
+                in_fn_body = true;
+            }
+            continue; // Skip the signature line
+        }
+
+        // Find all matches in this line
+        for mat in re.find_iter(line) {
+            let start_utf16 = byte_index_to_utf16_col(line, mat.start());
+            let end_utf16 = byte_index_to_utf16_col(line, mat.end());
+
+            // Skip if we've already added an edit at this position
+            let pos = (idx as u32, start_utf16 as u32);
+            if edited_positions.contains(&pos) {
+                continue;
+            }
+
+            text_edits.push(TextEdit {
+                range: Range {
+                    start: Position {
+                        line: idx as u32,
+                        character: start_utf16 as u32,
+                    },
+                    end: Position {
+                        line: idx as u32,
+                        character: end_utf16 as u32,
+                    },
+                },
+                new_text: new_name.to_string(),
+            });
+        }
+    }
+
+    if text_edits.is_empty() {
+        return None;
+    }
+
+    let mut changes = std::collections::HashMap::new();
+    changes.insert(uri, text_edits);
+
+    Some(WorkspaceEdit {
+        changes: Some(changes),
+        ..Default::default()
+    })
+}
+
+/// Find the boundaries of a #[rovo] block (doc start to function end)
+fn find_rovo_block_boundaries(content: &str, line_idx: usize) -> Option<(usize, usize)> {
+    let lines: Vec<&str> = content.lines().collect();
+
+    // Find doc comment start by going backwards
+    // We need to handle the case where we start from the function body or signature
+    let mut doc_start = line_idx;
+    let mut found_doc_or_attr = false;
+
+    for i in (0..=line_idx).rev() {
+        let line = lines.get(i)?;
+        let trimmed = line.trim();
+
+        if trimmed.starts_with("///") || trimmed.starts_with("#[") {
+            doc_start = i;
+            found_doc_or_attr = true;
+        } else if trimmed.is_empty() {
+            // Empty line - continue looking
+            if found_doc_or_attr {
+                // We've found doc/attr lines, stop at empty line
+                break;
+            }
+        } else {
+            // Non-empty, non-doc line
+            if found_doc_or_attr {
+                // Found the start of the block
+                break;
+            }
+            // Haven't found any doc/attr yet, keep looking
+            // (we might be starting from inside the function body)
+        }
+    }
+
+    // Find function end by going forward and tracking braces
+    let mut found_fn = false;
+    let mut brace_depth: i32 = 0;
+
+    for (i, line) in lines.iter().enumerate().skip(doc_start) {
+        if line.contains("fn ") && !line.trim().starts_with("//") {
+            found_fn = true;
+        }
+
+        if found_fn {
+            for ch in line.chars() {
+                match ch {
+                    '{' => brace_depth += 1,
+                    '}' => {
+                        brace_depth -= 1;
+                        if brace_depth == 0 {
+                            return Some((doc_start, i));
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        }
+    }
+
+    Some((doc_start, lines.len().saturating_sub(1)))
+}
+
+/// Check if a path parameter has a corresponding doc entry in # Path Parameters
+fn has_path_param_doc(content: &str, line_idx: usize, param_name: &str) -> bool {
+    let lines: Vec<&str> = content.lines().collect();
+
+    // Find the rovo block boundaries
+    let Some((doc_start, fn_end)) = find_rovo_block_boundaries(content, line_idx) else {
+        return false;
+    };
+
+    // Look for # Path Parameters section and check if param is documented
+    let mut in_path_params = false;
+    for line in lines.iter().skip(doc_start).take(fn_end - doc_start + 1) {
+        let trimmed = line.trim_start().trim_start_matches("///").trim();
+
+        if trimmed.starts_with("# ") {
+            in_path_params = trimmed == "# Path Parameters";
+            continue;
+        }
+
+        if in_path_params && !trimmed.is_empty() {
+            if let Some(colon_pos) = trimmed.find(':') {
+                let name = trimmed[..colon_pos].trim();
+                if name == param_name {
+                    return true;
+                }
+            }
+        }
+    }
+
+    false
 }
 
 fn get_status_code_at_position(line: &str, char_idx: usize) -> Option<String> {
@@ -608,7 +1426,12 @@ pub fn semantic_tokens_full(content: &str) -> Option<SemanticTokensResult> {
     let tag_value_regex = regex::Regex::new(r"@(?:tag|id)\s+(\w+)").unwrap();
     let status_regex = regex::Regex::new(r"\b([1-5][0-9]{2})\b").unwrap();
     let security_regex = regex::Regex::new(r"\b(bearer|basic|apiKey|oauth2)\b").unwrap();
-    let section_regex = regex::Regex::new(r"^///\s*#\s+(Responses|Examples|Metadata)\b").unwrap();
+    let section_regex =
+        regex::Regex::new(r"^///\s*#\s+(Path Parameters|Responses|Examples|Metadata)\b").unwrap();
+    // Match path param lines: "/// param_name: description"
+    let path_param_regex = regex::Regex::new(r"^///\s+(\w+):\s").unwrap();
+
+    let mut in_path_params_section = false;
 
     for (line_idx, line) in content.lines().enumerate() {
         // Only process lines near #[rovo] attributes
@@ -616,15 +1439,18 @@ pub fn semantic_tokens_full(content: &str) -> Option<SemanticTokensResult> {
             continue;
         }
 
-        // Match section headers: # Responses, # Examples, # Metadata
+        // Match section headers: # Responses, # Examples, # Metadata, # Path Parameters
         for cap in section_regex.captures_iter(line) {
             if let Some(_m) = cap.get(0) {
+                // Track if we're entering/leaving Path Parameters section
+                let section_name = cap.get(1).map(|m| m.as_str()).unwrap_or("");
+                in_path_params_section = section_name == "Path Parameters";
+
                 // Find the position of the '#' character
                 if let Some(hash_pos) = line.find('#') {
                     let start_col = byte_index_to_utf16_col(line, hash_pos) as u32;
                     // Length is from '#' to end of section name
-                    let section_text = cap.get(1).unwrap().as_str();
-                    let length: u32 = (2 + section_text.len()) as u32; // "# " + section_name
+                    let length: u32 = (2 + section_name.len()) as u32; // "# " + section_name
 
                     // Calculate delta encoding (UTF-16 units)
                     let delta_line = (line_idx as u32).saturating_sub(prev_line);
@@ -639,6 +1465,43 @@ pub fn semantic_tokens_full(content: &str) -> Option<SemanticTokensResult> {
                         delta_start,
                         length,
                         token_type: 4,             // KEYWORD type for section headers
+                        token_modifiers_bitset: 1, // DOCUMENTATION modifier (bit 0)
+                    });
+
+                    prev_line = line_idx as u32;
+                    prev_start = start_col;
+                }
+            }
+        }
+
+        // Check if we're leaving a section (hit another # header or non-doc line)
+        let trimmed = line.trim();
+        if !trimmed.starts_with("///") {
+            in_path_params_section = false;
+        } else if trimmed.starts_with("/// #") && !section_regex.is_match(line) {
+            in_path_params_section = false;
+        }
+
+        // Match path parameter names in # Path Parameters section
+        if in_path_params_section {
+            for cap in path_param_regex.captures_iter(line) {
+                if let Some(m) = cap.get(1) {
+                    let start_byte = m.start();
+                    let start_col = byte_index_to_utf16_col(line, start_byte) as u32;
+                    let length: u32 = m.as_str().chars().map(|ch| ch.len_utf16() as u32).sum();
+
+                    let delta_line = (line_idx as u32).saturating_sub(prev_line);
+                    let delta_start = if delta_line == 0 {
+                        start_col.saturating_sub(prev_start)
+                    } else {
+                        start_col
+                    };
+
+                    tokens.push(SemanticToken {
+                        delta_line,
+                        delta_start,
+                        length,
+                        token_type: 5, // PARAMETER type for path param names
                         token_modifiers_bitset: 1, // DOCUMENTATION modifier (bit 0)
                     });
 

@@ -180,5 +180,195 @@ pub fn validate_annotations(content: &str) -> Vec<Diagnostic> {
         }
     }
 
+    // Check for undocumented path parameters
+    diagnostics.extend(check_undocumented_path_params(content, &lines));
+
     diagnostics
+}
+
+/// Check for undocumented path parameters and emit warnings
+fn check_undocumented_path_params(_content: &str, lines: &[&str]) -> Vec<Diagnostic> {
+    let mut diagnostics = Vec::new();
+
+    // Find all #[rovo] blocks
+    for (rovo_line, line) in lines.iter().enumerate() {
+        if !line.contains("#[rovo]") {
+            continue;
+        }
+
+        // Extract path bindings from the function signature
+        let bindings = extract_path_bindings_from_signature(lines, rovo_line);
+        if bindings.is_empty() {
+            continue;
+        }
+
+        // Find documented params in # Path Parameters section
+        let documented = get_documented_path_params_for_block(lines, rovo_line);
+
+        // Find undocumented bindings (skip those starting with _)
+        let undocumented: Vec<&String> = bindings
+            .iter()
+            .filter(|b| !b.starts_with('_') && !documented.contains(*b))
+            .collect();
+
+        if undocumented.is_empty() {
+            continue;
+        }
+
+        // Find the function signature line for the diagnostic location
+        let fn_line = find_fn_line_after_rovo(lines, rovo_line).unwrap_or(rovo_line);
+
+        let param_list = undocumented
+            .iter()
+            .map(|s| format!("'{}'", s))
+            .collect::<Vec<_>>()
+            .join(", ");
+
+        diagnostics.push(Diagnostic {
+            line: fn_line,
+            message: format!(
+                "Undocumented path parameter(s): {}\nAdd a `# Path Parameters` section to document them, or prefix with `_` to silence.",
+                param_list
+            ),
+            severity: DiagnosticSeverity::Warning,
+            char_start: None,
+            char_end: None,
+            end_line: None,
+            end_char: None,
+        });
+    }
+
+    diagnostics
+}
+
+/// Extract path bindings from function signature starting at rovo_line
+fn extract_path_bindings_from_signature(lines: &[&str], rovo_line: usize) -> Vec<String> {
+    // Collect signature until opening brace
+    let mut signature = String::new();
+    for line in lines.iter().skip(rovo_line) {
+        let trimmed = line.trim();
+        if trimmed.starts_with("///") || trimmed.starts_with("#[") {
+            continue;
+        }
+        if let Some(brace_pos) = line.find('{') {
+            signature.push_str(&line[..brace_pos]);
+            break;
+        }
+        signature.push_str(line);
+        signature.push(' ');
+    }
+
+    // Extract Path bindings
+    let mut bindings = Vec::new();
+    let mut search_start = 0;
+
+    while let Some(rel_pos) = signature[search_start..].find("Path(") {
+        let path_pos = search_start + rel_pos;
+        let after_path = &signature[path_pos + 5..];
+
+        // Find matching closing paren
+        let mut depth = 1;
+        let mut end_pos = 0;
+        let is_tuple = after_path.starts_with('(');
+
+        for (i, ch) in after_path.char_indices() {
+            match ch {
+                '(' => depth += 1,
+                ')' => {
+                    depth -= 1;
+                    if depth == 0 {
+                        end_pos = i;
+                        break;
+                    }
+                }
+                _ => {}
+            }
+        }
+
+        let bindings_str = if is_tuple && end_pos > 1 {
+            &after_path[1..end_pos - 1]
+        } else {
+            &after_path[..end_pos]
+        };
+
+        for binding in bindings_str.split(',') {
+            let binding = binding.trim();
+            if !binding.is_empty()
+                && binding.chars().all(|c| c.is_alphanumeric() || c == '_')
+                && !bindings.contains(&binding.to_string())
+            {
+                bindings.push(binding.to_string());
+            }
+        }
+
+        search_start = path_pos + 5;
+    }
+
+    bindings
+}
+
+/// Get documented path params for a rovo block
+fn get_documented_path_params_for_block(lines: &[&str], rovo_line: usize) -> Vec<String> {
+    // Find doc block start
+    let mut doc_start = rovo_line;
+    for i in (0..rovo_line).rev() {
+        let trimmed = lines.get(i).unwrap_or(&"").trim();
+        if trimmed.starts_with("///") {
+            doc_start = i;
+        } else {
+            break;
+        }
+    }
+
+    // Search forward for documented params
+    let mut documented = Vec::new();
+    let mut in_path_params = false;
+
+    for i in doc_start..rovo_line {
+        let line = lines.get(i).unwrap_or(&"");
+        let trimmed = line.trim();
+        if !trimmed.starts_with("///") {
+            continue;
+        }
+
+        let content = trimmed.trim_start_matches("///").trim();
+        if content == "# Path Parameters" {
+            in_path_params = true;
+        } else if content.starts_with("# ") {
+            in_path_params = false;
+        } else if in_path_params {
+            if let Some(colon_pos) = content.find(':') {
+                let name = content[..colon_pos].trim();
+                if !name.is_empty() && name.chars().all(|c| c.is_alphanumeric() || c == '_') {
+                    documented.push(name.to_string());
+                }
+            }
+        }
+    }
+
+    documented
+}
+
+/// Find the fn line after a #[rovo] attribute
+fn find_fn_line_after_rovo(lines: &[&str], rovo_line: usize) -> Option<usize> {
+    for (i, line) in lines.iter().enumerate().skip(rovo_line + 1) {
+        let trimmed = line.trim();
+        if trimmed.starts_with("#[") {
+            continue;
+        }
+        // Check for function definitions - must start with fn or visibility + fn
+        if trimmed.starts_with("fn ")
+            || trimmed.starts_with("pub fn ")
+            || trimmed.starts_with("async fn ")
+            || trimmed.starts_with("pub async fn ")
+            || trimmed.starts_with("pub(crate) fn ")
+            || trimmed.starts_with("pub(crate) async fn ")
+        {
+            return Some(i);
+        }
+        if !trimmed.is_empty() && !trimmed.starts_with("///") {
+            break;
+        }
+    }
+    None
 }

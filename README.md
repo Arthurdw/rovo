@@ -120,6 +120,10 @@ Rovo uses Rust-style documentation with markdown sections and metadata annotatio
 /// Retrieves a single todo item from the database. Returns 404
 /// if the item doesn't exist.
 ///
+/// # Path Parameters
+///
+/// id: The todo item's unique identifier
+///
 /// # Responses
 ///
 /// 200: Json<TodoItem> - Successfully retrieved the todo item
@@ -161,6 +165,23 @@ Document HTTP responses with status codes, types, and descriptions:
 - Status codes must be valid HTTP codes (100-599)
 - Type must be valid Rust syntax
 - Description explains when this response occurs
+
+### Path Parameters Section
+
+Document path parameters for primitive types:
+
+```rust
+/// # Path Parameters
+///
+/// id: The user's unique identifier
+/// index: Zero-based item index
+```
+
+**Format:** `<name>: <description>`
+
+- Parameter names must match the variable bindings in your function signature
+- Works with primitives: `String`, `u64`, `u32`, `i64`, `i32`, `bool`, `Uuid`, etc.
+- For tuple paths like `Path((a, b)): Path<(Uuid, u32)>`, document each parameter
 
 ### Examples Section
 
@@ -390,7 +411,44 @@ let app = Router::new()
 
 ### Path Parameters
 
-Use structs with `JsonSchema`:
+For primitive types (`String`, `u64`, `Uuid`, `bool`, etc.), document parameters directly in doc comments:
+
+```rust
+/// Get user by ID.
+///
+/// # Path Parameters
+///
+/// id: The user's unique identifier
+///
+/// # Responses
+///
+/// 200: Json<User> - User found
+#[rovo]
+async fn get_user(Path(id): Path<u64>) -> impl IntoApiResponse {
+    // ...
+}
+```
+
+For tuple parameters:
+
+```rust
+/// Get item in collection.
+///
+/// # Path Parameters
+///
+/// collection_id: The collection UUID
+/// index: Item index
+///
+/// # Responses
+///
+/// 200: Json<Item> - Item found
+#[rovo]
+async fn get_item(Path((collection_id, index)): Path<(Uuid, u32)>) -> impl IntoApiResponse {
+    // ...
+}
+```
+
+For complex types, use structs with `JsonSchema`:
 
 ```rust
 use rovo::schemars::JsonSchema;
@@ -399,6 +457,7 @@ use uuid::Uuid;
 
 #[derive(Deserialize, JsonSchema)]
 struct UserId {
+    /// The user's unique identifier
     id: Uuid,
 }
 

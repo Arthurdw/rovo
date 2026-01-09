@@ -1,0 +1,7 @@
+error: Documented path parameter 'id' does not match any parameter in function signature
+       help: found parameters: id_test
+       note: parameter names in # Path Parameters must match the binding names in Path(...)
+  --> tests/ui/path_param_name_mismatch.rs:12:1
+   |
+12 | /// id: The unique identifier
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

@@ -27,6 +27,10 @@ pub enum AnnotationKind {
     ExamplesSection,
     /// # Metadata section header
     MetadataSection,
+    /// # Path Parameters section header
+    PathParametersSection,
+    /// Path parameter entry from # Path Parameters section
+    PathParameter,
 }
 
 /// Parsed annotation from a doc comment
@@ -60,6 +64,12 @@ pub struct Annotation {
     // ID fields
     /// Operation ID for @id annotations
     pub operation_id: Option<String>,
+
+    // Path parameter fields (from # Path Parameters section)
+    /// Path parameter name
+    pub param_name: Option<String>,
+    /// Path parameter description
+    pub param_description: Option<String>,
 }
 
 impl Annotation {
@@ -74,6 +84,8 @@ impl Annotation {
             security_scheme: None,
             example_value: None,
             operation_id: None,
+            param_name: None,
+            param_description: None,
         }
     }
 }
@@ -105,6 +117,7 @@ enum Section {
     Responses,
     Examples,
     Metadata,
+    PathParameters,
 }
 
 /// Parse all Rovo annotations from source code content
@@ -196,6 +209,13 @@ pub fn parse_annotations(content: &str) -> Vec<Annotation> {
                         annotations
                             .push(Annotation::new(AnnotationKind::MetadataSection, line_num));
                     }
+                    "Path Parameters" => {
+                        current_section = Some(Section::PathParameters);
+                        annotations.push(Annotation::new(
+                            AnnotationKind::PathParametersSection,
+                            line_num,
+                        ));
+                    }
                     _ => current_section = None,
                 }
                 idx += 1;
@@ -226,6 +246,13 @@ pub fn parse_annotations(content: &str) -> Vec<Annotation> {
                 }
                 Some(Section::Metadata) => {
                     if let Some(ann) = parse_annotation_line(line, line_num) {
+                        annotations.push(ann);
+                    }
+                    idx += 1;
+                }
+                Some(Section::PathParameters) => {
+                    // Parse path parameter: "name: description"
+                    if let Some(ann) = parse_path_parameter(line, line_num) {
                         annotations.push(ann);
                     }
                     idx += 1;
@@ -541,6 +568,39 @@ fn parse_annotation_line(line: &str, line_num: usize) -> Option<Annotation> {
     } else {
         None
     }
+}
+
+/// Parse a path parameter entry from # Path Parameters section
+/// Format: "name: description"
+fn parse_path_parameter(line: &str, line_num: usize) -> Option<Annotation> {
+    let content = line.trim_start_matches("///").trim();
+
+    // Skip empty lines
+    if content.is_empty() {
+        return None;
+    }
+
+    // Look for "name: description" format
+    let colon_pos = content.find(':')?;
+    let name = content[..colon_pos].trim();
+
+    // Skip if the name part looks like a status code (all digits)
+    if name.chars().all(|c| c.is_ascii_digit()) {
+        return None;
+    }
+
+    // Skip if it starts with # (section header) or @ (annotation)
+    if name.starts_with('#') || name.starts_with('@') {
+        return None;
+    }
+
+    let description = content[colon_pos + 1..].trim();
+
+    let mut ann = Annotation::new(AnnotationKind::PathParameter, line_num);
+    ann.param_name = Some(name.to_string());
+    ann.param_description = Some(description.to_string());
+
+    Some(ann)
 }
 
 fn parse_tag(content: &str, line_num: usize) -> Option<Annotation> {
@@ -991,5 +1051,52 @@ async fn handler() {}
         assert_eq!(responses[1].status, Some(404));
         assert_eq!(responses[1].response_type, Some("()".to_string()));
         assert_eq!(responses[1].description, None);
+    }
+
+    #[test]
+    fn test_parse_path_parameters_section() {
+        let content = r#"
+/// Get user by ID.
+///
+/// # Path Parameters
+///
+/// id: The user's unique identifier
+/// index: Zero-based item index
+///
+/// # Responses
+///
+/// 200: Json<User> - User found
+#[rovo]
+async fn handler() {}
+"#;
+        let annotations = parse_annotations(content);
+
+        // Should have PathParametersSection
+        assert!(
+            annotations
+                .iter()
+                .any(|a| a.kind == AnnotationKind::PathParametersSection),
+            "Should have PathParametersSection"
+        );
+
+        // Should have 2 PathParameter annotations
+        let params: Vec<_> = annotations
+            .iter()
+            .filter(|a| a.kind == AnnotationKind::PathParameter)
+            .collect();
+
+        assert_eq!(params.len(), 2, "Should have exactly 2 path parameters");
+
+        assert_eq!(params[0].param_name, Some("id".to_string()));
+        assert_eq!(
+            params[0].param_description,
+            Some("The user's unique identifier".to_string())
+        );
+
+        assert_eq!(params[1].param_name, Some("index".to_string()));
+        assert_eq!(
+            params[1].param_description,
+            Some("Zero-based item index".to_string())
+        );
     }
 }

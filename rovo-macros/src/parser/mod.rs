@@ -1,10 +1,10 @@
 mod annotations;
 mod error;
 mod tokens;
-mod types;
+pub mod types;
 
 pub use error::ParseError;
-pub use types::{DocInfo, FuncItem};
+pub use types::{DocInfo, FuncItem, PathParamDoc, PathParamInfo};
 
 use proc_macro2::{Span, TokenStream, TokenTree};
 use types::DocLine;
@@ -65,16 +65,55 @@ pub fn parse_rovo_function(input: TokenStream) -> Result<(FuncItem, DocInfo), Pa
     // Extract state type from function parameters
     let state_type = tokens::extract_state_type(&input);
 
+    // Extract path parameter info from function signature
+    let path_params = tokens::extract_path_info(&input);
+
     // Parse doc comments
     let mut doc_info = parse_doc_comments(&doc_lines)?;
 
     // Set deprecated flag from Rust attribute
     doc_info.deprecated = is_deprecated;
 
+    // Validate that documented path parameters match function signature bindings
+    if !doc_info.path_params.is_empty() {
+        if let Some(ref sig_params) = path_params {
+            // Only validate for primitive types (not struct patterns)
+            if !sig_params.is_struct_pattern {
+                for doc_param in &doc_info.path_params {
+                    if !sig_params.bindings.contains(&doc_param.name) {
+                        let bindings_list = sig_params.bindings.join(", ");
+                        return Err(ParseError::with_span(
+                            format!(
+                                "Documented path parameter '{}' does not match any parameter in function signature\n\
+                                 help: found parameters: {}\n\
+                                 note: parameter names in # Path Parameters must match the binding names in Path(...)",
+                                doc_param.name,
+                                bindings_list
+                            ),
+                            doc_param.span,
+                        ));
+                    }
+                }
+            }
+        } else {
+            // Documented path params but no Path<T> in signature
+            let first_param = &doc_info.path_params[0];
+            return Err(ParseError::with_span(
+                format!(
+                    "Documented path parameter '{}' but function has no Path<T> extractor\n\
+                     help: add a Path<T> parameter to your function signature",
+                    first_param.name
+                ),
+                first_param.span,
+            ));
+        }
+    }
+
     let func_item = FuncItem {
         name: func_name,
         tokens: input,
         state_type,
+        path_params,
     };
 
     Ok((func_item, doc_info))
@@ -118,6 +157,7 @@ fn parse_doc_comments(lines: &[DocLine]) -> Result<DocInfo, ParseError> {
                 "Responses" => Some("responses"),
                 "Examples" => Some("examples"),
                 "Metadata" => Some("metadata"),
+                "Path Parameters" => Some("path_parameters"),
                 _ => None, // Unknown section - ignore
             };
             continue;
@@ -308,6 +348,19 @@ fn parse_doc_comments(lines: &[DocLine]) -> Result<DocInfo, ParseError> {
                     );
 
                     return Err(ParseError::with_span(error_msg, span));
+                }
+            }
+            Some("path_parameters") if !trimmed.is_empty() => {
+                // Parse path parameter documentation
+                // Format: "name: description"
+                if let Some(colon_pos) = trimmed.find(':') {
+                    let name = trimmed[..colon_pos].trim().to_string();
+                    let description = trimmed[colon_pos + 1..].trim().to_string();
+                    doc_info.path_params.push(PathParamDoc {
+                        name,
+                        description,
+                        span,
+                    });
                 }
             }
             None if !trimmed.is_empty() => {

@@ -1,0 +1,7 @@
+error: Documented path parameter 'wrong_name' does not match any parameter in function signature
+       help: found parameters: collection_id, index
+       note: parameter names in # Path Parameters must match the binding names in Path(...)
+  --> tests/ui/path_param_tuple_mismatch.rs:13:1
+   |
+13 | /// wrong_name: The item index
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

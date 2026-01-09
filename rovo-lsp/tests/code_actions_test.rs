@@ -980,3 +980,171 @@ struct User {
     // Should still offer some action
     assert!(titles.iter().any(|t| t.contains("JsonSchema")));
 }
+
+// =============================================================================
+// Path Parameter Code Action Tests
+// =============================================================================
+
+#[test]
+fn offers_document_path_param_action() {
+    let content = r#"
+#[rovo]
+async fn get_user(Path(id): Path<u64>) {}
+"#;
+
+    let actions = code_actions::get_code_actions(content, range_at_line(2), test_uri());
+    let titles = get_action_titles(&actions);
+
+    assert!(
+        titles.iter().any(|t| t.contains("Document path param")),
+        "Should offer 'Document path param' action, got: {:?}",
+        titles
+    );
+}
+
+#[test]
+fn offers_document_multiple_path_params() {
+    let content = r#"
+#[rovo]
+async fn get_item(Path((a, b)): Path<(String, u32)>) {}
+"#;
+
+    let actions = code_actions::get_code_actions(content, range_at_line(2), test_uri());
+    let titles = get_action_titles(&actions);
+
+    // Should offer to document path params
+    let has_path_action = titles
+        .iter()
+        .any(|t| t.contains("path") || t.contains("Path"));
+    assert!(
+        has_path_action,
+        "Should offer path param action for tuple, got: {:?}",
+        titles
+    );
+}
+
+#[test]
+fn no_path_param_action_when_all_documented() {
+    let content = r#"
+/// # Path Parameters
+///
+/// id: The user ID
+#[rovo]
+async fn get_user(Path(id): Path<u64>) {}
+"#;
+
+    let actions = code_actions::get_code_actions(content, range_at_line(5), test_uri());
+    let titles = get_action_titles(&actions);
+
+    // Should NOT offer document path param if already documented
+    let has_undocumented_action = titles.iter().any(|t| t.contains("Document path param"));
+    assert!(
+        !has_undocumented_action,
+        "Should not offer document action for already documented param"
+    );
+}
+
+#[test]
+fn offers_path_param_action_for_partially_documented() {
+    let content = r#"
+/// # Path Parameters
+///
+/// id: The user ID
+#[rovo]
+async fn get_item(Path((id, name)): Path<(u64, String)>) {}
+"#;
+
+    let actions = code_actions::get_code_actions(content, range_at_line(5), test_uri());
+    let titles = get_action_titles(&actions);
+
+    // Should offer to document the undocumented 'name' param
+    assert!(
+        titles
+            .iter()
+            .any(|t| t.contains("Document path param") && t.contains("name")),
+        "Should offer action to document undocumented 'name' param, got: {:?}",
+        titles
+    );
+}
+
+#[test]
+fn path_param_action_available_on_doc_line() {
+    let content = r#"
+/// Get a user.
+#[rovo]
+async fn get_user(Path(id): Path<u64>) {}
+"#;
+
+    // Test on the doc comment line - should still offer path param action
+    let actions = code_actions::get_code_actions(content, range_at_line(1), test_uri());
+    let titles = get_action_titles(&actions);
+
+    assert!(
+        titles.iter().any(|t| t.contains("Document path param")),
+        "Should offer path param action from doc line, got: {:?}",
+        titles
+    );
+}
+
+#[test]
+fn path_param_action_with_multiline_signature() {
+    let content = r#"
+#[rovo]
+async fn get_item(
+    Path(id): Path<u64>,
+    Path(name): Path<String>,
+) {
+}
+"#;
+
+    let actions = code_actions::get_code_actions(content, range_at_line(3), test_uri());
+    let titles = get_action_titles(&actions);
+
+    // Should offer to document path params from multiline signature
+    let has_path_action = titles
+        .iter()
+        .any(|t| t.contains("path") || t.contains("Path"));
+    assert!(
+        has_path_action,
+        "Should offer path action for multiline sig, got: {:?}",
+        titles
+    );
+}
+
+#[test]
+fn no_path_param_action_without_path_extractor() {
+    let content = r#"
+#[rovo]
+async fn handler(Query(q): Query<String>) {}
+"#;
+
+    let actions = code_actions::get_code_actions(content, range_at_line(2), test_uri());
+    let titles = get_action_titles(&actions);
+
+    // Should NOT offer document path param if there's no Path extractor
+    let has_path_action = titles.iter().any(|t| t.contains("Document path param"));
+    assert!(
+        !has_path_action,
+        "Should not offer path action without Path extractor"
+    );
+}
+
+#[test]
+fn path_param_action_with_state() {
+    let content = r#"
+#[rovo]
+async fn handler(State(app): State<AppState>, Path(id): Path<u64>) {}
+"#;
+
+    let actions = code_actions::get_code_actions(content, range_at_line(2), test_uri());
+    let titles = get_action_titles(&actions);
+
+    let has_path_action = titles
+        .iter()
+        .any(|t| t.contains("path") || t.contains("Path"));
+    assert!(
+        has_path_action,
+        "Should offer path action with State extractor, got: {:?}",
+        titles
+    );
+}

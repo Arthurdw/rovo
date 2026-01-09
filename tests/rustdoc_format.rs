@@ -450,6 +450,10 @@ fn test_nested_response_types() {
 // Test: Examples starting on next line
 /// Get todo with example on next line.
 ///
+/// # Path Parameters
+///
+/// id: The todo ID
+///
 /// # Responses
 ///
 /// 200: Json<TodoItem> - Success

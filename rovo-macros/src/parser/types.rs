@@ -15,6 +15,17 @@ pub struct ExampleInfo {
     pub span: Span,
 }
 
+/// Information about a path parameter from the `# Path Parameters` doc section
+#[derive(Debug, Clone)]
+pub struct PathParamDoc {
+    /// Parameter name (e.g., "id", "username")
+    pub name: String,
+    /// Parameter description
+    pub description: String,
+    /// Span for error reporting
+    pub span: Span,
+}
+
 #[derive(Debug, Clone, Default)]
 pub struct DocInfo {
     pub title: Option<String>,
@@ -26,6 +37,19 @@ pub struct DocInfo {
     pub security_requirements: Vec<String>,
     pub operation_id: Option<String>,
     pub hidden: bool,
+    /// Path parameter documentation from `# Path Parameters` section
+    pub path_params: Vec<PathParamDoc>,
+}
+
+/// Information about path parameters extracted from function signature
+#[derive(Debug, Clone)]
+pub struct PathParamInfo {
+    /// Binding names from the Path pattern (e.g., `["id"]` or `["collection_id", "index"]`)
+    pub bindings: Vec<String>,
+    /// The inner type as a string (e.g., "u64" or "(Uuid, u32)")
+    pub inner_type: String,
+    /// Whether this is a struct destructuring pattern (for backwards compat)
+    pub is_struct_pattern: bool,
 }
 
 #[derive(Clone)]
@@ -33,6 +57,8 @@ pub struct FuncItem {
     pub name: Ident,
     pub tokens: TokenStream,
     pub state_type: Option<TokenStream>,
+    /// Path parameter info extracted from function signature
+    pub path_params: Option<PathParamInfo>,
 }
 
 impl FuncItem {

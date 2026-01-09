@@ -69,10 +69,12 @@ impl LanguageServer for Backend {
                         SemanticTokensOptions {
                             legend: SemanticTokensLegend {
                                 token_types: vec![
-                                    SemanticTokenType::MACRO,       // For @annotations (better theme support)
-                                    SemanticTokenType::NUMBER,      // For status codes
-                                    SemanticTokenType::ENUM_MEMBER, // For security schemes
-                                    SemanticTokenType::STRING,      // For tag values
+                                    SemanticTokenType::MACRO,       // 0: For @annotations
+                                    SemanticTokenType::NUMBER,      // 1: For status codes
+                                    SemanticTokenType::ENUM_MEMBER, // 2: For security schemes
+                                    SemanticTokenType::STRING,      // 3: For tag values
+                                    SemanticTokenType::KEYWORD,     // 4: For section headers
+                                    SemanticTokenType::PARAMETER,   // 5: For path param names
                                 ],
                                 token_modifiers: vec![SemanticTokenModifier::DOCUMENTATION],
                             },
@@ -217,6 +219,19 @@ impl LanguageServer for Backend {
             return Ok(None);
         }
 
+        // Check for path parameter first (binding or body usage -> doc definition)
+        if let Some(location) = handlers::goto_path_param_definition(
+            &content,
+            position,
+            params
+                .text_document_position_params
+                .text_document
+                .uri
+                .clone(),
+        ) {
+            return Ok(Some(GotoDefinitionResponse::Scalar(location)));
+        }
+
         let line = lines[line_idx];
         let char_idx =
             match crate::utils::utf16_pos_to_byte_index(line, position.character as usize) {
@@ -321,6 +336,16 @@ impl LanguageServer for Backend {
             }
         };
 
+        // Check for path parameter references first
+        if let Some(refs) = handlers::find_path_param_references(
+            &content,
+            position,
+            params.text_document_position.text_document.uri.clone(),
+        ) {
+            return Ok(Some(refs));
+        }
+
+        // Fall back to tag references
         Ok(handlers::find_tag_references(
             &content,
             position,

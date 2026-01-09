@@ -19,7 +19,127 @@ use quote::{quote, quote_spanned};
 mod parser;
 mod utils;
 
-use parser::parse_rovo_function;
+use parser::{parse_rovo_function, PathParamDoc, PathParamInfo};
+
+/// Known primitive types that map to `OpenAPI` types
+const PRIMITIVE_TYPES: &[&str] = &[
+    "String", "u64", "u32", "u16", "u8", "i64", "i32", "i16", "i8", "bool", "Uuid",
+];
+
+/// Check if a type is a known primitive
+fn is_primitive_type(type_name: &str) -> bool {
+    PRIMITIVE_TYPES.contains(&type_name.trim())
+}
+
+/// Check if a tuple contains only primitives
+fn is_primitive_tuple(type_str: &str) -> bool {
+    let inner = type_str
+        .trim()
+        .trim_start_matches('(')
+        .trim_end_matches(')');
+    inner.split(',').map(str::trim).all(is_primitive_type)
+}
+
+/// Extract individual types from a tuple type string like "(Uuid, u32)"
+fn extract_tuple_types(type_str: &str) -> Vec<String> {
+    let inner = type_str
+        .trim()
+        .trim_start_matches('(')
+        .trim_end_matches(')');
+    inner
+        .split(',')
+        .map(|t| t.trim().to_string())
+        .filter(|s| !s.is_empty())
+        .collect()
+}
+
+/// Generate path parameter setters for primitive types
+fn generate_path_param_setters(
+    path_info: Option<&PathParamInfo>,
+    path_docs: &[PathParamDoc],
+) -> Vec<proc_macro2::TokenStream> {
+    let Some(info) = path_info else {
+        return vec![];
+    };
+
+    // If it's a struct pattern, let aide handle it via JsonSchema
+    if info.is_struct_pattern {
+        return vec![];
+    }
+
+    // Check if the type is primitive (single or tuple)
+    let is_primitive = if info.inner_type.starts_with('(') {
+        is_primitive_tuple(&info.inner_type)
+    } else {
+        is_primitive_type(&info.inner_type)
+    };
+
+    if !is_primitive {
+        return vec![];
+    }
+
+    // Extract types for each binding
+    let types: Vec<String> = if info.inner_type.starts_with('(') {
+        extract_tuple_types(&info.inner_type)
+    } else {
+        vec![info.inner_type.clone()]
+    };
+
+    // Generate a parameter setter for each binding
+    info.bindings
+        .iter()
+        .zip(types.iter())
+        .map(|(name, type_str)| {
+            // Find the description from docs
+            let description = path_docs
+                .iter()
+                .find(|doc| doc.name == *name)
+                .map(|doc| doc.description.clone());
+
+            let desc_setter = description.map_or_else(
+                || quote! { description: None, },
+                |desc| quote! { description: Some(#desc.to_string()), },
+            );
+
+            // Parse the type string to a TokenStream for use in generic context
+            let type_tokens: proc_macro2::TokenStream = type_str.parse().unwrap_or_else(|_| {
+                quote! { String }
+            });
+
+            quote! {
+                .with(|mut op| {
+                    op.inner_mut().parameters.push(
+                        ::rovo::aide::openapi::ReferenceOr::Item(
+                            ::rovo::aide::openapi::Parameter::Path {
+                                parameter_data: ::rovo::aide::openapi::ParameterData {
+                                    name: #name.to_string(),
+                                    #desc_setter
+                                    required: true,
+                                    deprecated: None,
+                                    format: ::rovo::aide::openapi::ParameterSchemaOrContent::Schema(
+                                        ::rovo::aide::openapi::SchemaObject {
+                                            json_schema: <#type_tokens as ::rovo::schemars::JsonSchema>::json_schema(
+                                                &mut ::rovo::schemars::SchemaGenerator::default()
+                                            ),
+                                            example: None,
+                                            external_docs: None,
+                                        }
+                                    ),
+                                    example: None,
+                                    examples: ::std::default::Default::default(),
+                                    explode: None,
+                                    extensions: ::std::default::Default::default(),
+                                },
+                                style: ::rovo::aide::openapi::PathStyle::Simple,
+                            }
+                        )
+                    );
+                    op
+                })
+            }
+        })
+        .collect()
+}
 
 /// Macro that generates `OpenAPI` documentation from doc comments.
 ///
@@ -31,9 +151,27 @@ use parser::parse_rovo_function;
 /// Use Rust-style doc comment sections and metadata annotations:
 ///
 /// ## Sections
+/// - `# Path Parameters` - Document path parameters for primitive types
 /// - `# Responses` - Document response status codes
 /// - `# Examples` - Provide example responses
 /// - `# Metadata` - Add tags, security, and other metadata
+///
+/// ## Path Parameters
+///
+/// For primitive path parameters (`String`, `u64`, `Uuid`, `bool`, etc.), you can
+/// document them directly without creating wrapper structs:
+///
+/// ```rust,ignore
+/// /// # Path Parameters
+/// ///
+/// /// user_id: The user's unique identifier
+/// /// index: Zero-based item index
+/// ```
+///
+/// The parameter names are inferred from the variable bindings in your function
+/// signature (e.g., `Path(user_id)` creates a parameter named `user_id`).
+///
+/// For complex types, continue using structs with `#[derive(JsonSchema)]`.
 ///
 /// ## Metadata Annotations
 /// - `@tag <tag_name>` - Add a tag for grouping operations (can be used multiple times)
@@ -45,7 +183,49 @@ use parser::parse_rovo_function;
 /// Additionally, the Rust `#[deprecated]` attribute is automatically detected
 /// and will mark the operation as deprecated in the `OpenAPI` spec.
 ///
-/// # Example
+/// # Examples
+///
+/// ## Primitive Path Parameter
+///
+/// ```rust,ignore
+/// /// Get user by ID.
+/// ///
+/// /// # Path Parameters
+/// ///
+/// /// id: The user's numeric identifier
+/// ///
+/// /// # Responses
+/// ///
+/// /// 200: Json<User> - User found
+/// /// 404: () - User not found
+/// #[rovo]
+/// async fn get_user(Path(id): Path<u64>) -> impl IntoApiResponse {
+///     // ...
+/// }
+/// ```
+///
+/// ## Tuple Path Parameters
+///
+/// ```rust,ignore
+/// /// Get item in collection.
+/// ///
+/// /// # Path Parameters
+/// ///
+/// /// collection_id: The collection UUID
+/// /// index: Item index within collection
+/// ///
+/// /// # Responses
+/// ///
+/// /// 200: Json<Item> - Item found
+/// #[rovo]
+/// async fn get_item(
+///     Path((collection_id, index)): Path<(Uuid, u32)>
+/// ) -> impl IntoApiResponse {
+///     // ...
+/// }
+/// ```
+///
+/// ## Struct-based Path (for complex types)
 ///
 /// ```rust,ignore
 /// /// Get a single Todo item.
@@ -67,11 +247,15 @@ use parser::parse_rovo_function;
 /// #[rovo]
 /// async fn get_todo(
 ///     State(app): State<AppState>,
-///     Path(todo): Path<SelectTodo>
+///     Path(todo): Path<SelectTodo>  // SelectTodo implements JsonSchema
 /// ) -> impl IntoApiResponse {
 ///     // ...
 /// }
+/// ```
 ///
+/// ## Deprecated Endpoint
+///
+/// ```rust,ignore
 /// /// This is a deprecated endpoint.
 /// ///
 /// /// # Metadata
@@ -178,6 +362,10 @@ pub fn rovo(_attr: TokenStream, item: TokenStream) -> TokenStream {
                 quote! {}
             };
 
+            // Generate path parameter setters for primitive types
+            let path_param_setters =
+                generate_path_param_setters(func_item.path_params.as_ref(), &doc_info.path_params);
+
             // Generate an internal implementation name
             let impl_name = quote::format_ident!("__{}_impl", func_name);
 
@@ -214,6 +402,7 @@ pub fn rovo(_attr: TokenStream, item: TokenStream) -> TokenStream {
                             #deprecated_setter
                             #hidden_setter
                             #(#security_setters)*
+                            #(#path_param_setters)*
                             #(#response_code_setters)*
                     }
                 }
