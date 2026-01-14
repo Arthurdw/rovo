@@ -90,7 +90,7 @@ async fn main() {
 
 ```toml
 [dependencies]
-rovo = { version = "0.3.0", features = ["swagger"] }
+rovo = { version = "0.3.1", features = ["swagger"] }
 axum = "0.8"
 serde = { version = "1.0", features = ["derive"] }
 tokio = { version = "1", features = ["full"] }

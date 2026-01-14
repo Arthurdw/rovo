@@ -21,6 +21,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [0.3.1] - 2026-01-14
+
+### Breaking Changes
+
+### Added
+
+### Changed
+
+### Fixed
+
+### Migration Guide
+
+<!-- LLM-friendly migration commands go here -->
+
+---
+
 ## [0.3.0] - 2026-01-09
 
 ### Added
