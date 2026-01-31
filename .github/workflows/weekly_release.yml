@@ -8,6 +8,10 @@ on:
     - cron: "0 9 * * 3"
   workflow_dispatch:
     inputs:
+      force:
+        description: "Force release even without code changes"
+        type: boolean
+        default: false
       include_ci_changes:
         description: "Include .github/ changes in release check"
         type: boolean
@@ -15,159 +19,39 @@ on:
 
 concurrency:
   group: ${{ github.workflow }}
-  cancel-in-progress: false # Don't cancel releases
+  cancel-in-progress: false
 
 permissions:
   contents: write
   pull-requests: read
 
 jobs:
-  weekly-release:
-    name: Weekly Release
+  check-changes:
+    name: Check for Changes
     runs-on: ubuntu-latest
-    container:
-      image: arthurdw/rust-ci:latest
-
+    outputs:
+      has_changes: ${{ steps.check.outputs.has_changes }}
     steps:
-      - name: Get token
-        id: get_token
-        uses: actions/create-github-app-token@v2
+      - uses: actions/checkout@v4
         with:
-          app-id: ${{ secrets.ROVO_CD_APP_ID }}
-          private-key: ${{ secrets.ROVO_CD_TOKEN }}
-          owner: ${{ github.repository_owner }}
-          repositories: ${{ github.event.repository.name }}
+          fetch-depth: 0
 
-      - name: Check out repository
-        uses: actions/checkout@v5
-        with:
-          token: ${{ steps.get_token.outputs.token }}
-          fetch-depth: 0 # Need full history to get merged PRs
-
-      - uses: Swatinem/rust-cache@v2
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-          cache: "npm"
-          cache-dependency-path: vscode-rovo/package-lock.json
-
-      - name: Fix repository permissions
+      - name: Check for changes since last release
+        id: check
         run: |
-          chown -R $(id -u):$(id -g) .
-
-      - name: Install GitHub CLI
-        run: |
-          curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg
-          echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | tee /etc/apt/sources.list.d/github-cli.list > /dev/null
-          apt-get update && apt-get install -y gh
-
-      - name: Get last release date
-        id: last_release
-        run: |
-          # Get the last release date, or use a week ago if no releases exist
-          LAST_RELEASE_DATE=$(gh api repos/${{ github.repository }}/releases/latest --jq .published_at 2>/dev/null || echo "")
-          if [ -z "$LAST_RELEASE_DATE" ]; then
-            # If no releases exist, use a week ago
-            LAST_RELEASE_DATE=$(date -d "7 days ago" -Iseconds)
-          fi
-          echo "last_release_date=$LAST_RELEASE_DATE" >> $GITHUB_OUTPUT
-          echo "Last release date: $LAST_RELEASE_DATE"
-        env:
-          GITHUB_TOKEN: ${{ steps.get_token.outputs.token }}
-
-      - name: Get merged PRs since last release
-        id: merged_prs
-        run: |
-          LAST_RELEASE='${{ steps.last_release.outputs.last_release_date }}'
-          echo "Looking for PRs merged after: $LAST_RELEASE"
-
-          # Get all merged PRs since the last release with full details for debugging
-          RAW_RESPONSE=$(gh api graphql -f query='
-            query($owner: String!, $repo: String!) {
-              repository(owner: $owner, name: $repo) {
-                pullRequests(states: MERGED, first: 100, orderBy: {field: UPDATED_AT, direction: DESC}) {
-                  nodes {
-                    number
-                    title
-                    mergedAt
-                    labels(first: 10) {
-                      nodes {
-                        name
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          ' -f owner='${{ github.repository_owner }}' -f repo='${{ github.event.repository.name }}')
-
-          # Debug: Show all recent PRs and their labels
-          echo "=== Recent merged PRs ==="
-          echo "$RAW_RESPONSE" | jq -r '.data.repository.pullRequests.nodes[:10][] | "PR #\(.number): \(.title) (merged: \(.mergedAt)) - labels: \([.labels.nodes[].name] | join(", "))"'
-
-          # Filter PRs merged after last release and extract release labels
-          echo ""
-          echo "=== PRs merged after $LAST_RELEASE ==="
-          FILTERED_PRS=$(echo "$RAW_RESPONSE" | jq -r --arg since "$LAST_RELEASE" '.data.repository.pullRequests.nodes[] | select(.mergedAt > $since)')
-          echo "$FILTERED_PRS" | jq -r '"PR #\(.number): \(.title) - labels: \([.labels.nodes[].name] | join(", "))"' 2>/dev/null || echo "(none)"
-
-          # Extract release: labels from filtered PRs
-          MERGED_PRS=$(echo "$FILTERED_PRS" | jq -r '.labels.nodes[].name' 2>/dev/null | grep "^release:" | sort | uniq || echo "")
-
-          echo ""
-          echo "=== Found release labels ==="
-          if [ -n "$MERGED_PRS" ]; then
-            echo "$MERGED_PRS"
-          else
-            echo "(none)"
-          fi
-
-          # Store for next step (use -n to avoid empty file with just newline)
-          echo -n "$MERGED_PRS" > /tmp/pr_labels.txt
-        env:
-          GITHUB_TOKEN: ${{ steps.get_token.outputs.token }}
-
-      - name: Determine version bump type
-        id: version_bump
-        run: |
-          # Set default version bump to patch
-          BUMP_TYPE="patch"
-
-          # Read the labels from the previous step
-          if [ -f /tmp/pr_labels.txt ]; then
-            PR_LABELS=$(cat /tmp/pr_labels.txt)
-
-            # Determine bump type based on highest priority label
-            if echo "$PR_LABELS" | grep -q "release:major"; then
-              BUMP_TYPE="major"
-            elif echo "$PR_LABELS" | grep -q "release:minor"; then
-              BUMP_TYPE="minor"
-            elif echo "$PR_LABELS" | grep -q "release:patch"; then
-              BUMP_TYPE="patch"
-            fi
-          fi
-
-          echo "bump_type=$BUMP_TYPE" >> $GITHUB_OUTPUT
-          echo "Version bump type: $BUMP_TYPE"
-
-      - name: Check if release is needed
-        id: check_release
-        run: |
-          # First check: PRs with release labels
-          if [ -f /tmp/pr_labels.txt ] && [ -s /tmp/pr_labels.txt ]; then
-            echo "needs_release=true" >> $GITHUB_OUTPUT
-            echo "Release needed - found merged PRs with release labels"
+          # Force release if requested
+          if [ "${{ inputs.force }}" == "true" ]; then
+            echo "Force release requested"
+            echo "has_changes=true" >> $GITHUB_OUTPUT
             exit 0
           fi
 
-          # Get the last release tag (more reliable than date-based checking)
-          LAST_TAG=$(gh api repos/${{ github.repository }}/releases/latest --jq .tag_name 2>/dev/null || echo "")
+          # Get last release tag
+          LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
 
           if [ -z "$LAST_TAG" ]; then
             echo "No previous release found, proceeding with release"
-            echo "needs_release=true" >> $GITHUB_OUTPUT
+            echo "has_changes=true" >> $GITHUB_OUTPUT
             exit 0
           fi
 
@@ -178,7 +62,7 @@ jobs:
 
           if [ -z "$CHANGED_FILES" ]; then
             echo "No files changed since last release"
-            echo "needs_release=false" >> $GITHUB_OUTPUT
+            echo "has_changes=false" >> $GITHUB_OUTPUT
             exit 0
           fi
 
@@ -186,8 +70,7 @@ jobs:
           echo "$CHANGED_FILES"
 
           # Filter out .github/ changes unless override is set
-          INCLUDE_CI="${{ inputs.include_ci_changes }}"
-          if [ "$INCLUDE_CI" != "true" ]; then
+          if [ "${{ inputs.include_ci_changes }}" != "true" ]; then
             RELEASE_FILES=$(echo "$CHANGED_FILES" | grep -v '^\.github/' || echo "")
           else
             RELEASE_FILES="$CHANGED_FILES"
@@ -195,124 +78,66 @@ jobs:
           fi
 
           if [ -n "$RELEASE_FILES" ]; then
-            echo "needs_release=true" >> $GITHUB_OUTPUT
+            echo "has_changes=true" >> $GITHUB_OUTPUT
             echo "Release needed - found changes outside .github/"
           else
-            echo "needs_release=false" >> $GITHUB_OUTPUT
+            echo "has_changes=false" >> $GITHUB_OUTPUT
             echo "No release needed - only .github/ changes detected"
           fi
-        env:
-          GITHUB_TOKEN: ${{ steps.get_token.outputs.token }}
 
-      - name: Bump version
-        if: steps.check_release.outputs.needs_release == 'true'
-        run: |
-          bump_type="${{ steps.version_bump.outputs.bump_type }}"
-          echo "Bumping version using: $bump_type"
-          cargo release version $bump_type --execute --no-confirm
-
-      - name: Extract version from Cargo.toml
-        if: steps.check_release.outputs.needs_release == 'true'
-        run: echo "VERSION=$(grep -m 1 '^version =' Cargo.toml | cut -d '"' -f 2)" >> $GITHUB_ENV
-
-      - name: Update README version references
-        if: steps.check_release.outputs.needs_release == 'true'
-        run: |
-          # Update version references in README.md
-          sed -i 's/rovo = { version = "[^"]*"/rovo = { version = "'"${{ env.VERSION }}"'"/g' README.md
-          sed -i 's/rovo = "[^"]*"/rovo = "'"${{ env.VERSION }}"'"/g' README.md
-          git add README.md
-
-      - name: Update VSCode extension version
-        if: steps.check_release.outputs.needs_release == 'true'
-        run: |
-          cd vscode-rovo
-          npm version ${{ env.VERSION }} --no-git-tag-version --allow-same-version
-          git add package.json package-lock.json
-
-      - name: Update JetBrains plugin version
-        if: steps.check_release.outputs.needs_release == 'true'
-        run: |
-          cd jetbrains-plugin
-          sed -i 's/^version = ".*"/version = "'"${{ env.VERSION }}"'"/' build.gradle.kts
-          sed -i 's/cargo install rovo-lsp --version [0-9.]\+/cargo install rovo-lsp --version '"${{ env.VERSION }}"'/' src/main/resources/META-INF/plugin.xml
-          git add build.gradle.kts src/main/resources/META-INF/plugin.xml
-
-      - name: Update CHANGELOG
-        if: steps.check_release.outputs.needs_release == 'true'
-        run: |
-          if [ ! -f CHANGELOG.md ]; then
-            echo "No CHANGELOG.md found, skipping"
-            exit 0
-          fi
-
-          DATE=$(date +%Y-%m-%d)
-          VERSION="${{ env.VERSION }}"
-
-          # Create a temp file with the new content
-          # This replaces [Unreleased] with versioned section and adds fresh [Unreleased]
-          awk -v version="$VERSION" -v date="$DATE" '
-            /^## \[Unreleased\]/ {
-              print "## [Unreleased]"
-              print ""
-              print "### Breaking Changes"
-              print ""
-              print "### Added"
-              print ""
-              print "### Changed"
-              print ""
-              print "### Fixed"
-              print ""
-              print "### Migration Guide"
-              print ""
-              print "<!-- LLM-friendly migration commands go here -->"
-              print ""
-              print "---"
-              print ""
-              print "## [" version "] - " date
-              next
-            }
-            { print }
-          ' CHANGELOG.md > CHANGELOG.md.tmp && mv CHANGELOG.md.tmp CHANGELOG.md
-
-          git add CHANGELOG.md
-
-      - name: Commit version bump
-        if: steps.check_release.outputs.needs_release == 'true'
-        run: |
-          git config --local user.name "github-actions[bot]"
-          git config --local user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add Cargo.toml Cargo.lock
-          git commit -m "chore(release): version bump to ${{ env.VERSION }}"
-          git tag "v${{ env.VERSION }}"
-
-      - name: Push changes
-        if: steps.check_release.outputs.needs_release == 'true'
-        uses: ad-m/github-push-action@master
+  release:
+    name: Release
+    needs: check-changes
+    if: needs.check-changes.outputs.has_changes == 'true'
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.release.outputs.version }}
+      skipped: ${{ steps.release.outputs.skipped }}
+    steps:
+      - name: Get token
+        id: get_token
+        uses: actions/create-github-app-token@v2
         with:
-          github_token: ${{ steps.get_token.outputs.token }}
-          branch: ${{ github.ref }}
-          tags: true
+          app-id: ${{ secrets.ROVO_CD_APP_ID }}
+          private-key: ${{ secrets.ROVO_CD_TOKEN }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
 
-      - name: Create GitHub Release
-        if: steps.check_release.outputs.needs_release == 'true'
-        run: |
-          gh release create "v${{ env.VERSION }}" \
-            --title "v${{ env.VERSION }}" \
-            --generate-notes
-        env:
-          GITHUB_TOKEN: ${{ steps.get_token.outputs.token }}
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ steps.get_token.outputs.token }}
 
-      - name: Publish VSCode extension
-        if: steps.check_release.outputs.needs_release == 'true'
-        working-directory: vscode-rovo
-        run: |
-          npm ci
-          npm run package
-          npx vsce publish -p ${{ secrets.VSCE_PAT }}
-        env:
-          VSCE_PAT: ${{ secrets.VSCE_PAT }}
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
 
-      - name: No release needed
-        if: steps.check_release.outputs.needs_release == 'false'
-        run: echo "No changes detected since last release. Skipping release."
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Release with release-pilot
+        id: release
+        uses: a-line-services/release-pilot@v1
+        with:
+          github-token: ${{ steps.get_token.outputs.token }}
+          cargo-token: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+
+  publish-vscode:
+    name: Publish VSCode Extension
+    needs: release
+    if: needs.release.outputs.skipped != 'true'
+    uses: ./.github/workflows/vscode-publish.yml
+    secrets: inherit
+
+  publish-jetbrains:
+    name: Publish JetBrains Plugin
+    needs: release
+    if: needs.release.outputs.skipped != 'true'
+    uses: ./.github/workflows/jetbrains-publish.yml
+    secrets: inherit
+
+  no-release:
+    name: No Release Needed
+    needs: check-changes
+    if: needs.check-changes.outputs.has_changes == 'false'
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "No changes detected since last release. Skipping release."

@@ -1,0 +1,37 @@
+name: Publish VSCode Extension
+
+on:
+  workflow_call:
+    secrets:
+      VSCE_PAT:
+        description: "VS Code Marketplace Personal Access Token"
+        required: true
+  workflow_dispatch:
+
+jobs:
+  publish:
+    name: Publish to VS Code Marketplace
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: vscode-rovo/package-lock.json
+
+      - name: Install dependencies
+        working-directory: vscode-rovo
+        run: npm ci
+
+      - name: Package extension
+        working-directory: vscode-rovo
+        run: npm run package
+
+      - name: Publish to VS Code Marketplace
+        working-directory: vscode-rovo
+        run: npx vsce publish
+        env:
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}

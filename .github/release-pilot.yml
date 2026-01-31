@@ -1,0 +1,73 @@
+# Release Pilot Configuration
+# https://github.com/A-Line-Services/release-pilot
+
+packages:
+  - name: rovo-macros
+    ecosystem: cargo
+    path: ./rovo-macros
+
+  - name: rovo-lsp
+    ecosystem: cargo
+    path: ./rovo-lsp
+
+  - name: rovo
+    ecosystem: cargo
+    path: .
+
+# Publish order matters - macros must be published first as it's a dependency
+release-order:
+  - rovo-macros
+  - rovo-lsp
+  - rovo
+
+labels:
+  major: "release:major"
+  minor: "release:minor"
+  patch: "release:patch"
+  skip: "release:skip"
+
+version:
+  defaultBump: patch
+
+git:
+  tagPrefix: v
+  commitMessage: "chore(release): {version}"
+  pushVersionCommit: true
+  pushTag: true
+
+publish:
+  enabled: true
+  delayBetweenPackages: 30  # crates.io rate limiting
+
+githubRelease:
+  enabled: true
+  draft: false
+  generateNotes: true
+
+changelog:
+  enabled: true
+  file: CHANGELOG.md
+
+# Update version references in non-package files
+versionFiles:
+  enabled: true
+  files:
+    # README.md cargo dependency example
+    - file: README.md
+      pattern: 'rovo = \{ version = "[0-9]+\.[0-9]+\.[0-9]+"'
+      replace: 'rovo = { version = "{version}"'
+
+    # VSCode extension version
+    - file: vscode-rovo/package.json
+      pattern: '"version": "[0-9]+\.[0-9]+\.[0-9]+"'
+      replace: '"version": "{version}"'
+
+    # JetBrains plugin version
+    - file: jetbrains-plugin/build.gradle.kts
+      pattern: 'version = "[0-9]+\.[0-9]+\.[0-9]+"'
+      replace: 'version = "{version}"'
+
+    # JetBrains plugin LSP install command
+    - file: jetbrains-plugin/src/main/resources/META-INF/plugin.xml
+      pattern: 'cargo install rovo-lsp --version [0-9]+\.[0-9]+\.[0-9]+'
+      replace: 'cargo install rovo-lsp --version {version}'

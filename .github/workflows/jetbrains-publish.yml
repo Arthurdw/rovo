@@ -1,23 +1,32 @@
-name: Deploy JetBrains Plugin
+name: Publish JetBrains Plugin
 
 on:
+  workflow_call:
+    secrets:
+      JETBRAINS_CERTIFICATE_CHAIN:
+        description: "JetBrains plugin signing certificate chain"
+        required: true
+      JETBRAINS_PRIVATE_KEY:
+        description: "JetBrains plugin signing private key"
+        required: true
+      JETBRAINS_PRIVATE_KEY_PASSWORD:
+        description: "JetBrains plugin signing private key password"
+        required: true
+      JETBRAINS_PUBLISH_TOKEN:
+        description: "JetBrains Marketplace publish token"
+        required: true
   workflow_dispatch:
-  workflow_run:
-    workflows: ["Weekly Release"]
-    types:
-      - completed
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: jetbrains-publish
   cancel-in-progress: false
 
 permissions:
   contents: write
 
 jobs:
-  deploy-jetbrains:
-    name: Deploy to JetBrains Marketplace
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+  publish:
+    name: Publish to JetBrains Marketplace
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
