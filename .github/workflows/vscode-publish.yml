@@ -12,6 +12,9 @@ on:
       VSCE_PAT:
         description: "VS Code Marketplace Personal Access Token"
         required: true
+      OVSX_PAT:
+        description: "Open VSX Registry Personal Access Token"
+        required: true
   workflow_dispatch:
 
 jobs:
@@ -43,3 +46,7 @@ jobs:
         run: npx vsce publish
         env:
           VSCE_PAT: ${{ secrets.VSCE_PAT }}
+
+      - name: Publish to Open VSX Registry
+        working-directory: vscode-rovo
+        run: npx ovsx publish -p ${{ secrets.OVSX_PAT }}
