@@ -2,7 +2,7 @@
   "name": "rovo-lsp",
   "displayName": "Rovo for Rust",
   "description": "Language Server Protocol support for Rovo annotations in Rust - enables intelligent completions, hover info, diagnostics, and navigation for OpenAPI-style annotations",
-  "version": "0.3.3",
+  "version": "0.3.4",
   "publisher": "arthurdw",
   "license": "MIT",
   "icon": "icon.png",
