@@ -27,9 +27,13 @@ Quick install in VSCodium - press `Ctrl+P` (or `Cmd+P` on macOS) and run:
 ext install arthurdw.rovo-lsp
 ```
 
+**Cursor**: The extension may not appear in Cursor's built-in extension search. To install, open this link in your browser:
+
+[cursor:extension/arthurdw.rovo-lsp](cursor:extension/arthurdw.rovo-lsp)
+
 Or install via the Extensions panel:
 
-1. Open your editor (VS Code, VSCodium, or code-oss)
+1. Open your editor (VS Code, VSCodium, Cursor, or code-oss)
 2. Go to **Extensions** (Ctrl+Shift+X / Cmd+Shift+X)
 3. Search for "Rovo"
 4. Click **Install**
