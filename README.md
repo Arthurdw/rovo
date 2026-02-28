@@ -27,6 +27,7 @@ Built on [aide](https://github.com/tamasfe/aide), Rovo provides a declarative ap
   - **VSCode/VSCodium** - See [VSCODE.md](./VSCODE.md) for extension with auto-installation, completions, and syntax highlighting
   - **Neovim LSP** - See [NEOVIM.md](./NEOVIM.md) for editor support with completions, hover docs, and more
   - **JetBrains IDEs** - See [JETBRAINS.md](./JETBRAINS.md) for RustRover, IntelliJ IDEA, and CLion support
+  - **Zed** - See [ZED.md](./ZED.md) for full Zed editor integration
 
 ## Quick Start
 
