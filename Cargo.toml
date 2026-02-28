@@ -1,5 +1,6 @@
 [workspace]
 members = ["rovo-macros", "rovo-lsp"]
+exclude = ["zed-rovo"]
 resolver = "2"
 
 [workspace.package]

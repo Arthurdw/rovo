@@ -1,0 +1,11 @@
+id = "rovo"
+name = "Rovo"
+version = "0.0.1"
+schema_version = 1
+authors = ["Arthurdw <dev@arthurdw.com>"]
+description = "LSP support for Rovo annotations in Rust - completions, diagnostics, hover, navigation, and semantic highlighting for OpenAPI-style doc comments"
+repository = "https://github.com/Arthurdw/rovo"
+
+[language_servers.rovo-lsp]
+name = "Rovo LSP"
+languages = ["Rust"]
