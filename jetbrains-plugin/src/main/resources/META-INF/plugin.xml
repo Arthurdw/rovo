@@ -18,7 +18,7 @@
 
     <h3>Requirements</h3>
     <p>Install the matching version of <code>rovo-lsp</code>:</p>
-    <pre>cargo install rovo-lsp --version 0.3.7</pre>
+    <pre>cargo install rovo-lsp --version 0.4.0</pre>
     <p>The plugin will automatically detect the LSP server from common locations or your system PATH.</p>
 
     <h3>Usage Example</h3>

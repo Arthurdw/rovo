@@ -21,6 +21,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [0.4.0] - 2026-02-28
+
+### Features
+
+- feat: add zed lsp ([#23](https://github.com/Arthurdw/rovo/pull/23)) by @Arthurdw
+
 ## [0.3.7] - 2026-02-25
 
 - No notable changes in this release
