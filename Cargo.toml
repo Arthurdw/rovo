@@ -11,6 +11,9 @@ repository = "https://github.com/Arthurdw/rovo"
 documentation = "https://docs.rs/rovo"
 homepage = "https://github.com/Arthurdw/rovo"
 
+[workspace.dependencies]
+rovo-macros = { version = "0.3.7", path = "rovo-macros" }
+
 [package]
 name = "rovo"
 version.workspace = true
@@ -29,7 +32,7 @@ redoc = ["aide/redoc"]
 scalar = ["aide/scalar"]
 
 [dependencies]
-rovo-macros = { version = "0.3.1", path = "rovo-macros" }
+rovo-macros.workspace = true
 aide = { version = "0.15", features = ["axum", "axum-json", "axum-query"] }
 axum = "0.8.7"
 serde_yaml = "0.9"

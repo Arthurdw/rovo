@@ -57,6 +57,11 @@ versionFiles:
       pattern: 'rovo = \{ version = "[0-9]+\.[0-9]+\.[0-9]+"'
       replace: 'rovo = { version = "{version}"'
 
+    # Workspace dependency on rovo-macros
+    - file: Cargo.toml
+      pattern: 'rovo-macros = \{ version = "[0-9]+\.[0-9]+\.[0-9]+"'
+      replace: 'rovo-macros = { version = "{version}"'
+
     # VSCode extension version
     - file: vscode-rovo/package.json
       pattern: '"version": "[0-9]+\.[0-9]+\.[0-9]+"'
