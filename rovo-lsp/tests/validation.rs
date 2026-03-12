@@ -742,3 +742,119 @@ fn regular_function() {}
     let diagnostics = validate_annotations(content);
     assert!(diagnostics.is_empty());
 }
+
+// =============================================================================
+// Doc Comment Example False Positive Tests
+// =============================================================================
+
+#[test]
+fn no_warning_for_rovo_inside_module_doc_comment() {
+    // Reproduces the false positive: //! doc comments containing example code
+    // with #[rovo] and Path(id) should NOT trigger undocumented path param warnings
+    let content = r#"
+//! # Example
+//!
+//! ```rust
+//! /// Get user by ID
+//! ///
+//! /// # Path Parameters
+//! ///
+//! /// id: The user ID
+//! #[rovo]
+//! async fn get_user(Path(id): Path<u32>) -> impl IntoApiResponse {
+//!     Json(User { id, name: "Alice".to_string() })
+//! }
+//! ```
+"#;
+    let diagnostics = validate_annotations(content);
+    let path_param_warnings: Vec<_> = diagnostics
+        .iter()
+        .filter(|d| d.message.contains("Undocumented path parameter"))
+        .collect();
+    assert!(
+        path_param_warnings.is_empty(),
+        "Should not warn about path params inside //! doc comment examples, got: {:?}",
+        path_param_warnings
+            .iter()
+            .map(|d| &d.message)
+            .collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn no_warning_for_rovo_inside_item_doc_comment_example() {
+    // Example code inside /// doc comments on another item should not
+    // trigger path param warnings
+    let content = r#"
+/// Here's how to use it:
+///
+/// ```rust
+/// #[rovo]
+/// async fn get_user(Path(id): Path<u64>) {}
+/// ```
+pub struct MyRouter;
+"#;
+    let diagnostics = validate_annotations(content);
+    let path_param_warnings: Vec<_> = diagnostics
+        .iter()
+        .filter(|d| d.message.contains("Undocumented path parameter"))
+        .collect();
+    assert!(
+        path_param_warnings.is_empty(),
+        "Should not warn about path params inside /// doc comment examples, got: {:?}",
+        path_param_warnings
+            .iter()
+            .map(|d| &d.message)
+            .collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn no_warning_for_rovo_in_module_doc_without_code_fence() {
+    // Even without explicit code fences, //! lines with #[rovo] are doc comments
+    let content = r#"
+//! #[rovo]
+//! async fn get_user(Path(id): Path<u32>) -> impl IntoApiResponse {
+//!     Json(User { id, name: "Alice".to_string() })
+//! }
+"#;
+    let diagnostics = validate_annotations(content);
+    let path_param_warnings: Vec<_> = diagnostics
+        .iter()
+        .filter(|d| d.message.contains("Undocumented path parameter"))
+        .collect();
+    assert!(
+        path_param_warnings.is_empty(),
+        "Should not warn about path params inside //! doc comments, got: {:?}",
+        path_param_warnings
+            .iter()
+            .map(|d| &d.message)
+            .collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn real_rovo_still_warns_alongside_doc_comment_example() {
+    // A real #[rovo] with undocumented params should still warn,
+    // even when doc comment examples exist in the same file
+    let content = r#"
+//! # Example
+//!
+//! #[rovo]
+//! async fn example(Path(id): Path<u32>) {}
+
+#[rovo]
+async fn real_handler(Path(user_id): Path<u64>) {}
+"#;
+    let diagnostics = validate_annotations(content);
+    let path_param_warnings: Vec<_> = diagnostics
+        .iter()
+        .filter(|d| d.message.contains("Undocumented path parameter"))
+        .collect();
+    assert_eq!(
+        path_param_warnings.len(),
+        1,
+        "Should warn only about the real #[rovo] handler, not the doc comment example"
+    );
+    assert!(path_param_warnings[0].message.contains("'user_id'"));
+}

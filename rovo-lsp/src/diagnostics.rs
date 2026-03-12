@@ -196,6 +196,13 @@ fn check_undocumented_path_params(_content: &str, lines: &[&str]) -> Vec<Diagnos
             continue;
         }
 
+        // Skip #[rovo] that appears inside doc comments (//! or ///)
+        // These are example code in documentation, not real attributes
+        let trimmed = line.trim();
+        if trimmed.starts_with("//!") || trimmed.starts_with("///") {
+            continue;
+        }
+
         // Extract path bindings from the function signature
         let bindings = extract_path_bindings_from_signature(lines, rovo_line);
         if bindings.is_empty() {
