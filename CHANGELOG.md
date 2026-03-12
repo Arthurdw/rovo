@@ -21,6 +21,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [0.4.1] - 2026-03-12
+
+### Features
+
+- fix: skip #[rovo] inside doc comments to prevent false path param warnings ([#24](https://github.com/Arthurdw/rovo/pull/24)) by @Arthurdw
+
 ## [0.4.0] - 2026-02-28
 
 ### Features
