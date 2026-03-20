@@ -161,15 +161,6 @@ where
     }
 }
 
-impl<S> IntoRouteHandler<S> for aide::axum::routing::ApiMethodRouter<S>
-where
-    S: Clone + Send + Sync + 'static,
-{
-    fn register(self, router: AideApiRouter<S>, path: &str) -> AideApiRouter<S> {
-        router.api_route(path, self)
-    }
-}
-
 impl<S> IntoRouteHandler<S> for ::axum::routing::MethodRouter<S>
 where
     S: Clone + Send + Sync + 'static,
