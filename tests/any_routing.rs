@@ -45,9 +45,7 @@ async fn any_handler_receives_all_methods() {
             .unwrap();
 
         assert_eq!(resp.status(), StatusCode::OK);
-        let body = axum::body::to_bytes(resp.into_body(), 1024)
-            .await
-            .unwrap();
+        let body = axum::body::to_bytes(resp.into_body(), 1024).await.unwrap();
         assert_eq!(
             String::from_utf8(body.to_vec()).unwrap(),
             method.to_string(),
@@ -74,9 +72,7 @@ async fn catchall_path_is_extractable() {
         .unwrap();
 
     assert_eq!(resp.status(), StatusCode::OK);
-    let body = axum::body::to_bytes(resp.into_body(), 1024)
-        .await
-        .unwrap();
+    let body = axum::body::to_bytes(resp.into_body(), 1024).await.unwrap();
     assert_eq!(String::from_utf8(body.to_vec()).unwrap(), "foo/bar/baz");
 }
 
@@ -105,11 +101,6 @@ async fn any_catchall_with_state() {
         .unwrap();
 
     assert_eq!(resp.status(), StatusCode::OK);
-    let body = axum::body::to_bytes(resp.into_body(), 1024)
-        .await
-        .unwrap();
-    assert_eq!(
-        String::from_utf8(body.to_vec()).unwrap(),
-        "proxied:foo/bar"
-    );
+    let body = axum::body::to_bytes(resp.into_body(), 1024).await.unwrap();
+    assert_eq!(String::from_utf8(body.to_vec()).unwrap(), "proxied:foo/bar");
 }
