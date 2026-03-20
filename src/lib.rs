@@ -143,6 +143,42 @@ use aide::axum::ApiRouter as AideApiRouter;
 use aide::openapi::OpenApi;
 use std::sync::Arc;
 
+/// Trait for types that can be registered as routes on a [`Router`].
+///
+/// Implemented for [`ApiMethodRouter`] (documented routes via aide's `api_route`)
+/// and [`axum::routing::MethodRouter`] (undocumented routes via plain `route`).
+pub trait IntoRouteHandler<S> {
+    /// Register this handler on the router at the given path.
+    fn register(self, router: AideApiRouter<S>, path: &str) -> AideApiRouter<S>;
+}
+
+impl<S> IntoRouteHandler<S> for ApiMethodRouter<S>
+where
+    S: Clone + Send + Sync + 'static,
+{
+    fn register(self, router: AideApiRouter<S>, path: &str) -> AideApiRouter<S> {
+        router.api_route(path, self.inner)
+    }
+}
+
+impl<S> IntoRouteHandler<S> for aide::axum::routing::ApiMethodRouter<S>
+where
+    S: Clone + Send + Sync + 'static,
+{
+    fn register(self, router: AideApiRouter<S>, path: &str) -> AideApiRouter<S> {
+        router.api_route(path, self)
+    }
+}
+
+impl<S> IntoRouteHandler<S> for ::axum::routing::MethodRouter<S>
+where
+    S: Clone + Send + Sync + 'static,
+{
+    fn register(self, router: AideApiRouter<S>, path: &str) -> AideApiRouter<S> {
+        router.route(path, self)
+    }
+}
+
 /// A drop-in replacement for `axum::Router` that adds `OpenAPI` documentation support.
 ///
 /// This Router works seamlessly with handlers decorated with `#[rovo]` and provides
@@ -190,11 +226,15 @@ where
     }
 
     /// Add a route to the router
+    ///
+    /// Accepts both documented routes (from [`routing::get`], [`routing::post`], etc.)
+    /// and undocumented routes (from [`routing::any`] or plain `axum::routing::MethodRouter`).
+    /// Undocumented routes bypass `OpenAPI` schema generation.
     pub fn route<M>(mut self, path: &str, method_router: M) -> Self
     where
-        M: Into<aide::axum::routing::ApiMethodRouter<S>>,
+        M: IntoRouteHandler<S>,
     {
-        self.inner = self.inner.api_route(path, method_router.into());
+        self.inner = method_router.register(self.inner, path);
         self
     }
 
@@ -614,6 +654,33 @@ impl<S> From<ApiMethodRouter<S>> for aide::axum::routing::ApiMethodRouter<S> {
 /// ```
 pub mod routing {
     use super::{ApiMethodRouter, IntoApiMethodRouter};
+
+    /// Create a route handler that matches any HTTP method.
+    ///
+    /// Unlike other routing functions in this module, `any` accepts a plain axum handler
+    /// rather than a `#[rovo]` decorated handler. The route bypasses `OpenAPI` documentation,
+    /// making it suitable for proxy/fallback routes and catch-all patterns like `{*path}`.
+    ///
+    /// # Example
+    /// ```no_run
+    /// use rovo::{Router, routing};
+    ///
+    /// async fn proxy(axum::extract::Path(path): axum::extract::Path<String>) -> String {
+    ///     format!("proxying: {path}")
+    /// }
+    ///
+    /// let app = Router::<()>::new()
+    ///     .route("/api/{*path}", routing::any(proxy))
+    ///     .finish();
+    /// ```
+    pub fn any<H, T, S>(handler: H) -> ::axum::routing::MethodRouter<S>
+    where
+        H: ::axum::handler::Handler<T, S>,
+        S: Clone + Send + Sync + 'static,
+        T: 'static,
+    {
+        ::axum::routing::any(handler)
+    }
 
     /// Create a GET route with documentation from a `#[rovo]` decorated handler.
     pub fn get<S, H>(handler: H) -> ApiMethodRouter<S>
