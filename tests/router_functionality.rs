@@ -88,7 +88,8 @@ fn test_method_chaining() {
         .route("/items", get(list_items).post(create_item))
         .route("/items/{id}", patch(update_item).delete(delete_item))
         .with_oas(api)
-        .with_state(state);
+        .with_state(state)
+        .finish();
 
     let spec = extract_openapi_from_router(app);
     let paths = &spec.paths.as_ref().unwrap().paths;
@@ -113,7 +114,8 @@ fn test_all_formats_identical() {
     let app = Router::new()
         .route("/items", get(list_items))
         .with_oas(api)
-        .with_state(state);
+        .with_state(state)
+        .finish();
 
     let rt = tokio::runtime::Runtime::new().unwrap();
 
@@ -204,7 +206,8 @@ fn test_nested_routers() {
                 .route("/items/{id}", delete(delete_item)),
         )
         .with_oas(api)
-        .with_state(state);
+        .with_state(state)
+        .finish();
 
     let spec = extract_openapi_from_router(app);
     let paths = &spec.paths.as_ref().unwrap().paths;
@@ -229,7 +232,8 @@ fn test_custom_oas_route() {
     let app = Router::new()
         .route("/items", get(list_items))
         .with_oas_route(api, "/openapi")
-        .with_state(state);
+        .with_state(state)
+        .finish();
 
     let rt = tokio::runtime::Runtime::new().unwrap();
 
@@ -318,7 +322,8 @@ fn test_deprecated_endpoint() {
     let app = Router::new()
         .route("/old-items", get(old_list_items))
         .with_oas(api)
-        .with_state(state);
+        .with_state(state)
+        .finish();
 
     let spec = extract_openapi_from_router(app);
     let paths = &spec.paths.as_ref().unwrap().paths;
@@ -355,7 +360,8 @@ fn test_security_annotation() {
     let app = Router::new()
         .route("/protected", get(protected_items))
         .with_oas(api)
-        .with_state(state);
+        .with_state(state)
+        .finish();
 
     let spec = extract_openapi_from_router(app);
     let paths = &spec.paths.as_ref().unwrap().paths;
@@ -402,7 +408,8 @@ fn test_custom_operation_id() {
     let app = Router::new()
         .route("/custom-id-items", get(custom_id_items))
         .with_oas(api)
-        .with_state(state);
+        .with_state(state)
+        .finish();
 
     let spec = extract_openapi_from_router(app);
     let paths = &spec.paths.as_ref().unwrap().paths;
@@ -435,7 +442,8 @@ fn test_hidden_endpoint() {
     let app = Router::new()
         .route("/hidden", get(hidden_endpoint))
         .with_oas(api)
-        .with_state(state);
+        .with_state(state)
+        .finish();
 
     let spec = extract_openapi_from_router(app);
     let paths = &spec.paths.as_ref().unwrap().paths;
@@ -477,7 +485,8 @@ fn test_multiple_tags() {
     let app = Router::new()
         .route("/multi-tag", get(multi_tag_endpoint))
         .with_oas(api)
-        .with_state(state);
+        .with_state(state)
+        .finish();
 
     let spec = extract_openapi_from_router(app);
     let paths = &spec.paths.as_ref().unwrap().paths;

@@ -8,6 +8,7 @@ use rovo::response::Json;
 use rovo::schemars::JsonSchema;
 use rovo::{routing::get, rovo, Router};
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use tower::util::ServiceExt;
 
 // Two completely separate state types
@@ -167,7 +168,8 @@ async fn test_nest_same_state_still_works() {
     let app = Router::new()
         .nest("/nested", Router::new().route("/endpoint", get(handler_a)))
         .with_oas(api)
-        .with_state(state_a);
+        .with_state(state_a)
+        .finish();
 
     let response = app
         .oneshot(
@@ -216,7 +218,8 @@ async fn test_nest_different_states_with_parent_state() {
                 .route("/endpoint", get(handler_b))
                 .with_state(state_b),
         )
-        .with_state(state_a);
+        .with_state(state_a)
+        .finish();
 
     // Verify parent route works
     let response = app
@@ -399,4 +402,114 @@ async fn test_nest_plain_axum_router() {
         .await
         .unwrap();
     assert_eq!(&body[..], b"ok");
+}
+
+#[tokio::test]
+async fn test_nest_different_states_preserves_openapi_docs() {
+    let state_a = StateA { value_a: "hello" };
+    let state_b = StateB { value_b: 42 };
+
+    let mut api = OpenApi::default();
+    api.info.title = "Multi-state API".to_string();
+
+    let app = Router::new()
+        .nest(
+            "/api/a",
+            Router::new()
+                .route("/resource", get(handler_a))
+                .with_state(state_a),
+        )
+        .nest(
+            "/api/b",
+            Router::new()
+                .route("/resource", get(handler_b))
+                .with_state(state_b),
+        )
+        .with_oas(api)
+        .finish();
+
+    // Fetch the OpenAPI spec
+    let response = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri("/api.json")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let spec: Value = serde_json::from_slice(&body).unwrap();
+
+    let paths = spec["paths"].as_object().expect("spec should have paths");
+
+    // Both nested route groups should appear in the OpenAPI spec
+    assert!(
+        paths.contains_key("/api/a/resource"),
+        "OpenAPI spec should contain /api/a/resource, got: {paths:?}"
+    );
+    assert!(
+        paths.contains_key("/api/b/resource"),
+        "OpenAPI spec should contain /api/b/resource, got: {paths:?}"
+    );
+
+    // Verify the operations have the correct tags from the #[rovo] annotations
+    let a_get = &spec["paths"]["/api/a/resource"]["get"];
+    assert!(
+        a_get["tags"]
+            .as_array()
+            .unwrap()
+            .contains(&Value::String("group_a".to_string())),
+        "handler_a should have tag 'group_a'"
+    );
+
+    let b_get = &spec["paths"]["/api/b/resource"]["get"];
+    assert!(
+        b_get["tags"]
+            .as_array()
+            .unwrap()
+            .contains(&Value::String("group_b".to_string())),
+        "handler_b should have tag 'group_b'"
+    );
+}
+
+#[tokio::test]
+async fn test_with_state_then_finish_serves_oas() {
+    // with_state followed by finish should still serve OpenAPI docs
+    let state_a = StateA { value_a: "test" };
+
+    let mut api = OpenApi::default();
+    api.info.title = "Stateful API".to_string();
+
+    let app = Router::new()
+        .route("/resource", get(handler_a))
+        .with_oas(api)
+        .with_state(state_a)
+        .finish();
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .uri("/api.json")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let spec: Value = serde_json::from_slice(&body).unwrap();
+    let paths = spec["paths"].as_object().expect("spec should have paths");
+    assert!(
+        paths.contains_key("/resource"),
+        "OpenAPI spec should contain /resource"
+    );
 }

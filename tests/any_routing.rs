@@ -88,7 +88,8 @@ async fn any_catchall_with_state() {
             "/api/internal/{*path}",
             rovo::routing::any(stateful_catch_all),
         )
-        .with_state(state);
+        .with_state(state)
+        .finish();
 
     let resp = app
         .oneshot(
