@@ -321,6 +321,26 @@ Router::new()
     )
 ```
 
+Nest routers with different state types by calling `.with_state()` on each inner router:
+
+```rust
+let app = Router::new()
+    .nest(
+        "/api",
+        Router::new()
+            .route("/todos", get(list_todos))
+            .with_state(todo_state),
+    )
+    .nest(
+        "/meta",
+        Router::new()
+            .route("/health", get(health_check))
+            .with_state(meta_state),
+    )
+    .with_oas(api)
+    .finish();
+```
+
 ### Documentation UIs
 
 ```rust
@@ -530,6 +550,8 @@ let router: Router<()> = Router::<AppState>::new()
     .route("/path", get(handler))
     .with_state(state);
 ```
+
+Or, if you have multiple state types, call `.with_state()` on each nested router individually (see [Nesting Routes](#nesting-routes)).
 
 ## Comparison with aide
 
