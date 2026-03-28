@@ -143,6 +143,19 @@ use aide::axum::ApiRouter as AideApiRouter;
 use aide::openapi::OpenApi;
 use std::sync::Arc;
 
+/// Trait for types that can be nested into a [`Router`].
+///
+/// Implemented for [`Router<S>`] (same state type, preserves `OpenAPI` docs)
+/// and [`axum::Router`] (state already applied via `with_state`, e.g. for nesting
+/// routers with different state types).
+pub trait IntoNestRouter<S>
+where
+    S: Clone + Send + Sync + 'static,
+{
+    /// Nest this router into the parent at the given path.
+    fn nest_into(self, parent: Router<S>, path: &str) -> Router<S>;
+}
+
 /// Trait for types that can be registered as routes on a [`Router`].
 ///
 /// Implemented for [`ApiMethodRouter`] (documented routes via aide's `api_route`)
@@ -167,6 +180,44 @@ where
 {
     fn register(self, router: AideApiRouter<S>, path: &str) -> AideApiRouter<S> {
         router.route(path, self)
+    }
+}
+
+impl<S> IntoNestRouter<S> for Router<S>
+where
+    S: Clone + Send + Sync + 'static,
+{
+    fn nest_into(self, mut parent: Self, path: &str) -> Self {
+        parent.inner = parent.inner.nest(path, self.inner);
+        if parent.oas_spec.is_none() && self.oas_spec.is_some() {
+            parent.oas_spec = self.oas_spec;
+            parent.oas_route = self.oas_route;
+        }
+        parent
+    }
+}
+
+impl<S> IntoNestRouter<S> for StatefulRouter
+where
+    S: Clone + Send + Sync + 'static,
+{
+    fn nest_into(self, mut parent: Router<S>, path: &str) -> Router<S> {
+        parent.inner = parent.inner.nest_api_service(path, self.inner);
+        if parent.oas_spec.is_none() && self.oas_spec.is_some() {
+            parent.oas_spec = self.oas_spec;
+            parent.oas_route = self.oas_route;
+        }
+        parent
+    }
+}
+
+impl<S> IntoNestRouter<S> for ::axum::Router
+where
+    S: Clone + Send + Sync + 'static,
+{
+    fn nest_into(self, mut parent: Router<S>, path: &str) -> Router<S> {
+        parent.inner = parent.inner.nest_api_service(path, self);
+        parent
     }
 }
 
@@ -230,15 +281,34 @@ where
     }
 
     /// Nest another router at the given path
+    ///
+    /// Accepts both a [`Router<S>`] (same state type) and an [`axum::Router`]
+    /// (state already applied via [`with_state`](Self::with_state)).
+    /// The latter enables nesting routers with different state types:
+    ///
+    /// ```no_run
+    /// use rovo::{Router, rovo, routing::get, aide::axum::IntoApiResponse};
+    /// use rovo::extract::State;
+    /// use rovo::response::Json;
+    ///
+    /// #[derive(Clone)]
+    /// struct StateA;
+    /// #[derive(Clone)]
+    /// struct StateB;
+    ///
+    /// # #[rovo]
+    /// # async fn handler_a(State(_): State<StateA>) -> impl IntoApiResponse { Json(()) }
+    /// # #[rovo]
+    /// # async fn handler_b(State(_): State<StateB>) -> impl IntoApiResponse { Json(()) }
+    ///
+    /// let app = Router::<()>::new()
+    ///     .nest("/a", Router::new().route("/x", get(handler_a)).with_state(StateA))
+    ///     .nest("/b", Router::new().route("/y", get(handler_b)).with_state(StateB))
+    ///     .finish();
+    /// ```
     #[must_use]
-    pub fn nest(mut self, path: &str, router: Self) -> Self {
-        self.inner = self.inner.nest(path, router.inner);
-        // Adopt nested router's OAS spec if parent doesn't have one
-        if self.oas_spec.is_none() && router.oas_spec.is_some() {
-            self.oas_spec = router.oas_spec;
-            self.oas_route = router.oas_route;
-        }
-        self
+    pub fn nest<N: IntoNestRouter<S>>(self, path: &str, router: N) -> Self {
+        router.nest_into(self, path)
     }
 
     /// Configure `OpenAPI` spec with default routes (/api.json and /api.yaml)
@@ -412,19 +482,36 @@ where
         }
     }
 
-    /// Add state to the router and finalize the API
-    pub fn with_state(self, state: S) -> ::axum::Router
-    where
-        S: Clone + Send + Sync + 'static,
-    {
-        let (with_oas, without_oas) = self.wire_openapi_routes();
-
-        if let Some(router) = with_oas {
-            router.with_state(state)
-        } else if let Some(inner) = without_oas {
-            inner.with_state(state).into()
-        } else {
-            unreachable!("Either with_oas or without_oas must be Some")
+    /// Provide state to the router, producing a [`StatefulRouter`].
+    ///
+    /// The returned [`StatefulRouter`] preserves `OpenAPI` documentation and can be:
+    /// - **Nested** into a parent [`Router`] with a different state type
+    /// - **Finalized** with [`.finish()`](StatefulRouter::finish) to get an `axum::Router`
+    ///   for serving
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// # use rovo::{Router, rovo, routing::get, aide::axum::IntoApiResponse};
+    /// # use rovo::aide::openapi::OpenApi;
+    /// # use rovo::response::Json;
+    /// # #[rovo]
+    /// # async fn handler() -> impl IntoApiResponse { Json(()) }
+    /// let mut api = OpenApi::default();
+    /// api.info.title = "My API".to_string();
+    ///
+    /// let app = Router::new()
+    ///     .route("/path", get(handler))
+    ///     .with_oas(api)
+    ///     .with_state(())
+    ///     .finish();
+    /// ```
+    #[must_use]
+    pub fn with_state(self, state: S) -> StatefulRouter {
+        StatefulRouter {
+            inner: self.inner.with_state(state),
+            oas_spec: self.oas_spec,
+            oas_route: self.oas_route,
         }
     }
 
@@ -483,6 +570,55 @@ where
     /// Convert into the underlying aide `ApiRouter`
     pub fn into_inner(self) -> AideApiRouter<S> {
         self.inner
+    }
+}
+
+/// A router whose state has been provided via [`Router::with_state`].
+///
+/// This type preserves `OpenAPI` documentation and can be:
+/// - **Nested** into a parent [`Router`] with any state type
+/// - **Finalized** with [`.finish()`](Self::finish) to produce an `axum::Router` for serving
+///
+/// # Example
+///
+/// ```no_run
+/// use rovo::{Router, rovo, routing::get, aide::axum::IntoApiResponse};
+/// use rovo::extract::State;
+/// use rovo::response::Json;
+///
+/// #[derive(Clone)]
+/// struct StateA;
+/// #[derive(Clone)]
+/// struct StateB;
+///
+/// # #[rovo]
+/// # async fn handler_a(State(_): State<StateA>) -> impl IntoApiResponse { Json(()) }
+/// # #[rovo]
+/// # async fn handler_b(State(_): State<StateB>) -> impl IntoApiResponse { Json(()) }
+///
+/// let app = Router::<()>::new()
+///     .nest("/a", Router::new().route("/x", get(handler_a)).with_state(StateA))
+///     .nest("/b", Router::new().route("/y", get(handler_b)).with_state(StateB))
+///     .finish();
+/// ```
+pub struct StatefulRouter {
+    inner: AideApiRouter<()>,
+    oas_spec: Option<OpenApi>,
+    oas_route: String,
+}
+
+impl StatefulRouter {
+    /// Finalize into an `axum::Router` for serving.
+    ///
+    /// This wires up `OpenAPI` spec endpoints (JSON/YAML) if configured,
+    /// then returns a ready-to-serve `axum::Router`.
+    pub fn finish(self) -> ::axum::Router {
+        let router: Router<()> = Router {
+            inner: self.inner,
+            oas_spec: self.oas_spec,
+            oas_route: self.oas_route,
+        };
+        router.finish()
     }
 }
 

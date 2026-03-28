@@ -107,7 +107,8 @@ fn test_multiline_response_description_compiles() {
     let state = AppState {};
     let _router: ::axum::Router = Router::<AppState>::new()
         .route("/multiline", get(multiline_response_description))
-        .with_state(state);
+        .with_state(state)
+        .finish();
 }
 
 #[test]
@@ -115,7 +116,8 @@ fn test_codeblock_example_compiles() {
     let state = AppState {};
     let _router: ::axum::Router = Router::<AppState>::new()
         .route("/codeblock", get(codeblock_example))
-        .with_state(state);
+        .with_state(state)
+        .finish();
 }
 
 #[test]
@@ -123,7 +125,8 @@ fn test_multiline_example_braces_compiles() {
     let state = AppState {};
     let _router: ::axum::Router = Router::<AppState>::new()
         .route("/multiline-braces", get(multiline_example_braces))
-        .with_state(state);
+        .with_state(state)
+        .finish();
 }
 
 #[test]
@@ -131,7 +134,8 @@ fn test_deprecated_handler_compiles() {
     let state = AppState {};
     let _router: ::axum::Router = Router::<AppState>::new()
         .route("/deprecated", get(deprecated_handler))
-        .with_state(state);
+        .with_state(state)
+        .finish();
 }
 
 #[test]
@@ -139,5 +143,6 @@ fn test_codeblock_inline_example_compiles() {
     let state = AppState {};
     let _router: ::axum::Router = Router::<AppState>::new()
         .route("/codeblock-inline", get(codeblock_inline_example))
-        .with_state(state);
+        .with_state(state)
+        .finish();
 }

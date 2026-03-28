@@ -340,7 +340,8 @@ fn test_single_line_responses() {
     let _state = AppState {};
     let _router: ::axum::Router = Router::<AppState>::new()
         .route("/todo/{id}", get(get_todo_single_line))
-        .with_state(_state);
+        .with_state(_state)
+        .finish();
 }
 
 #[test]
@@ -348,7 +349,8 @@ fn test_multiline_responses() {
     let _state = AppState {};
     let _router: ::axum::Router = Router::<AppState>::new()
         .route("/todo/{id}", get(get_todo_multiline_desc))
-        .with_state(_state);
+        .with_state(_state)
+        .finish();
 }
 
 #[test]
@@ -356,7 +358,8 @@ fn test_single_line_examples() {
     let _state = AppState {};
     let _router: ::axum::Router = Router::<AppState>::new()
         .route("/todo", get(create_todo_single_line))
-        .with_state(_state);
+        .with_state(_state)
+        .finish();
 }
 
 #[test]
@@ -364,7 +367,8 @@ fn test_multiline_examples() {
     let _state = AppState {};
     let _router: ::axum::Router = Router::<AppState>::new()
         .route("/todo", get(create_todo_multiline))
-        .with_state(_state);
+        .with_state(_state)
+        .finish();
 }
 
 #[test]
@@ -372,7 +376,8 @@ fn test_primitive_examples() {
     let _state = AppState {};
     let _router: ::axum::Router = Router::<AppState>::new()
         .route("/status", get(get_status_primitives))
-        .with_state(_state);
+        .with_state(_state)
+        .finish();
 }
 
 #[test]
@@ -380,7 +385,8 @@ fn test_metadata_single_tag() {
     let _state = AppState {};
     let _router: ::axum::Router = Router::<AppState>::new()
         .route("/todos", get(list_todos_single_tag))
-        .with_state(_state);
+        .with_state(_state)
+        .finish();
 }
 
 #[test]
@@ -388,7 +394,8 @@ fn test_metadata_multiple_tags() {
     let _state = AppState {};
     let _router: ::axum::Router = Router::<AppState>::new()
         .route("/todos", get(list_todos_multiple_tags))
-        .with_state(_state);
+        .with_state(_state)
+        .finish();
 }
 
 #[test]
@@ -396,7 +403,8 @@ fn test_metadata_with_security() {
     let _state = AppState {};
     let _router: ::axum::Router = Router::<AppState>::new()
         .route("/todo/{id}", get(get_protected_todo))
-        .with_state(_state);
+        .with_state(_state)
+        .finish();
 }
 
 #[test]
@@ -404,7 +412,8 @@ fn test_metadata_custom_id() {
     let _state = AppState {};
     let _router: ::axum::Router = Router::<AppState>::new()
         .route("/todo/{id}", get(get_todo_custom_id))
-        .with_state(_state);
+        .with_state(_state)
+        .finish();
 }
 
 #[test]
@@ -412,7 +421,8 @@ fn test_metadata_hidden() {
     let _state = AppState {};
     let _router: ::axum::Router = Router::<AppState>::new()
         .route("/internal", get(internal_endpoint))
-        .with_state(_state);
+        .with_state(_state)
+        .finish();
 }
 
 #[test]
@@ -420,7 +430,8 @@ fn test_complete_documentation() {
     let _state = AppState {};
     let _router: ::axum::Router = Router::<AppState>::new()
         .route("/todo", get(create_todo_complete))
-        .with_state(_state);
+        .with_state(_state)
+        .finish();
 }
 
 #[test]
@@ -428,7 +439,8 @@ fn test_rovo_ignore() {
     let _state = AppState {};
     let _router: ::axum::Router = Router::<AppState>::new()
         .route("/experimental", get(experimental_endpoint))
-        .with_state(_state);
+        .with_state(_state)
+        .finish();
 }
 
 #[test]
@@ -436,7 +448,8 @@ fn test_delete_endpoint() {
     let _state = AppState {};
     let _router: ::axum::Router = Router::<AppState>::new()
         .route("/todo/{id}", get(delete_todo))
-        .with_state(_state);
+        .with_state(_state)
+        .finish();
 }
 
 #[test]
@@ -444,7 +457,8 @@ fn test_nested_response_types() {
     let _state = AppState {};
     let _router: ::axum::Router = Router::<AppState>::new()
         .route("/nested", get(get_nested_response))
-        .with_state(_state);
+        .with_state(_state)
+        .finish();
 }
 
 // Test: Examples starting on next line
@@ -480,7 +494,8 @@ fn test_example_starts_next_line() {
     let _state = AppState {};
     let _router: ::axum::Router = Router::<AppState>::new()
         .route("/todos/{id}", get(get_todo_next_line_example))
-        .with_state(_state);
+        .with_state(_state)
+        .finish();
 }
 
 // Test: Unmarked code blocks
@@ -513,7 +528,8 @@ fn test_code_block_unmarked() {
     let _state = AppState {};
     let _router: ::axum::Router = Router::<AppState>::new()
         .route("/todos/{id}", get(get_todo_code_block_unmarked))
-        .with_state(_state);
+        .with_state(_state)
+        .finish();
 }
 
 // Test: Code block marked with rust
@@ -546,7 +562,8 @@ fn test_code_block_rust() {
     let _state = AppState {};
     let _router: ::axum::Router = Router::<AppState>::new()
         .route("/todos/{id}", get(get_todo_code_block_rust))
-        .with_state(_state);
+        .with_state(_state)
+        .finish();
 }
 
 // Test: Code block marked with rs
@@ -579,7 +596,8 @@ fn test_code_block_rs() {
     let _state = AppState {};
     let _router: ::axum::Router = Router::<AppState>::new()
         .route("/todos/{id}", get(get_todo_code_block_rs))
-        .with_state(_state);
+        .with_state(_state)
+        .finish();
 }
 
 // Test: Code block on same line as status code
@@ -611,5 +629,6 @@ fn test_code_block_same_line() {
     let _state = AppState {};
     let _router: ::axum::Router = Router::<AppState>::new()
         .route("/todos/{id}", get(get_todo_code_block_same_line))
-        .with_state(_state);
+        .with_state(_state)
+        .finish();
 }

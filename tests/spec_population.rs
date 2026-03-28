@@ -82,7 +82,8 @@ fn test_spec_contains_paths() {
         .route("/users", get(list_users))
         .route("/users/{id}", get(get_user))
         .with_oas(api.clone())
-        .with_state(state);
+        .with_state(state)
+        .finish();
 
     // Extract the OpenAPI spec from the Extension layer
     let spec = extract_openapi_from_router(app);
@@ -107,7 +108,8 @@ fn test_spec_contains_tags() {
     let app = Router::new()
         .route("/users/{id}", get(get_user))
         .with_oas(api.clone())
-        .with_state(state);
+        .with_state(state)
+        .finish();
 
     let spec = extract_openapi_from_router(app);
 
@@ -135,7 +137,8 @@ fn test_spec_contains_descriptions() {
     let app = Router::new()
         .route("/users/{id}", get(get_user))
         .with_oas(api.clone())
-        .with_state(state);
+        .with_state(state)
+        .finish();
 
     let spec = extract_openapi_from_router(app);
 
@@ -164,7 +167,8 @@ fn test_spec_contains_parameters() {
     let app = Router::new()
         .route("/users/{id}", get(get_user))
         .with_oas(api.clone())
-        .with_state(state);
+        .with_state(state)
+        .finish();
 
     let spec = extract_openapi_from_router(app);
 
@@ -196,7 +200,8 @@ fn test_spec_contains_responses() {
     let app = Router::new()
         .route("/users/{id}", get(get_user))
         .with_oas(api.clone())
-        .with_state(state);
+        .with_state(state)
+        .finish();
 
     let spec = extract_openapi_from_router(app);
 
@@ -239,7 +244,8 @@ fn test_spec_contains_examples() {
     let app = Router::new()
         .route("/users/{id}", get(get_user))
         .with_oas(api.clone())
-        .with_state(state);
+        .with_state(state)
+        .finish();
 
     let spec = extract_openapi_from_router(app);
 
@@ -272,7 +278,8 @@ fn test_spec_contains_operation_id() {
     let app = Router::new()
         .route("/users/{id}", get(get_user))
         .with_oas(api.clone())
-        .with_state(state);
+        .with_state(state)
+        .finish();
 
     let spec = extract_openapi_from_router(app);
 
@@ -322,7 +329,8 @@ fn test_spec_contains_multiline_example_with_default() {
     let app = Router::new()
         .route("/items", rovo::routing::post(create_item))
         .with_oas(api.clone())
-        .with_state(state);
+        .with_state(state)
+        .finish();
 
     let spec = extract_openapi_from_router(app);
 
@@ -402,7 +410,8 @@ fn test_spec_contains_request_body() {
     let app = Router::new()
         .route("/users", rovo::routing::post(create_user))
         .with_oas(api.clone())
-        .with_state(state);
+        .with_state(state)
+        .finish();
 
     let spec = extract_openapi_from_router(app);
 

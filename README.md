@@ -77,7 +77,8 @@ async fn main() {
         .route("/user", get(get_user))
         .with_oas(api)
         .with_swagger("/")
-        .with_state(state);
+        .with_state(state)
+        .finish();
 
     let listener = tokio::net::TcpListener::bind("127.0.0.1:3000")
         .await
@@ -296,7 +297,8 @@ use rovo::Router;
 
 let app = Router::new()
     .route("/path", get(handler))
-    .with_state(state);
+    .with_state(state)
+    .finish();
 ```
 
 ### Method Chaining
@@ -321,6 +323,26 @@ Router::new()
     )
 ```
 
+Nest routers with different state types by calling `.with_state()` on each inner router:
+
+```rust
+let app = Router::new()
+    .nest(
+        "/api",
+        Router::new()
+            .route("/todos", get(list_todos))
+            .with_state(todo_state),
+    )
+    .nest(
+        "/meta",
+        Router::new()
+            .route("/health", get(health_check))
+            .with_state(meta_state),
+    )
+    .with_oas(api)
+    .finish();
+```
+
 ### Documentation UIs
 
 ```rust
@@ -331,6 +353,7 @@ Router::new()
     .with_redoc("/redoc")
     .with_scalar("/scalar")
     .with_state(state)
+    .finish()
 ```
 
 Use custom OAS route:
@@ -341,6 +364,7 @@ Router::new()
     .with_oas_route(api, "/openapi")
     .with_swagger("/")
     .with_state(state)
+    .finish()
 ```
 
 ## OpenAPI Formats
@@ -405,7 +429,8 @@ let app = Router::new()
     .route("/path", get(handler))
     .with_oas(api)
     .with_swagger("/")
-    .with_state(state);
+    .with_state(state)
+    .finish();
 ```
 
 ## Tips
@@ -521,15 +546,9 @@ async fn handler() -> impl IntoApiResponse {
 }
 ```
 
-### Type mismatch with `.with_state()`
+### Using different state types
 
-Add explicit type annotation:
-
-```rust
-let router: Router<()> = Router::<AppState>::new()
-    .route("/path", get(handler))
-    .with_state(state);
-```
+Call `.with_state()` on each nested router individually, then `.finish()` at the top level (see [Nesting Routes](#nesting-routes)).
 
 ## Comparison with aide
 
