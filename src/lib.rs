@@ -143,6 +143,19 @@ use aide::axum::ApiRouter as AideApiRouter;
 use aide::openapi::OpenApi;
 use std::sync::Arc;
 
+/// Trait for types that can be nested into a [`Router`].
+///
+/// Implemented for [`Router<S>`] (same state type, preserves `OpenAPI` docs)
+/// and [`axum::Router`] (state already applied via `with_state`, e.g. for nesting
+/// routers with different state types).
+pub trait IntoNestRouter<S>
+where
+    S: Clone + Send + Sync + 'static,
+{
+    /// Nest this router into the parent at the given path.
+    fn nest_into(self, parent: Router<S>, path: &str) -> Router<S>;
+}
+
 /// Trait for types that can be registered as routes on a [`Router`].
 ///
 /// Implemented for [`ApiMethodRouter`] (documented routes via aide's `api_route`)
@@ -167,6 +180,30 @@ where
 {
     fn register(self, router: AideApiRouter<S>, path: &str) -> AideApiRouter<S> {
         router.route(path, self)
+    }
+}
+
+impl<S> IntoNestRouter<S> for Router<S>
+where
+    S: Clone + Send + Sync + 'static,
+{
+    fn nest_into(self, mut parent: Self, path: &str) -> Self {
+        parent.inner = parent.inner.nest(path, self.inner);
+        if parent.oas_spec.is_none() && self.oas_spec.is_some() {
+            parent.oas_spec = self.oas_spec;
+            parent.oas_route = self.oas_route;
+        }
+        parent
+    }
+}
+
+impl<S> IntoNestRouter<S> for ::axum::Router
+where
+    S: Clone + Send + Sync + 'static,
+{
+    fn nest_into(self, mut parent: Router<S>, path: &str) -> Router<S> {
+        parent.inner = parent.inner.nest_api_service(path, self);
+        parent
     }
 }
 
@@ -230,15 +267,34 @@ where
     }
 
     /// Nest another router at the given path
+    ///
+    /// Accepts both a [`Router<S>`] (same state type) and an [`axum::Router`]
+    /// (state already applied via [`with_state`](Self::with_state)).
+    /// The latter enables nesting routers with different state types:
+    ///
+    /// ```no_run
+    /// use rovo::{Router, rovo, routing::get, aide::axum::IntoApiResponse};
+    /// use rovo::extract::State;
+    /// use rovo::response::Json;
+    ///
+    /// #[derive(Clone)]
+    /// struct StateA;
+    /// #[derive(Clone)]
+    /// struct StateB;
+    ///
+    /// # #[rovo]
+    /// # async fn handler_a(State(_): State<StateA>) -> impl IntoApiResponse { Json(()) }
+    /// # #[rovo]
+    /// # async fn handler_b(State(_): State<StateB>) -> impl IntoApiResponse { Json(()) }
+    ///
+    /// let app = Router::<()>::new()
+    ///     .nest("/a", Router::new().route("/x", get(handler_a)).with_state(StateA))
+    ///     .nest("/b", Router::new().route("/y", get(handler_b)).with_state(StateB))
+    ///     .finish();
+    /// ```
     #[must_use]
-    pub fn nest(mut self, path: &str, router: Self) -> Self {
-        self.inner = self.inner.nest(path, router.inner);
-        // Adopt nested router's OAS spec if parent doesn't have one
-        if self.oas_spec.is_none() && router.oas_spec.is_some() {
-            self.oas_spec = router.oas_spec;
-            self.oas_route = router.oas_route;
-        }
-        self
+    pub fn nest<N: IntoNestRouter<S>>(self, path: &str, router: N) -> Self {
+        router.nest_into(self, path)
     }
 
     /// Configure `OpenAPI` spec with default routes (/api.json and /api.yaml)
