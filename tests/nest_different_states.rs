@@ -6,7 +6,7 @@ use rovo::extract::State;
 use rovo::http::StatusCode;
 use rovo::response::Json;
 use rovo::schemars::JsonSchema;
-use rovo::{rovo, routing::get, Router};
+use rovo::{routing::get, rovo, Router};
 use serde::{Deserialize, Serialize};
 use tower::util::ServiceExt;
 
@@ -165,10 +165,7 @@ async fn test_nest_same_state_still_works() {
     api.info.title = "Same-state API".to_string();
 
     let app = Router::new()
-        .nest(
-            "/nested",
-            Router::new().route("/endpoint", get(handler_a)),
-        )
+        .nest("/nested", Router::new().route("/endpoint", get(handler_a)))
         .with_oas(api)
         .with_state(state_a);
 
@@ -383,14 +380,9 @@ async fn test_nest_different_states_nonexistent_route_returns_404() {
 #[tokio::test]
 async fn test_nest_plain_axum_router() {
     // Nest a plain axum::Router (not from rovo) directly
-    let axum_router = axum::Router::new().route(
-        "/health",
-        axum::routing::get(|| async { "ok" }),
-    );
+    let axum_router = axum::Router::new().route("/health", axum::routing::get(|| async { "ok" }));
 
-    let app = Router::<()>::new()
-        .nest("/api", axum_router)
-        .finish();
+    let app = Router::<()>::new().nest("/api", axum_router).finish();
 
     let response = app
         .oneshot(
