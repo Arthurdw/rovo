@@ -21,6 +21,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [0.4.3] - 2026-03-30
+
+### Bug Fixes
+
+- feat: fix state issue ([#27](https://github.com/Arthurdw/rovo/pull/27)) by @Arthurdw
+
 ## [0.4.2] - 2026-03-20
 
 ### Bug Fixes
