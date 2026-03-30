@@ -55,5 +55,6 @@ fn test_with_example() {
 
     let _router: ::axum::Router = Router::<AppState>::new()
         .route("/users/{id}", get(get_user))
-        .with_state(_state);
+        .with_state(_state)
+        .finish();
 }

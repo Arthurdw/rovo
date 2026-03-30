@@ -16,6 +16,13 @@ pub struct AppState {
     pub todos: Arc<Mutex<HashMap<Uuid, TodoItem>>>,
 }
 
+/// Separate state for the health/meta routes, demonstrating multi-state nesting.
+#[derive(Clone)]
+pub struct MetaState {
+    pub app_name: &'static str,
+    pub version: &'static str,
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq)]
 pub struct TodoItem {
     pub id: Uuid,
@@ -205,6 +212,33 @@ async fn delete_todo(State(app): State<AppState>, Path(id): Path<Uuid>) -> impl 
     }
 }
 
+#[derive(Serialize, JsonSchema)]
+pub struct HealthResponse {
+    pub app_name: String,
+    pub version: String,
+    pub status: String,
+}
+
+/// Health check
+///
+/// Returns the current health status and version of the API.
+///
+/// # Responses
+///
+/// 200: Json<HealthResponse> - Service is healthy
+///
+/// # Metadata
+///
+/// @tag meta
+#[rovo]
+async fn health_check(State(meta): State<MetaState>) -> Json<HealthResponse> {
+    Json(HealthResponse {
+        app_name: meta.app_name.to_string(),
+        version: meta.version.to_string(),
+        status: "ok".to_string(),
+    })
+}
+
 #[tokio::main]
 async fn main() {
     use rovo::routing::get;
@@ -217,15 +251,22 @@ async fn main() {
         )
         .init();
 
-    let state = AppState {
+    let todo_state = AppState {
         todos: Arc::new(Mutex::new(HashMap::new())),
+    };
+
+    let meta_state = MetaState {
+        app_name: "Todo API",
+        version: "1.0.0",
     };
 
     let mut api = OpenApi::default();
     api.info.title = "Todo API Example".to_string();
     api.info.description = Some("OpenAPI documentation example using rovo".to_string());
 
-    // Build the router with Swagger UI and API documentation - all in one place!
+    // Build the router with Swagger UI and API documentation.
+    // Each nested group can have its own state type — just call .with_state() on
+    // the inner router before nesting it.
     let app = Router::new()
         .nest(
             "/api",
@@ -234,11 +275,18 @@ async fn main() {
                 .route(
                     "/todos/{id}",
                     get(get_todo).patch(update_todo).delete(delete_todo),
-                ),
+                )
+                .with_state(todo_state),
+        )
+        .nest(
+            "/meta",
+            Router::new()
+                .route("/health", get(health_check))
+                .with_state(meta_state),
         )
         .with_oas(api)
         .with_swagger("/")
-        .with_state(state);
+        .finish();
 
     let port = std::env::var("PORT").unwrap_or_else(|_| "3000".to_string());
     let addr = format!("127.0.0.1:{port}");

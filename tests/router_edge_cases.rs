@@ -66,7 +66,8 @@ fn test_router_default() {
     let _app = router
         .route("/test", get(get_item))
         .with_oas(api)
-        .with_state(state);
+        .with_state(state)
+        .finish();
 }
 
 #[test]
@@ -116,7 +117,8 @@ fn test_put_routing() {
     let app = Router::new()
         .route("/items/{id}", put(replace_item))
         .with_oas(api)
-        .with_state(state);
+        .with_state(state)
+        .finish();
 
     let spec = extract_openapi_from_router(app);
     let paths = &spec.paths.as_ref().unwrap().paths;
@@ -134,7 +136,8 @@ fn test_method_chaining_with_get() {
     let app = Router::new()
         .route("/items", post(create_item).get(get_item))
         .with_oas(api)
-        .with_state(state);
+        .with_state(state)
+        .finish();
 
     let spec = extract_openapi_from_router(app);
     let paths = &spec.paths.as_ref().unwrap().paths;
@@ -156,7 +159,8 @@ fn test_method_chaining_with_put() {
     let app = Router::new()
         .route("/items", get(get_item).put(replace_item))
         .with_oas(api)
-        .with_state(state);
+        .with_state(state)
+        .finish();
 
     let spec = extract_openapi_from_router(app);
     let paths = &spec.paths.as_ref().unwrap().paths;
@@ -178,7 +182,8 @@ fn test_with_oas_route_strips_json_extension() {
     let app = Router::new()
         .route("/items", get(get_item))
         .with_oas_route(api, "/spec.json") // Should strip .json
-        .with_state(state);
+        .with_state(state)
+        .finish();
 
     let rt = tokio::runtime::Runtime::new().unwrap();
 
@@ -226,7 +231,8 @@ fn test_with_oas_route_strips_yaml_extension() {
     let app = Router::new()
         .route("/items", get(get_item))
         .with_oas_route(api, "/spec.yaml") // Should strip .yaml
-        .with_state(state);
+        .with_state(state)
+        .finish();
 
     let rt = tokio::runtime::Runtime::new().unwrap();
 
@@ -259,7 +265,8 @@ fn test_with_oas_route_strips_yml_extension() {
     let app = Router::new()
         .route("/items", get(get_item))
         .with_oas_route(api, "/spec.yml") // Should strip .yml
-        .with_state(state);
+        .with_state(state)
+        .finish();
 
     let rt = tokio::runtime::Runtime::new().unwrap();
 
@@ -298,7 +305,8 @@ fn test_nest_with_child_having_oas() {
                 .route("/items", get(get_item))
                 .with_oas(child_api),
         )
-        .with_state(state);
+        .with_state(state)
+        .finish();
 
     // Just ensure it compiles and doesn't panic
     let _spec = extract_openapi_from_router(app);
@@ -323,7 +331,8 @@ fn test_nest_both_have_oas() {
                 .route("/items", get(get_item))
                 .with_oas(child_api),
         )
-        .with_state(state);
+        .with_state(state)
+        .finish();
 
     let spec = extract_openapi_from_router(app);
     assert_eq!(spec.info.title, "Parent API", "Parent OAS should be used");
@@ -336,7 +345,8 @@ fn test_router_without_oas() {
     // Router without OAS spec
     let app = Router::new()
         .route("/items", get(get_item))
-        .with_state(state);
+        .with_state(state)
+        .finish();
 
     // Should not have /api.json endpoint
     let rt = tokio::runtime::Runtime::new().unwrap();
@@ -406,7 +416,8 @@ fn test_all_http_methods() {
                 .delete(handler_delete),
         )
         .with_oas(api)
-        .with_state(());
+        .with_state(())
+        .finish();
 
     let spec = extract_openapi_from_router(app);
     let paths = &spec.paths.as_ref().unwrap().paths;

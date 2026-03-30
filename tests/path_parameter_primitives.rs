@@ -57,7 +57,8 @@ fn test_single_u64_path_parameter() {
     let app = Router::new()
         .route("/users/{id}", get(get_user_by_u64))
         .with_oas(api)
-        .with_state(());
+        .with_state(())
+        .finish();
 
     let spec = extract_openapi_from_router(app);
     let paths = &spec.paths.as_ref().unwrap().paths;
@@ -105,7 +106,8 @@ fn test_single_string_path_parameter() {
     let app = Router::new()
         .route("/users/{username}", get(get_user_by_string))
         .with_oas(api)
-        .with_state(());
+        .with_state(())
+        .finish();
 
     let spec = extract_openapi_from_router(app);
     let paths = &spec.paths.as_ref().unwrap().paths;
@@ -145,7 +147,8 @@ fn test_uuid_path_parameter() {
     let app = Router::new()
         .route("/resources/{resource_id}", get(get_by_uuid))
         .with_oas(api)
-        .with_state(());
+        .with_state(())
+        .finish();
 
     let spec = extract_openapi_from_router(app);
     let paths = &spec.paths.as_ref().unwrap().paths;
@@ -185,7 +188,8 @@ fn test_bool_path_parameter() {
     let app = Router::new()
         .route("/items/{active}", get(get_by_active))
         .with_oas(api)
-        .with_state(());
+        .with_state(())
+        .finish();
 
     let spec = extract_openapi_from_router(app);
     let paths = &spec.paths.as_ref().unwrap().paths;
@@ -229,7 +233,8 @@ fn test_tuple_path_parameters() {
             get(get_item_in_collection),
         )
         .with_oas(api)
-        .with_state(());
+        .with_state(())
+        .finish();
 
     let spec = extract_openapi_from_router(app);
     let paths = &spec.paths.as_ref().unwrap().paths;
@@ -292,7 +297,8 @@ fn test_path_param_without_description() {
     let app = Router::new()
         .route("/items/{item_id}", get(get_item_no_desc))
         .with_oas(api)
-        .with_state(());
+        .with_state(())
+        .finish();
 
     let spec = extract_openapi_from_router(app);
     let paths = &spec.paths.as_ref().unwrap().paths;
@@ -338,7 +344,8 @@ fn test_backwards_compat_struct_path() {
     let app = Router::new()
         .route("/users/{id}", get(get_user_struct))
         .with_oas(api)
-        .with_state(());
+        .with_state(())
+        .finish();
 
     let spec = extract_openapi_from_router(app);
     let paths = &spec.paths.as_ref().unwrap().paths;
@@ -383,7 +390,8 @@ fn test_primitive_path_with_state() {
     let app = Router::new()
         .route("/items/{id}", get(get_item_with_state))
         .with_oas(api)
-        .with_state(state);
+        .with_state(state)
+        .finish();
 
     let spec = extract_openapi_from_router(app);
     let paths = &spec.paths.as_ref().unwrap().paths;
