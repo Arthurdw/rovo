@@ -21,6 +21,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [0.4.6] - 2026-04-03
+
+### Bug Fixes
+
+- feat: add #[schema] macro for schemars crate re-export resolution ([#29](https://github.com/Arthurdw/rovo/pull/29)) by @Arthurdw
+
 ## [0.4.5] - 2026-04-02
 
 - No notable changes in this release
