@@ -16,6 +16,15 @@
 use proc_macro::TokenStream;
 use quote::{quote, quote_spanned};
 
+#[allow(
+    clippy::all,
+    clippy::nursery,
+    clippy::pedantic,
+    missing_docs,
+    rust_2018_idioms,
+    unused_imports
+)]
+mod json_schema;
 mod parser;
 mod utils;
 
@@ -457,19 +466,20 @@ pub fn rovo(_attr: TokenStream, item: TokenStream) -> TokenStream {
     }
 }
 
-/// Configures `schemars` derives to use rovo's re-exported crate path.
+/// Derive macro for [`JsonSchema`](trait@::schemars::JsonSchema) that automatically
+/// resolves rovo's re-exported `schemars` crate path.
 ///
-/// When deriving [`JsonSchema`] via `rovo::schemars::JsonSchema` without `schemars` as a
-/// direct dependency, the derived code fails to resolve the `schemars` crate. This attribute
-/// automatically injects `#[schemars(crate = "::rovo::schemars")]` so it just works.
+/// This is a drop-in replacement for `schemars`' `JsonSchema` derive. It generates
+/// identical code but defaults to `::rovo::schemars` as the crate path, so
+/// `#[derive(JsonSchema)]` works without a direct `schemars` dependency or any
+/// helper attributes.
 ///
-/// Place this attribute **above** your `#[derive(...)]`:
+/// # Example
 ///
 /// ```rust,ignore
-/// use rovo::{schema, schemars::JsonSchema};
+/// use rovo::schemars::JsonSchema;
 /// use serde::{Serialize, Deserialize};
 ///
-/// #[schema]
 /// #[derive(Debug, Serialize, Deserialize, JsonSchema)]
 /// struct CallbackQuery {
 ///     code: String,
@@ -477,29 +487,11 @@ pub fn rovo(_attr: TokenStream, item: TokenStream) -> TokenStream {
 /// }
 /// ```
 ///
-/// If you already have `#[schemars(crate = "...")]` on the item, this macro is a no-op.
-#[proc_macro_attribute]
-pub fn schema(_attr: TokenStream, item: TokenStream) -> TokenStream {
-    let mut input = syn::parse_macro_input!(item as syn::DeriveInput);
-
-    let has_schemars_crate = input.attrs.iter().any(|attr| {
-        if !attr.path().is_ident("schemars") {
-            return false;
-        }
-        let syn::Meta::List(list) = &attr.meta else {
-            return false;
-        };
-        list.tokens
-            .clone()
-            .into_iter()
-            .any(|tt| matches!(tt, proc_macro2::TokenTree::Ident(ref ident) if ident == "crate"))
-    });
-
-    if !has_schemars_crate {
-        input
-            .attrs
-            .push(syn::parse_quote!(#[schemars(crate = "::rovo::schemars")]));
-    }
-
-    quote!(#input).into()
+/// You can still override the crate path with `#[schemars(crate = "...")]` if needed.
+#[proc_macro_derive(JsonSchema, attributes(schemars, serde, validate, garde))]
+pub fn derive_json_schema(input: TokenStream) -> TokenStream {
+    let input = syn::parse_macro_input!(input as syn::DeriveInput);
+    json_schema::derive_json_schema(input, false)
+        .unwrap_or_else(syn::Error::into_compile_error)
+        .into()
 }

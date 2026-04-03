@@ -472,7 +472,7 @@ dependencies = [
 
 [[package]]
 name = "rovo"
-version = "0.4.4"
+version = "0.4.6"
 dependencies = [
  "aide",
  "axum",
@@ -484,10 +484,11 @@ dependencies = [
 
 [[package]]
 name = "rovo-macros"
-version = "0.4.4"
+version = "0.4.6"
 dependencies = [
  "proc-macro2",
  "quote",
+ "serde_derive_internals",
  "syn",
 ]
 
