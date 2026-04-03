@@ -4,10 +4,9 @@ use rovo::aide::axum::IntoApiResponse;
 use rovo::aide::openapi::OpenApi;
 use rovo::response::Json;
 use rovo::schemars::JsonSchema;
-use rovo::{routing::get, rovo, schema, Router};
+use rovo::{routing::get, rovo, Router};
 use serde::Serialize;
 
-#[schema]
 #[derive(Debug, Serialize, JsonSchema)]
 struct Greeting {
     message: String,

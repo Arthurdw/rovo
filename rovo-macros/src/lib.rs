@@ -457,19 +457,20 @@ pub fn rovo(_attr: TokenStream, item: TokenStream) -> TokenStream {
     }
 }
 
-/// Configures `schemars` derives to use rovo's re-exported crate path.
+/// Derive macro for [`JsonSchema`](trait@::schemars::JsonSchema) that automatically
+/// resolves rovo's re-exported `schemars` crate path.
 ///
-/// When deriving [`JsonSchema`] via `rovo::schemars::JsonSchema` without `schemars` as a
-/// direct dependency, the derived code fails to resolve the `schemars` crate. This attribute
-/// automatically injects `#[schemars(crate = "::rovo::schemars")]` so it just works.
+/// This is a drop-in replacement for `schemars`' `JsonSchema` derive. It generates
+/// identical code but defaults to `::rovo::schemars` as the crate path, so
+/// `#[derive(JsonSchema)]` works without a direct `schemars` dependency or any
+/// helper attributes.
 ///
-/// Place this attribute **above** your `#[derive(...)]`:
+/// # Example
 ///
 /// ```rust,ignore
-/// use rovo::{schema, schemars::JsonSchema};
+/// use rovo::schemars::JsonSchema;
 /// use serde::{Serialize, Deserialize};
 ///
-/// #[schema]
 /// #[derive(Debug, Serialize, Deserialize, JsonSchema)]
 /// struct CallbackQuery {
 ///     code: String,
@@ -477,12 +478,22 @@ pub fn rovo(_attr: TokenStream, item: TokenStream) -> TokenStream {
 /// }
 /// ```
 ///
-/// If you already have `#[schemars(crate = "...")]` on the item, this macro is a no-op.
-#[proc_macro_attribute]
-pub fn schema(_attr: TokenStream, item: TokenStream) -> TokenStream {
-    let mut input = syn::parse_macro_input!(item as syn::DeriveInput);
+/// You can still override the crate path with `#[schemars(crate = "...")]` if needed.
+#[proc_macro_derive(JsonSchema, attributes(schemars, serde, validate, garde))]
+pub fn derive_json_schema(input: TokenStream) -> TokenStream {
+    let mut hidden = syn::parse_macro_input!(input as syn::DeriveInput);
+    let original_name = hidden.ident.clone();
+    let hidden_name = quote::format_ident!("__rovo_{}", original_name);
+    hidden.ident = hidden_name.clone();
 
-    let has_schemars_crate = input.attrs.iter().any(|attr| {
+    // Strip #[derive(...)] and #[doc(...)] attributes — keep schemars/serde/validate/garde.
+    hidden.attrs.retain(|attr| {
+        let path = attr.path();
+        !path.is_ident("derive") && !path.is_ident("doc")
+    });
+
+    // Only inject the crate path if the user hasn't set one already.
+    let has_crate_attr = hidden.attrs.iter().any(|attr| {
         if !attr.path().is_ident("schemars") {
             return false;
         }
@@ -495,11 +506,50 @@ pub fn schema(_attr: TokenStream, item: TokenStream) -> TokenStream {
             .any(|tt| matches!(tt, proc_macro2::TokenTree::Ident(ref ident) if ident == "crate"))
     });
 
-    if !has_schemars_crate {
-        input
-            .attrs
-            .push(syn::parse_quote!(#[schemars(crate = "::rovo::schemars")]));
-    }
+    let crate_attr = if has_crate_attr {
+        quote! {}
+    } else {
+        quote! { #[schemars(crate = "::rovo::schemars")] }
+    };
 
-    quote!(#input).into()
+    let (impl_generics, ty_generics, where_clause) = hidden.generics.split_for_impl();
+
+    quote! {
+        const _: () = {
+            #[derive(::rovo::__schemars::JsonSchema)]
+            #crate_attr
+            #[allow(dead_code, non_camel_case_types)]
+            #hidden
+
+            #[automatically_derived]
+            impl #impl_generics ::rovo::schemars::JsonSchema for #original_name #ty_generics #where_clause {
+                fn schema_name() -> ::std::borrow::Cow<'static, str> {
+                    let raw = <#hidden_name #ty_generics as ::rovo::schemars::JsonSchema>::schema_name();
+                    ::std::borrow::Cow::Owned(raw.replace(stringify!(#hidden_name), stringify!(#original_name)))
+                }
+
+                fn schema_id() -> ::std::borrow::Cow<'static, str> {
+                    let raw = <#hidden_name #ty_generics as ::rovo::schemars::JsonSchema>::schema_id();
+                    ::std::borrow::Cow::Owned(raw.replace(stringify!(#hidden_name), stringify!(#original_name)))
+                }
+
+                fn json_schema(gen: &mut ::rovo::schemars::SchemaGenerator) -> ::rovo::schemars::Schema {
+                    <#hidden_name #ty_generics as ::rovo::schemars::JsonSchema>::json_schema(gen)
+                }
+
+                fn inline_schema() -> bool {
+                    <#hidden_name #ty_generics as ::rovo::schemars::JsonSchema>::inline_schema()
+                }
+
+                fn _schemars_private_non_optional_json_schema(gen: &mut ::rovo::schemars::SchemaGenerator) -> ::rovo::schemars::Schema {
+                    <#hidden_name #ty_generics as ::rovo::schemars::JsonSchema>::_schemars_private_non_optional_json_schema(gen)
+                }
+
+                fn _schemars_private_is_option() -> bool {
+                    <#hidden_name #ty_generics as ::rovo::schemars::JsonSchema>::_schemars_private_is_option()
+                }
+            }
+        };
+    }
+    .into()
 }

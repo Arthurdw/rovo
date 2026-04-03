@@ -100,11 +100,35 @@
 //! **Special directives:**
 //! - `@rovo-ignore` - Stop processing annotations after this point
 
-pub use rovo_macros::{rovo, schema};
+pub use rovo_macros::rovo;
 
-// Re-export aide and schemars for convenience
+// Re-export aide for convenience
 pub use aide;
-pub use schemars;
+
+/// Raw schemars crate re-export, used internally by the `JsonSchema` derive.
+#[doc(hidden)]
+pub use ::schemars as __schemars;
+
+/// Re-export of the [`schemars`](::schemars) crate with rovo's `JsonSchema` derive.
+///
+/// The `JsonSchema` derive exported here automatically resolves rovo's crate path,
+/// so `#[derive(JsonSchema)]` works without a direct `schemars` dependency or any
+/// helper attributes.
+///
+/// ```rust,ignore
+/// use rovo::schemars::JsonSchema;
+///
+/// #[derive(JsonSchema)]
+/// struct MyStruct {
+///     name: String,
+/// }
+/// ```
+pub mod schemars {
+    pub use ::schemars::*;
+
+    /// Derive macro for `JsonSchema` that automatically resolves rovo's crate path.
+    pub use rovo_macros::JsonSchema;
+}
 
 // Re-export axum modules for convenience, so users don't need axum as a direct dependency
 /// Re-export of axum's extract module for request data extraction.
