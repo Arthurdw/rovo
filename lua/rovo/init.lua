@@ -410,21 +410,6 @@ function M.setup(opts)
     }
   end
 
-  -- Merge with user's on_attach if provided
-  local user_on_attach = opts.on_attach
-  opts.on_attach = function(client, bufnr)
-    -- Enable semantic tokens from Rovo LSP for highlighting section headers and metadata annotations
-    -- This provides consistent highlighting across Neovim and VSCode
-    if client.server_capabilities.semanticTokensProvider then
-      vim.lsp.semantic_tokens.start(bufnr, client.id)
-    end
-
-    -- Call user's on_attach if provided
-    if user_on_attach then
-      user_on_attach(client, bufnr)
-    end
-  end
-
   lsp.rovo_lsp.setup(opts)
 
   -- Mark setup as done only after LSP is successfully configured
