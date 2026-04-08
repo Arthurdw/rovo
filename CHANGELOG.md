@@ -21,6 +21,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [0.4.8] - 2026-04-08
+
+### Features
+
+- fix(neovim): fix 0.12 deprecation warning ([#31](https://github.com/Arthurdw/rovo/pull/31)) by @lukeburong
+
 ## [0.4.7] - 2026-04-03
 
 ### Features
