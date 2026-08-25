@@ -383,11 +383,11 @@ pub fn rovo(_attr: TokenStream, item: TokenStream) -> TokenStream {
 
             let output = quote! {
                 // Internal implementation with renamed function
-                #[allow(non_snake_case, private_interfaces)]
+                #[allow(non_snake_case, private_interfaces, missing_docs)]
                 #impl_func
 
                 // Create a zero-sized type that can be passed to routing functions
-                #[allow(non_camel_case_types)]
+                #[allow(non_camel_case_types, missing_docs)]
                 #[derive(Clone, Copy)]
                 pub struct #func_name;
 
@@ -432,6 +432,7 @@ pub fn rovo(_attr: TokenStream, item: TokenStream) -> TokenStream {
 
                 // Also create a CONST for explicit use
                 #[allow(non_upper_case_globals)]
+                #[allow(missing_docs)]
                 pub const #const_name: #func_name = #func_name;
             };
 
