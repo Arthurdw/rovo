@@ -21,6 +21,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [0.4.9] - 2026-08-26
+
+### Other Changes
+
+- Allow missing docs on generated items ([#33](https://github.com/Arthurdw/rovo/pull/33)) by @matthiasbeyer
+
 ## [0.4.8] - 2026-04-08
 
 ### Features
