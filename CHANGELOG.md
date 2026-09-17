@@ -21,6 +21,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [0.4.10] - 2026-09-17
+
+### Bug Fixes
+
+- fix(macros): preserve visibility qualifiers on rovo handlers ([#35](https://github.com/Arthurdw/rovo/pull/35)) by @Arthurdw
+
 ## [0.4.9] - 2026-08-26
 
 ### Other Changes
