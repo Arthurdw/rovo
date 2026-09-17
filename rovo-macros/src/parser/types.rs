@@ -62,51 +62,52 @@ pub struct FuncItem {
 }
 
 impl FuncItem {
-    /// Generate a renamed version of this function with pub visibility
+    /// Generate a renamed version of this function.
+    ///
+    /// An existing visibility qualifier (`pub`, `pub(crate)`, `pub(super)`,
+    /// `pub(in path)`) is preserved; functions without one are made `pub`.
     pub fn with_renamed(&self, new_name: &Ident) -> TokenStream {
         let tokens: Vec<TokenTree> = self.tokens.clone().into_iter().collect();
-        let mut result = Vec::new();
+        let mut result = Vec::with_capacity(tokens.len() + 1);
         let mut i = 0;
-        let mut found_fn = false;
-        let mut added_pub = false;
 
+        // Copy outer attributes (`#` followed by a bracketed group) verbatim
         while i < tokens.len() {
-            if let TokenTree::Ident(ident) = &tokens[i] {
-                // Check if we should add pub before async or fn
-                if !added_pub && (*ident == "async" || *ident == "fn") {
-                    // Look back to see if pub already exists
-                    let has_pub = if i > 0 {
-                        if let TokenTree::Ident(prev) = &tokens[i - 1] {
-                            *prev == "pub"
-                        } else {
-                            false
-                        }
-                    } else {
-                        false
-                    };
-
-                    if !has_pub {
-                        let pub_ident = Ident::new("pub", ident.span());
-                        result.push(TokenTree::Ident(pub_ident));
-                    }
-                    added_pub = true;
-                }
-
-                // Handle function name replacement
-                if *ident == "fn" && !found_fn {
-                    // Found 'fn', add it
+            match &tokens[i] {
+                TokenTree::Punct(p) if p.as_char() == '#' => {
                     result.push(tokens[i].clone());
                     i += 1;
-                    found_fn = true;
-                    // Skip the old name and add the new name
-                    if i < tokens.len() {
-                        if let TokenTree::Ident(_) = &tokens[i] {
+                    if let Some(TokenTree::Group(_)) = tokens.get(i) {
+                        result.push(tokens[i].clone());
+                        i += 1;
+                    }
+                }
+                _ => break,
+            }
+        }
+
+        // Add `pub` unless the function already declares a visibility
+        match tokens.get(i) {
+            Some(TokenTree::Ident(ident)) if *ident == "pub" => {}
+            Some(tt) => result.push(TokenTree::Ident(Ident::new("pub", tt.span()))),
+            None => {}
+        }
+
+        let mut found_fn = false;
+        while i < tokens.len() {
+            if !found_fn {
+                if let TokenTree::Ident(ident) = &tokens[i] {
+                    if *ident == "fn" {
+                        found_fn = true;
+                        result.push(tokens[i].clone());
+                        i += 1;
+                        // Replace the old name with the new name
+                        if let Some(TokenTree::Ident(_)) = tokens.get(i) {
                             result.push(TokenTree::Ident(new_name.clone()));
                             i += 1;
-                            continue;
                         }
+                        continue;
                     }
-                    continue;
                 }
             }
             result.push(tokens[i].clone());
