@@ -786,7 +786,7 @@ checksum = "d6f6ff9a378485b298a5286656da665ba74413d36db0979633275d2e708145d4"
 
 [[package]]
 name = "rovo"
-version = "0.4.10"
+version = "0.4.11"
 dependencies = [
  "aide",
  "axum",
@@ -808,7 +808,7 @@ dependencies = [
 
 [[package]]
 name = "rovo-lsp"
-version = "0.4.10"
+version = "0.4.11"
 dependencies = [
  "once_cell",
  "regex",
@@ -821,7 +821,7 @@ dependencies = [
 
 [[package]]
 name = "rovo-macros"
-version = "0.4.10"
+version = "0.4.11"
 dependencies = [
  "proc-macro2",
  "quote",

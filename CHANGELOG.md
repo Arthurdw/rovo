@@ -21,6 +21,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [0.4.11] - 2026-09-26
+
+### Bug Fixes
+
+- fix(schema): use forked schemars derive instead of proxy type ([#36](https://github.com/Arthurdw/rovo/pull/36)) by @Arthurdw
+
 ## [0.4.10] - 2026-09-17
 
 ### Bug Fixes
