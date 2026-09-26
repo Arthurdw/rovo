@@ -846,10 +846,12 @@ dependencies = [
  "aide",
  "axum",
  "rovo-macros",
+ "rovo-schemars-derive",
  "schemars",
  "serde",
  "serde_json",
  "serde_yaml",
+ "thiserror",
  "tokio",
  "tower 0.5.3",
  "tracing",
@@ -878,6 +880,18 @@ version = "0.4.10"
 dependencies = [
  "proc-macro2",
  "quote",
+ "syn",
+]
+
+[[package]]
+name = "rovo-schemars-derive"
+version = "0.9.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bb60149a5a32032a5fdf2a0c2d256119686f27838f8a0e9036b98f126eb0fcf9"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "serde_derive_internals",
  "syn",
 ]
 
