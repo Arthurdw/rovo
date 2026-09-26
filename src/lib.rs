@@ -105,15 +105,13 @@ pub use rovo_macros::rovo;
 // Re-export aide for convenience
 pub use aide;
 
-/// Raw schemars crate re-export, used internally by the `JsonSchema` derive.
-#[doc(hidden)]
-pub use ::schemars as __schemars;
-
 /// Re-export of the [`schemars`](::schemars) crate with rovo's `JsonSchema` derive.
 ///
-/// The `JsonSchema` derive exported here automatically resolves rovo's crate path,
-/// so `#[derive(JsonSchema)]` works without a direct `schemars` dependency or any
-/// helper attributes.
+/// The `JsonSchema` and `JsonSchema_repr` derives exported here are `schemars_derive` 0.9.0
+/// with a single change: without `#[schemars(crate = "...")]`, the generated code refers to
+/// `::rovo::schemars`. This makes `#[derive(JsonSchema)]` work without a direct `schemars`
+/// dependency or any helper attributes, while every schemars, serde, and validation attribute
+/// behaves exactly as in upstream.
 ///
 /// ```rust,ignore
 /// use rovo::schemars::JsonSchema;
@@ -126,8 +124,8 @@ pub use ::schemars as __schemars;
 pub mod schemars {
     pub use ::schemars::*;
 
-    /// Derive macro for `JsonSchema` that automatically resolves rovo's crate path.
-    pub use rovo_macros::JsonSchema;
+    /// Derive macros for `JsonSchema` that resolve the crate path through rovo.
+    pub use rovo_schemars_derive::{JsonSchema, JsonSchema_repr};
 }
 
 // Re-export axum modules for convenience, so users don't need axum as a direct dependency
