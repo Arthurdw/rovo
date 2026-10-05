@@ -20,9 +20,7 @@
 //! ## Quick Start
 //!
 //! ```no_run
-//! use rovo::{Router, rovo, routing::get, schemars::JsonSchema, aide::axum::IntoApiResponse};
-//! use rovo::aide::openapi::OpenApi;
-//! use rovo::{extract::Path, response::Json};
+//! use rovo::prelude::*;
 //! use serde::Serialize;
 //!
 //! #[derive(Serialize, JsonSchema)]
@@ -57,6 +55,14 @@
 //!     .with_oas(api);
 //! # }
 //! ```
+//!
+//! ## Request Inputs
+//!
+//! Request bodies and query parameters are documented from the handler's extractors,
+//! so they don't go in the doc comment: `Json<T>` and `Form<T>` become a request body
+//! with `T`'s schema, `Multipart` (feature `multipart`) a `multipart/form-data` body,
+//! and `Query<T>` one query parameter per field of `T`. Field doc comments become
+//! descriptions.
 //!
 //! ## Documentation Format
 //!
@@ -880,4 +886,44 @@ pub mod routing {
 /// Re-exports from aide's axum integration for convenience.
 pub mod axum {
     pub use aide::axum::{ApiRouter, IntoApiResponse};
+}
+
+/// Everything needed to write and route `#[rovo]` handlers, in one import.
+///
+/// ```no_run
+/// use rovo::prelude::*;
+/// use serde::Serialize;
+///
+/// #[derive(Serialize, JsonSchema)]
+/// struct User { id: u64, name: String }
+///
+/// /// Get a user.
+/// ///
+/// /// # Path Parameters
+/// ///
+/// /// id: The user ID
+/// ///
+/// /// # Responses
+/// ///
+/// /// 200: Json<User> - User found
+/// #[rovo]
+/// async fn get_user(Path(id): Path<u64>) -> impl IntoApiResponse {
+///     Json(User { id, name: "Alice".into() })
+/// }
+///
+/// let app = Router::<()>::new()
+///     .route("/users/{id}", get(get_user))
+///     .with_oas(OpenApi::default())
+///     .finish();
+/// ```
+pub mod prelude {
+    pub use crate::aide::axum::IntoApiResponse;
+    pub use crate::aide::openapi::OpenApi;
+    pub use crate::extract::{Form, Path, Query, State};
+    pub use crate::http::StatusCode;
+    pub use crate::response::{IntoResponse, Json};
+    pub use crate::routing::{any, delete, get, patch, post, put};
+    pub use crate::rovo;
+    pub use crate::schemars::JsonSchema;
+    pub use crate::Router;
 }

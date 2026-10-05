@@ -1,10 +1,6 @@
 //! A minimal rovo API with a documented endpoint and auto-generated OpenAPI spec.
 
-use rovo::aide::axum::IntoApiResponse;
-use rovo::aide::openapi::OpenApi;
-use rovo::response::Json;
-use rovo::schemars::JsonSchema;
-use rovo::{routing::get, rovo, Router};
+use rovo::prelude::*;
 use serde::Serialize;
 
 #[derive(Debug, Serialize, JsonSchema)]
