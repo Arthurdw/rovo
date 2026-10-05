@@ -463,3 +463,67 @@ fn extract_openapi_from_router(app: ::axum::Router) -> OpenApi {
         serde_json::from_slice(&body).unwrap()
     })
 }
+
+#[test]
+fn test_spec_contains_query_parameters() {
+    use rovo::aide::axum::IntoApiResponse;
+    use rovo::extract::Query;
+
+    #[derive(Deserialize, JsonSchema)]
+    #[allow(dead_code)]
+    struct ListParams {
+        /// Maximum number of users to return
+        limit: Option<u32>,
+        /// Only return users whose name contains this string
+        name: Option<String>,
+    }
+
+    /// Search users.
+    ///
+    /// # Responses
+    ///
+    /// 200: Json<Vec<User>> - Matching users
+    #[rovo]
+    async fn search_users(
+        State(_state): State<AppState>,
+        Query(_params): Query<ListParams>,
+    ) -> impl IntoApiResponse {
+        Json(Vec::<User>::new())
+    }
+
+    let app = Router::new()
+        .route("/users", get(search_users))
+        .with_oas(OpenApi::default())
+        .with_state(AppState)
+        .finish();
+
+    let spec = extract_openapi_from_router(app);
+    let paths = &spec.paths.as_ref().unwrap().paths;
+    let get_op = get_path_item(paths.get("/users").unwrap())
+        .get
+        .as_ref()
+        .unwrap();
+
+    let query_params: Vec<_> = get_op
+        .parameters
+        .iter()
+        .filter_map(|p| match p {
+            aide::openapi::ReferenceOr::Item(aide::openapi::Parameter::Query {
+                parameter_data,
+                ..
+            }) => Some(parameter_data),
+            _ => None,
+        })
+        .collect();
+
+    let limit = query_params
+        .iter()
+        .find(|p| p.name == "limit")
+        .expect("Should document the `limit` query parameter");
+    assert!(!limit.required);
+    assert_eq!(
+        limit.description.as_deref(),
+        Some("Maximum number of users to return")
+    );
+    assert!(query_params.iter().any(|p| p.name == "name"));
+}

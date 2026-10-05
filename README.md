@@ -10,20 +10,37 @@
 
 ---
 
-OpenAPI documentation for Axum using doc comments and macros.
+OpenAPI documentation for Axum, written as doc comments.
 
-Built on [aide](https://github.com/tamasfe/aide), Rovo provides a declarative approach to API documentation through special annotations in doc comments.
+Document an endpoint in the doc comment above the handler, add `#[rovo]`, and keep routing exactly as you would in axum. Request bodies, query parameters and schemas are picked up from your extractors and types; rovo checks the doc comment at compile time.
+
+```rust
+/// Get a user by ID.
+///
+/// # Path Parameters
+///
+/// id: The user's ID
+///
+/// # Responses
+///
+/// 200: Json<User> - User found
+/// 404: () - User not found
+#[rovo]
+async fn get_user(Path(id): Path<u64>) -> impl IntoApiResponse { /* ... */ }
+
+let app = Router::new().route("/users/{id}", get(get_user));
+```
 
 ## Features
 
-- Drop-in replacement for `axum::Router`
-- Doc-comment driven documentation
+- Drop-in replacement for `axum::Router`, with the same `.route(path, get(handler))` syntax
+- Doc-comment driven documentation, readable as plain rustdoc
 - Compile-time validation of annotations
-- Method chaining support (`.get()`, `.post()`, `.patch()`, `.delete()`)
+- Request bodies (`Json`, `Form`, `Multipart`) and query parameters documented from extractors
 - Built-in Swagger/Redoc/Scalar UI integration
 - Type-safe response definitions
 - Minimal runtime overhead
-- **Editor Integration**:
+- **Editor Integration** (completions, hover docs and diagnostics for doc annotations):
   - **VSCode/VSCodium** - See [VSCODE.md](./VSCODE.md) for extension with auto-installation, completions, and syntax highlighting
   - **Neovim LSP** - See [NEOVIM.md](./NEOVIM.md) for editor support with completions, hover docs, and more
   - **JetBrains IDEs** - See [JETBRAINS.md](./JETBRAINS.md) for RustRover, IntelliJ IDEA, and CLion support
@@ -32,10 +49,7 @@ Built on [aide](https://github.com/tamasfe/aide), Rovo provides a declarative ap
 ## Quick Start
 
 ```rust
-use rovo::{rovo, Router, routing::get};
-use rovo::{schemars, schemars::JsonSchema};
-use rovo::{aide, aide::{axum::IntoApiResponse, openapi::OpenApi}};
-use rovo::{extract::State, response::Json};
+use rovo::prelude::*;
 use serde::Serialize;
 
 #[derive(Clone)]
@@ -98,7 +112,7 @@ serde = { version = "1.0", features = ["derive"] }
 tokio = { version = "1", features = ["full"] }
 ```
 
-> **Note:** Rovo re-exports `aide`, `schemars`, and common axum types (`extract`, `response`, `http`), so you can import them directly from rovo. The `axum` dependency is still needed for `axum::serve()`.
+> **Note:** `rovo::prelude::*` brings in the macro, router, routing functions and the common extractors and response types. Rovo also re-exports `aide`, `schemars`, and axum's `extract`, `response` and `http` modules, so you don't need them as direct dependencies. The `axum` dependency is still needed for `axum::serve()`.
 
 For detailed API documentation, see [docs.rs/rovo](https://docs.rs/rovo).
 
@@ -109,6 +123,103 @@ Choose one or more documentation UIs (none enabled by default):
 - `swagger` - Swagger UI
 - `redoc` - Redoc UI
 - `scalar` - Scalar UI
+
+Optional extractor support:
+
+- `multipart` - Document handlers that take `axum::extract::Multipart`
+- `ws` - Allow handlers that take `axum::extract::WebSocketUpgrade`
+
+## Compared to utoipa and aide
+
+The same endpoint in each library: a `GET /users/{id}` with a described path parameter, a tag and two responses.
+
+**utoipa** (with `utoipa-axum`):
+
+```rust
+#[derive(Serialize, ToSchema)]
+struct User { id: u64, name: String }
+
+/// Get a user by ID.
+#[utoipa::path(
+    get,
+    path = "/users/{id}",
+    tag = "users",
+    params(("id" = u64, Path, description = "The user's ID")),
+    responses(
+        (status = 200, description = "User found", body = User),
+        (status = 404, description = "User not found"),
+    ),
+)]
+async fn get_user(Path(id): Path<u64>) -> Result<Json<User>, StatusCode> { /* ... */ }
+
+let (router, api) = OpenApiRouter::new()
+    .routes(routes!(get_user))
+    .split_for_parts();
+```
+
+**aide**:
+
+```rust
+#[derive(Serialize, JsonSchema)]
+struct User { id: u64, name: String }
+
+#[derive(Deserialize, JsonSchema)]
+struct UserPath {
+    /// The user's ID
+    id: u64,
+}
+
+async fn get_user(Path(UserPath { id }): Path<UserPath>) -> impl IntoApiResponse { /* ... */ }
+
+fn get_user_docs(op: TransformOperation) -> TransformOperation {
+    op.description("Get a user by ID.")
+        .tag("users")
+        .response_with::<200, Json<User>, _>(|res| res.description("User found"))
+        .response_with::<404, (), _>(|res| res.description("User not found"))
+}
+
+let router = ApiRouter::new()
+    .api_route("/users/{id}", get_with(get_user, get_user_docs));
+```
+
+**rovo**:
+
+```rust
+#[derive(Serialize, JsonSchema)]
+struct User { id: u64, name: String }
+
+/// Get a user by ID.
+///
+/// # Path Parameters
+///
+/// id: The user's ID
+///
+/// # Responses
+///
+/// 200: Json<User> - User found
+/// 404: () - User not found
+///
+/// # Metadata
+///
+/// @tag users
+#[rovo]
+async fn get_user(Path(id): Path<u64>) -> impl IntoApiResponse { /* ... */ }
+
+let router = Router::new().route("/users/{id}", get(get_user));
+```
+
+| | utoipa | aide | rovo |
+|---|---|---|---|
+| Where docs live | `#[utoipa::path(...)]` attribute | A separate `TransformOperation` function | The handler's doc comment |
+| Routing | `OpenApiRouter` + `routes!` | `api_route` + `get_with` | axum's `.route(path, get(handler))` |
+| Frameworks | axum, actix-web, rocket and more | axum | axum |
+| Docs checked at compile time | Yes | Yes (plain Rust code) | Yes |
+| Editor support for the docs | Standard Rust tooling | Standard Rust tooling | Language server with completions and hover |
+| Maturity | Most widely used | Established | Pre-1.0, smaller community |
+
+Rovo is built on aide, so everything aide generates (schemas, request bodies, query parameters) is available, and `Router::into_inner()` hands you the underlying aide `ApiRouter` when you need something rovo doesn't cover.
+
+**Pick utoipa** if you're not on axum, or you want the largest ecosystem. **Pick aide** if you prefer documentation as plain Rust function calls. **Pick rovo** if you're on axum and want your API docs to read like normal doc comments next to the handler.
 
 ## Documentation Format
 
@@ -288,6 +399,62 @@ async fn handler() -> impl IntoApiResponse {
 }
 ```
 
+## Request Inputs
+
+You don't document request inputs in the doc comment: rovo reads them from the handler's extractors.
+
+| Extractor | Documented as |
+|-----------|---------------|
+| `Json<T>` | `application/json` request body with `T`'s schema |
+| `Form<T>` | `application/x-www-form-urlencoded` request body with `T`'s schema |
+| `Multipart` (feature `multipart`) | `multipart/form-data` request body |
+| `Query<T>` | One query parameter per field of `T` |
+| `Path<T>` | Path parameters (see [Path Parameters](#path-parameters-section)) |
+| `State<T>`, `HeaderMap` | Nothing (not part of the API surface) |
+
+Doc comments on struct fields become parameter and property descriptions, and `Option<_>` fields are marked as not required:
+
+```rust
+#[derive(Deserialize, JsonSchema)]
+struct SearchParams {
+    /// Maximum number of results to return
+    limit: Option<u32>,
+    /// Only return users whose name contains this string
+    name: Option<String>,
+}
+
+#[derive(Deserialize, JsonSchema)]
+struct CreateUser {
+    /// Display name
+    name: String,
+}
+
+/// Search users.
+///
+/// # Responses
+///
+/// 200: Json<Vec<User>> - Matching users
+#[rovo]
+async fn search_users(Query(params): Query<SearchParams>) -> impl IntoApiResponse {
+    // documented as GET with `limit` and `name` query parameters
+}
+
+/// Create a user.
+///
+/// # Responses
+///
+/// 201: Json<User> - User created
+/// 422: Json<ErrorResponse> - Invalid input
+#[rovo]
+async fn create_user(Json(body): Json<CreateUser>) -> impl IntoApiResponse {
+    // documented with a JSON request body
+}
+```
+
+Headers read through `HeaderMap` aren't added to the spec. For authentication headers, declare a [security scheme](#security-schemes) and reference it with `@security`.
+
+Schemas come from [schemars](https://docs.rs/schemars), so serde attributes are respected. For example, an enum with `#[serde(tag = "type")]` becomes a `oneOf` with one object per variant.
+
 ## Router API
 
 ### Basic Usage
@@ -399,8 +566,7 @@ async fn handler() -> impl IntoResponse {
 }
 
 // After
-use rovo::{Router, routing::get, schemars::JsonSchema};
-use rovo::{aide::axum::IntoApiResponse, response::Json};
+use rovo::prelude::*;
 
 /// Handler description
 ///
@@ -420,8 +586,6 @@ async fn handler() -> impl IntoApiResponse {
 Add OpenAPI setup in `main()`:
 
 ```rust
-use rovo::aide::openapi::OpenApi;
-
 let mut api = OpenApi::default();
 api.info.title = "My API".to_string();
 
@@ -549,15 +713,6 @@ async fn handler() -> impl IntoApiResponse {
 ### Using different state types
 
 Call `.with_state()` on each nested router individually, then `.finish()` at the top level (see [Nesting Routes](#nesting-routes)).
-
-## Comparison with aide
-
-| Feature | aide | rovo |
-|---------|------|------|
-| Documentation | Separate `_docs` function | Doc comments |
-| Routing | `api_route()` | Native axum syntax |
-| Method chaining | Custom | Standard axum |
-| Lines per endpoint | ~15-20 | ~5-10 |
 
 ## Development
 
