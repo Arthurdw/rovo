@@ -116,6 +116,8 @@ tokio = { version = "1", features = ["full"] }
 
 For detailed API documentation, see [docs.rs/rovo](https://docs.rs/rovo).
 
+> **schemars version:** rovo uses schemars 0.9, because aide 0.15 does. If your project also uses schemars 1.x, derive `rovo::schemars::JsonSchema` on the types your handlers return; see [Troubleshooting](#jsonschema-is-not-implemented-with-schemars-1x-in-the-project).
+
 ### Feature Flags
 
 Choose one or more documentation UIs (none enabled by default):
@@ -707,6 +709,24 @@ Add the `#[rovo]` macro:
 #[rovo]
 async fn handler() -> impl IntoApiResponse {
     // ...
+}
+```
+
+### `JsonSchema` is not implemented with schemars 1.x in the project
+
+```text
+error[E0277]: the trait bound `User: rovo::schemars::JsonSchema` is not satisfied
+note: there are multiple different versions of crate `schemars` in the dependency graph
+```
+
+rovo uses schemars 0.9 (through aide 0.15), so a type that only derives `schemars::JsonSchema` from schemars 1.x doesn't implement the trait rovo needs. Both versions can live in one project, and one type can derive both:
+
+```rust
+#[derive(Serialize, rovo::schemars::JsonSchema, schemars::JsonSchema)]
+struct User {
+    /// Shared `#[schemars(...)]` attributes apply to both derives.
+    #[schemars(range(min = 1))]
+    id: u64,
 }
 ```
 
