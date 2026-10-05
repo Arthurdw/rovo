@@ -30,10 +30,20 @@ default = []
 swagger = ["aide/swagger"]
 redoc = ["aide/redoc"]
 scalar = ["aide/scalar"]
+multipart = ["aide/axum-multipart"]
+ws = ["aide/axum-ws"]
 
 [dependencies]
 rovo-macros.workspace = true
-aide = { version = "0.15", features = ["axum", "axum-json", "axum-query"] }
+aide = { version = "0.15", features = [
+    "axum",
+    "axum-form",
+    "axum-json",
+    "axum-matched-path",
+    "axum-original-uri",
+    "axum-query",
+    "axum-tokio",
+] }
 axum = "0.8.9"
 serde_yaml = "0.9"
 schemars = { version = "0.9", features = ["uuid1"] }
