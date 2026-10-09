@@ -146,3 +146,35 @@ fn test_codeblock_inline_example_compiles() {
         .with_state(state)
         .finish();
 }
+
+#[derive(serde::Deserialize, JsonSchema)]
+#[allow(dead_code)]
+struct UserState {
+    online: bool,
+}
+
+#[derive(serde::Deserialize, JsonSchema)]
+#[allow(dead_code)]
+struct Page {
+    page: u32,
+}
+
+/// A type whose name ends in `State` must not be taken for the `State` extractor.
+///
+/// # Responses
+///
+/// 204: () - Updated
+#[rovo]
+async fn set_user_state(
+    rovo::extract::Query(_filter): rovo::extract::Query<UserState>,
+    Json(_body): Json<Page>,
+) -> impl IntoApiResponse {
+    rovo::http::StatusCode::NO_CONTENT
+}
+
+#[test]
+fn test_type_ending_in_state_is_not_state_extractor() {
+    let _router: ::axum::Router = Router::new()
+        .route("/user-state", rovo::routing::post(set_user_state))
+        .finish();
+}

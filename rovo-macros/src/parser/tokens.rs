@@ -1,4 +1,4 @@
-use proc_macro2::TokenStream;
+use proc_macro2::{Delimiter, Spacing, TokenStream, TokenTree};
 
 use super::types::PathParamInfo;
 
@@ -157,42 +157,73 @@ fn find_path_pattern(s: &str) -> Option<usize> {
 
 /// Extract the state type from State<T> in function parameters
 /// Returns None if no State extractor is found (meaning state type is ())
+///
+/// Matches the `State` identifier exactly, so types like `UserState<T>` or
+/// `AppState` are not mistaken for the extractor. When given a whole function,
+/// only its parameter list is searched.
 pub fn extract_state_type(tokens: &TokenStream) -> Option<TokenStream> {
-    let token_str = tokens.to_string();
+    let params = fn_params(tokens).unwrap_or_else(|| tokens.clone());
+    find_state_generic(params)
+}
 
-    // Look for pattern "State < SomeType >"
-    // This is a simplified parser that looks for State<...>
-    if let Some(state_pos) = token_str.find("State") {
-        let after_state = &token_str[state_pos..];
-        if let Some(open_bracket) = after_state.find('<') {
-            // Find the matching closing bracket
-            let after_open = &after_state[open_bracket + 1..];
-            let mut depth = 1;
-            let mut close_pos = 0;
+/// Returns the contents of the parameter list if `tokens` is a function item.
+fn fn_params(tokens: &TokenStream) -> Option<TokenStream> {
+    let mut iter = tokens.clone().into_iter();
+    iter.by_ref()
+        .find(|tt| matches!(tt, TokenTree::Ident(ident) if ident == "fn"))?;
+    iter.find_map(|tt| match tt {
+        TokenTree::Group(group) if group.delimiter() == Delimiter::Parenthesis => {
+            Some(group.stream())
+        }
+        _ => None,
+    })
+}
 
-            // Use char_indices() to get byte offsets for safe string slicing
-            for (byte_idx, ch) in after_open.char_indices() {
-                if ch == '<' {
-                    depth += 1;
-                } else if ch == '>' {
-                    depth -= 1;
-                    if depth == 0 {
-                        close_pos = byte_idx;
-                        break;
+fn find_state_generic(tokens: TokenStream) -> Option<TokenStream> {
+    let trees: Vec<TokenTree> = tokens.into_iter().collect();
+    for (i, tt) in trees.iter().enumerate() {
+        match tt {
+            TokenTree::Ident(ident) if ident == "State" => {
+                let is_open =
+                    matches!(trees.get(i + 1), Some(TokenTree::Punct(p)) if p.as_char() == '<');
+                if is_open {
+                    if let Some(ty) = generic_args(&trees[i + 2..]) {
+                        return Some(ty);
                     }
                 }
             }
-
-            if close_pos > 0 {
-                let state_type_str = &after_open[..close_pos].trim();
-                // Parse the extracted string back into a TokenStream
-                if let Ok(state_type) = state_type_str.parse::<TokenStream>() {
-                    return Some(state_type);
+            TokenTree::Group(group) => {
+                if let Some(ty) = find_state_generic(group.stream()) {
+                    return Some(ty);
                 }
+            }
+            _ => {}
+        }
+    }
+    None
+}
+
+/// Collects the tokens up to the `>` that closes an already-opened `<`.
+/// Returns None if the bracket is never closed or encloses nothing.
+fn generic_args(trees: &[TokenTree]) -> Option<TokenStream> {
+    let mut depth = 1;
+    for (i, tt) in trees.iter().enumerate() {
+        if let TokenTree::Punct(p) = tt {
+            // The `>` of `->` (e.g. in `Fn() -> T`) doesn't close a bracket.
+            let after_dash = i > 0
+                && matches!(&trees[i - 1], TokenTree::Punct(prev) if prev.as_char() == '-' && prev.spacing() == Spacing::Joint);
+            match p.as_char() {
+                '<' => depth += 1,
+                '>' if !after_dash => {
+                    depth -= 1;
+                    if depth == 0 {
+                        return (i > 0).then(|| trees[..i].iter().cloned().collect());
+                    }
+                }
+                _ => {}
             }
         }
     }
-
     None
 }
 
@@ -406,6 +437,46 @@ mod tests {
         let result = extract_state_type(&tokens);
         assert!(result.is_some());
         assert_eq!(result.unwrap().to_string(), "AppState");
+    }
+
+    #[test]
+    fn ignores_types_ending_in_state() {
+        let tokens: TokenStream = "Json<UserState>, Query<Page>".parse().unwrap();
+        assert!(extract_state_type(&tokens).is_none());
+    }
+
+    #[test]
+    fn ignores_state_outside_fn_params() {
+        let tokens: TokenStream = r#"
+            async fn handler(Json(body): Json<UserState>, Query(q): Query<Page>) -> StatusCode {
+                let _: Option<State<Other>> = None;
+                StatusCode::OK
+            }
+        "#
+        .parse()
+        .unwrap();
+        assert!(extract_state_type(&tokens).is_none());
+    }
+
+    #[test]
+    fn extracts_state_from_fn_params() {
+        let tokens: TokenStream = r#"
+            async fn handler(
+                Json(body): Json<UserState>,
+                State(state): axum::extract::State<Arc<AppState>>,
+            ) -> impl IntoApiResponse { }
+        "#
+        .parse()
+        .unwrap();
+        let result = extract_state_type(&tokens).unwrap();
+        assert_eq!(result.to_string().replace(' ', ""), "Arc<AppState>");
+    }
+
+    #[test]
+    fn extracts_state_type_containing_arrow() {
+        let tokens: TokenStream = "State<Arc<dyn Fn() -> u32>>".parse().unwrap();
+        let result = extract_state_type(&tokens).unwrap();
+        assert_eq!(result.to_string().replace(' ', ""), "Arc<dynFn()->u32>");
     }
 
     #[test]
