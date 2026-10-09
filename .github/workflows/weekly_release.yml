@@ -139,6 +139,55 @@ jobs:
       ref: ${{ needs.release.outputs.tag }}
     secrets: inherit
 
+  release-lsp-binaries:
+    name: Release rovo-lsp (${{ matrix.target }})
+    needs: release
+    if: needs.release.outputs.skipped != 'true'
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-22.04
+          - target: aarch64-unknown-linux-gnu
+            os: ubuntu-22.04-arm
+          - target: x86_64-apple-darwin
+            os: macos-latest
+          - target: aarch64-apple-darwin
+            os: macos-latest
+          - target: x86_64-pc-windows-msvc
+            os: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.release.outputs.tag }}
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
+
+      - name: Build rovo-lsp
+        run: cargo build --release --locked -p rovo-lsp --target ${{ matrix.target }}
+
+      # Asset names must match `[package.metadata.binstall]` in rovo-lsp/Cargo.toml
+      - name: Upload to GitHub release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.release.outputs.tag }}
+          TARGET: ${{ matrix.target }}
+          BIN: rovo-lsp${{ runner.os == 'Windows' && '.exe' || '' }}
+        run: |
+          archive="rovo-lsp-$TARGET.tar.gz"
+          tar -czf "$archive" -C "target/$TARGET/release" "$BIN"
+          gh release upload "$TAG" "$archive" --clobber
+
   no-release:
     name: No Release Needed
     needs: check-changes
