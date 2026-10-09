@@ -107,7 +107,8 @@ use {
 Install the LSP server from crates.io:
 
 ```bash
-cargo install rovo-lsp
+cargo binstall rovo-lsp   # prebuilt binary, needs cargo-binstall
+cargo install rovo-lsp    # or build from source
 ```
 
 Or from source:
@@ -170,7 +171,7 @@ require('rovo').setup({
 
 ### Configuration Options
 
-- `auto_install` (boolean, default: `true`) - Automatically install `rovo-lsp` via cargo if not found
+- `auto_install` (boolean, default: `true`) - Automatically install `rovo-lsp` if not found, via `cargo binstall` when available and `cargo install` otherwise
 - `enable_highlighting` (boolean, default: `true`) - Setup LSP semantic token highlight groups
 - `on_attach` (function, optional) - Custom LSP on_attach callback
 - `cmd` (table, optional) - Override LSP server command (default: `{ 'rovo-lsp' }`)

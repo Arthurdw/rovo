@@ -39,14 +39,15 @@ Or install via the Extensions panel:
 4. Click **Install**
 5. Reload your editor if prompted
 
-The extension will automatically install the `rovo-lsp` server on first use (requires Cargo).
+The extension will automatically install the `rovo-lsp` server on first use (requires Cargo). It downloads a prebuilt binary when [cargo-binstall](https://github.com/cargo-bins/cargo-binstall) is installed, and builds from source otherwise.
 
 #### Option 2: Manual LSP Installation
 
 If you prefer to install the language server manually:
 
 ```bash
-cargo install rovo-lsp
+cargo binstall rovo-lsp   # prebuilt binary, needs cargo-binstall
+cargo install rovo-lsp    # or build from source
 ```
 
 Then the extension will automatically detect it.
@@ -202,7 +203,7 @@ Useful for debugging LSP issues.
    ```
 2. Install manually:
    ```bash
-   cargo install rovo-lsp
+   cargo binstall rovo-lsp   # or: cargo install rovo-lsp
    ```
 3. Check the Output panel for detailed error messages
 4. Verify you have internet connectivity

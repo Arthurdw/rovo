@@ -23,7 +23,8 @@ Language Server Protocol support for Rovo annotations in Zed.
 ### Step 1: Install the LSP Server
 
 ```bash
-cargo install rovo-lsp
+cargo binstall rovo-lsp   # prebuilt binary, needs cargo-binstall
+cargo install rovo-lsp    # or build from source
 ```
 
 ### Step 2: Install the Extension

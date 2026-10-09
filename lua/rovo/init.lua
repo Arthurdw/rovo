@@ -271,9 +271,17 @@ local function check_and_install_server(opts)
     return false
   end
 
+  -- Prefer a prebuilt binary via cargo-binstall, falling back to building from source
+  local install_cmd = {'cargo', 'install', 'rovo-lsp'}
+  local install_via = 'cargo install'
+  if vim.fn.executable('cargo-binstall') == 1 then
+    install_cmd = {'cargo', 'binstall', '-y', 'rovo-lsp'}
+    install_via = 'cargo binstall'
+  end
+
   -- Prompt user to install
   local choice = vim.fn.confirm(
-    'rovo-lsp is not installed. Would you like to install it now via cargo?',
+    'rovo-lsp is not installed. Would you like to install it now via ' .. install_via .. '?',
     "&Yes\n&No",
     1
   )
@@ -284,10 +292,10 @@ local function check_and_install_server(opts)
   end
 
   -- Install rovo-lsp in background
-  vim.notify('[rovo] Installing rovo-lsp via cargo...', vim.log.levels.INFO)
+  vim.notify('[rovo] Installing rovo-lsp via ' .. install_via .. '...', vim.log.levels.INFO)
 
   local output_lines = {}
-  local job_id = vim.fn.jobstart({'cargo', 'install', 'rovo-lsp'}, {
+  local job_id = vim.fn.jobstart(install_cmd, {
     on_stdout = function(_, data)
       if data then
         for _, line in ipairs(data) do
@@ -328,7 +336,7 @@ local function check_and_install_server(opts)
   })
 
   if job_id <= 0 then
-    vim.notify('[rovo] Failed to start cargo install job', vim.log.levels.ERROR)
+    vim.notify('[rovo] Failed to start ' .. install_via .. ' job', vim.log.levels.ERROR)
     return false
   end
 

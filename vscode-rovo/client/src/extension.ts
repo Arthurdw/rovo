@@ -263,9 +263,6 @@ async function installServer(outputChannel: vscode.OutputChannel, context: vscod
         },
         async (progress) => {
             try {
-                outputChannel.appendLine('Starting installation: cargo install rovo-lsp');
-                progress.report({ message: 'Running cargo install...' });
-
                 // Check if cargo is available
                 try {
                     await execAsync('cargo --version');
@@ -276,11 +273,23 @@ async function installServer(outputChannel: vscode.OutputChannel, context: vscod
                     return false;
                 }
 
+                // Prefer a prebuilt binary via cargo-binstall, falling back to building from source
+                let installCommand = 'cargo install';
+                try {
+                    await execAsync('cargo-binstall -V');
+                    installCommand = 'cargo binstall -y';
+                } catch {
+                    // cargo-binstall not available
+                }
+
                 // Install rovo-lsp with matching version
                 const packageJsonPath = path.join(context.extensionPath, 'package.json');
                 const packageJsonContent = await fs.readFile(packageJsonPath, 'utf-8');
                 const extensionVersion = JSON.parse(packageJsonContent).version as string;
-                const { stdout, stderr } = await execAsync(`cargo install rovo-lsp --version ${extensionVersion}`, {
+                const command = `${installCommand} rovo-lsp --version ${extensionVersion}`;
+                outputChannel.appendLine(`Starting installation: ${command}`);
+                progress.report({ message: `Running ${installCommand}...` });
+                const { stdout, stderr } = await execAsync(command, {
                     maxBuffer: 10 * 1024 * 1024 // 10MB buffer for cargo output
                 });
 
