@@ -511,6 +511,13 @@ mod tests {
     }
 
     #[test]
+    fn falls_back_to_all_tokens_when_fn_has_no_params() {
+        let tokens: TokenStream = "fn handler State<AppState>".parse().unwrap();
+        let result = extract_state_type(&tokens).unwrap();
+        assert_eq!(result.to_string(), "AppState");
+    }
+
+    #[test]
     fn extracts_state_type_containing_arrow() {
         let tokens: TokenStream = "State<Arc<dyn Fn() -> u32>>".parse().unwrap();
         let result = extract_state_type(&tokens).unwrap();
