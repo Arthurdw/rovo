@@ -35,6 +35,7 @@ ws = ["aide/axum-ws"]
 
 [dependencies]
 rovo-macros.workspace = true
+# These only enable aide impls for extractors that axum already builds with its default features
 aide = { version = "0.15", features = [
     "axum",
     "axum-form",

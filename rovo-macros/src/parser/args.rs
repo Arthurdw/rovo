@@ -1,5 +1,6 @@
 use proc_macro2::{Span, TokenStream, TokenTree};
 
+use super::tokens::follows_joint_dash;
 use super::ParseError;
 
 /// Arguments passed to the attribute itself, as in `#[rovo(state = AppState)]`
@@ -11,22 +12,58 @@ pub struct RovoArgs {
 
 /// Parse the arguments of `#[rovo(...)]`
 pub fn parse_rovo_args(attr: TokenStream) -> Result<RovoArgs, ParseError> {
-    let mut tokens = attr.into_iter();
     let mut args = RovoArgs::default();
+    for arg in split_args(attr) {
+        parse_arg(arg, &mut args)?;
+    }
+    Ok(args)
+}
 
-    let Some(first) = tokens.next() else {
-        return Ok(args);
-    };
+/// Split the arguments on top-level commas, allowing a trailing comma.
+/// Commas inside `<...>` belong to a type, as in `state = HashMap<K, V>`.
+fn split_args(attr: TokenStream) -> Vec<Vec<TokenTree>> {
+    let trees: Vec<TokenTree> = attr.into_iter().collect();
+    let mut args = Vec::new();
+    let mut current = Vec::new();
+    let mut depth = 0usize;
+    for (i, tt) in trees.iter().enumerate() {
+        if let TokenTree::Punct(p) = tt {
+            match p.as_char() {
+                '<' => depth += 1,
+                '>' if !follows_joint_dash(&trees, i) => depth = depth.saturating_sub(1),
+                ',' if depth == 0 => {
+                    args.push(std::mem::take(&mut current));
+                    continue;
+                }
+                _ => {}
+            }
+        }
+        current.push(tt.clone());
+    }
+    if !current.is_empty() {
+        args.push(current);
+    }
+    args
+}
 
-    let TokenTree::Ident(key) = &first else {
-        return Err(ParseError::with_span(
-            "expected `state = Type`",
-            first.span(),
-        ));
+/// Parse a single `key = value` argument into `args`
+fn parse_arg(arg: Vec<TokenTree>, args: &mut RovoArgs) -> Result<(), ParseError> {
+    let mut tokens = arg.into_iter();
+
+    let first = tokens.next();
+    let Some(TokenTree::Ident(key)) = &first else {
+        let span = first.as_ref().map_or_else(Span::call_site, TokenTree::span);
+        return Err(ParseError::with_span("expected `state = Type`", span));
     };
     if key != "state" {
         return Err(ParseError::with_span(
             format!("unknown #[rovo] argument `{key}`\nnote: the only supported argument is `state = Type`"),
+            key.span(),
+        ));
+    }
+    if args.state_type.is_some() {
+        return Err(ParseError::with_span(
+            "duplicate `state` argument",
             key.span(),
         ));
     }
@@ -58,7 +95,7 @@ pub fn parse_rovo_args(attr: TokenStream) -> Result<RovoArgs, ParseError> {
     }
 
     args.state_type = Some(state_type);
-    Ok(args)
+    Ok(())
 }
 
 #[cfg(test)]
@@ -119,7 +156,41 @@ mod tests {
 
     #[test]
     fn rejects_invalid_type() {
-        let err = parse_rovo_args(quote! { state = AppState, extra }).unwrap_err();
+        let err = parse_rovo_args(quote! { state = 123 }).unwrap_err();
         assert!(err.to_string().contains("invalid state type"));
+    }
+
+    #[test]
+    fn allows_trailing_comma() {
+        let args = parse_rovo_args(quote! { state = AppState, }).unwrap();
+        assert_eq!(args.state_type.unwrap().to_string(), "AppState");
+    }
+
+    #[test]
+    fn keeps_commas_inside_generic_state_type() {
+        let args =
+            parse_rovo_args(quote! { state = HashMap<String, Box<dyn Fn() -> u32>>, }).unwrap();
+        assert_eq!(
+            args.state_type.unwrap().to_string(),
+            "HashMap < String , Box < dyn Fn () -> u32 >>"
+        );
+    }
+
+    #[test]
+    fn rejects_unknown_argument_after_state() {
+        let err = parse_rovo_args(quote! { state = AppState, extra }).unwrap_err();
+        assert!(err.to_string().contains("unknown #[rovo] argument `extra`"));
+    }
+
+    #[test]
+    fn rejects_duplicate_state() {
+        let err = parse_rovo_args(quote! { state = A, state = B }).unwrap_err();
+        assert!(err.to_string().contains("duplicate `state` argument"));
+    }
+
+    #[test]
+    fn rejects_empty_argument() {
+        let err = parse_rovo_args(quote! { , state = A }).unwrap_err();
+        assert!(err.to_string().contains("expected `state = Type`"));
     }
 }

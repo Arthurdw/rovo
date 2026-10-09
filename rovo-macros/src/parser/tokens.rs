@@ -167,16 +167,36 @@ pub fn extract_state_type(tokens: &TokenStream) -> Option<TokenStream> {
 }
 
 /// Returns the contents of the parameter list if `tokens` is a function item.
+///
+/// Parenthesized groups inside the generics (e.g. `<F: Fn(u32)>`) are skipped,
+/// so only the group that follows the name and generics is returned.
 fn fn_params(tokens: &TokenStream) -> Option<TokenStream> {
-    let mut iter = tokens.clone().into_iter();
-    iter.by_ref()
-        .find(|tt| matches!(tt, TokenTree::Ident(ident) if ident == "fn"))?;
-    iter.find_map(|tt| match tt {
-        TokenTree::Group(group) if group.delimiter() == Delimiter::Parenthesis => {
-            Some(group.stream())
+    let trees: Vec<TokenTree> = tokens.clone().into_iter().collect();
+    let fn_pos = trees
+        .iter()
+        .position(|tt| matches!(tt, TokenTree::Ident(ident) if ident == "fn"))?;
+    let mut depth = 0usize;
+    for (i, tt) in trees.iter().enumerate().skip(fn_pos + 1) {
+        match tt {
+            TokenTree::Punct(p) if p.as_char() == '<' => depth += 1,
+            TokenTree::Punct(p) if p.as_char() == '>' && !follows_joint_dash(&trees, i) => {
+                depth = depth.checked_sub(1)?;
+            }
+            TokenTree::Group(group)
+                if depth == 0 && group.delimiter() == Delimiter::Parenthesis =>
+            {
+                return Some(group.stream());
+            }
+            _ => {}
         }
-        _ => None,
-    })
+    }
+    None
+}
+
+/// Whether the token at `i` is the `>` of a `->` arrow.
+pub fn follows_joint_dash(trees: &[TokenTree], i: usize) -> bool {
+    i > 0
+        && matches!(&trees[i - 1], TokenTree::Punct(prev) if prev.as_char() == '-' && prev.spacing() == Spacing::Joint)
 }
 
 fn find_state_generic(tokens: TokenStream) -> Option<TokenStream> {
@@ -210,11 +230,9 @@ fn generic_args(trees: &[TokenTree]) -> Option<TokenStream> {
     for (i, tt) in trees.iter().enumerate() {
         if let TokenTree::Punct(p) = tt {
             // The `>` of `->` (e.g. in `Fn() -> T`) doesn't close a bracket.
-            let after_dash = i > 0
-                && matches!(&trees[i - 1], TokenTree::Punct(prev) if prev.as_char() == '-' && prev.spacing() == Spacing::Joint);
             match p.as_char() {
                 '<' => depth += 1,
-                '>' if !after_dash => {
+                '>' if !follows_joint_dash(trees, i) => {
                     depth -= 1;
                     if depth == 0 {
                         return (i > 0).then(|| trees[..i].iter().cloned().collect());
@@ -470,6 +488,26 @@ mod tests {
         .unwrap();
         let result = extract_state_type(&tokens).unwrap();
         assert_eq!(result.to_string().replace(' ', ""), "Arc<AppState>");
+    }
+
+    #[test]
+    fn skips_parenthesized_groups_in_generics() {
+        let tokens: TokenStream = r"
+            async fn handler<F: Fn(u32) -> u32, G>(State(s): State<AppState>, f: F) -> StatusCode
+            where
+                G: Fn(State<Other>),
+            { }
+        "
+        .parse()
+        .unwrap();
+        let result = extract_state_type(&tokens).unwrap();
+        assert_eq!(result.to_string(), "AppState");
+    }
+
+    #[test]
+    fn ignores_state_in_generics_when_params_have_none() {
+        let tokens: TokenStream = "fn handler<F: Fn(State<Other>)>(f: F) { }".parse().unwrap();
+        assert!(extract_state_type(&tokens).is_none());
     }
 
     #[test]

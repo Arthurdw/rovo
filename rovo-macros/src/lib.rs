@@ -405,10 +405,38 @@ pub fn rovo(attr: TokenStream, item: TokenStream) -> TokenStream {
                 .or(func_item.state_type.as_ref())
                 .map_or_else(|| quote! { () }, |st| quote! { #st });
 
+            // When both are given, check that `#[rovo(state = T)]` matches the
+            // `State<T>` parameter. Generic handlers are skipped, since their
+            // parameter may name a type parameter that is out of scope here.
+            let state_check = match (&args.state_type, &func_item.state_type) {
+                (Some(explicit), Some(param)) if !func_item.is_generic() => {
+                    let span = param
+                        .clone()
+                        .into_iter()
+                        .next()
+                        .map_or_else(proc_macro2::Span::call_site, |tt| tt.span());
+                    let check = quote::quote_spanned! {span=>
+                        __rovo_check_state::<#explicit, #param>();
+                    };
+                    quote! {
+                        const _: () = {
+                            fn __rovo_check_state<A: ::rovo::__private::SameState<B>, B>() {}
+                            #[allow(dead_code)]
+                            fn __rovo_assert_state() {
+                                #check
+                            }
+                        };
+                    }
+                }
+                _ => quote! {},
+            };
+
             let output = quote! {
                 // Internal implementation with renamed function
                 #[allow(non_snake_case, private_interfaces, missing_docs)]
                 #impl_func
+
+                #state_check
 
                 // Create a zero-sized type that can be passed to routing functions
                 #[allow(non_camel_case_types, missing_docs)]
