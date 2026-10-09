@@ -66,3 +66,11 @@ version_check = "0.9"
 [[example]]
 name = "todo_api"
 required-features = ["swagger"]
+
+[[example]]
+name = "auth_api"
+required-features = ["swagger"]
+
+[[example]]
+name = "catalog_api"
+required-features = ["swagger", "multipart"]

@@ -457,6 +457,28 @@ Headers read through `HeaderMap` aren't added to the spec. For authentication he
 
 Schemas come from [schemars](https://docs.rs/schemars), so serde attributes are respected. For example, an enum with `#[serde(tag = "type")]` becomes a `oneOf` with one object per variant.
 
+### Custom extractors and error types
+
+Every extractor in a `#[rovo]` handler must implement `aide::OperationInput`, and every return type `aide::OperationOutput`. For your own types, an empty `OperationInput` impl and an `OperationOutput` impl naming the response body are usually enough, since the `# Responses` section documents the actual responses:
+
+```rust
+use rovo::aide::{OperationInput, OperationOutput};
+
+struct AuthUser { /* ... */ }
+impl FromRequestParts<AppState> for AuthUser { /* ... */ }
+impl OperationInput for AuthUser {}
+
+enum ApiError { /* ... */ }
+impl IntoResponse for ApiError { /* ... */ }
+impl OperationOutput for ApiError {
+    type Inner = ErrorBody;
+}
+```
+
+`#[rovo]` takes the router's state type from a `State<T>` parameter. If a custom extractor needs state but the handler has no `State<T>` parameter, add one (`_: State<AppState>`).
+
+See [examples/auth_api.rs](./examples/auth_api.rs) for a complete bearer-token example.
+
 ## Router API
 
 ### Basic Usage
@@ -547,9 +569,14 @@ All formats are automatically available when you use `.with_oas()` or `.with_oas
 
 ## Examples
 
-See [examples/todo_api.rs](./examples/todo_api.rs) for a complete CRUD API.
+| Example | Shows |
+|---------|-------|
+| [hello_world](./examples/hello_world) | The smallest documented handler, as a standalone crate |
+| [todo_api](./examples/todo_api.rs) | A CRUD API with path parameters and nested routers with different state types |
+| [auth_api](./examples/auth_api.rs) | Bearer-token auth with a custom extractor, a custom error type, form login and `@security` |
+| [catalog_api](./examples/catalog_api.rs) | Query-string pagination, a generic `Page<T>` response, a tagged enum (`oneOf`) and a multipart upload (needs `-F multipart`) |
 
-Run with:
+Run one with:
 
 ```bash
 cargo run -F swagger --example todo_api
@@ -664,20 +691,17 @@ async fn get_user(Path(UserId { id }): Path<UserId>) -> impl IntoApiResponse {
 Define in OpenAPI object:
 
 ```rust
-use rovo::aide::openapi::{SecurityScheme, SecuritySchemeData};
+use rovo::aide::openapi::{ReferenceOr, SecurityScheme};
 
-api.components.get_or_insert_default()
-    .security_schemes
-    .insert(
-        "bearer_auth".to_string(),
-        SecurityScheme {
-            data: SecuritySchemeData::Http {
-                scheme: "bearer".to_string(),
-                bearer_format: Some("JWT".to_string()),
-            },
-            ..Default::default()
-        },
-    );
+api.components.get_or_insert_default().security_schemes.insert(
+    "bearer_auth".to_string(),
+    ReferenceOr::Item(SecurityScheme::Http {
+        scheme: "bearer".to_string(),
+        bearer_format: Some("JWT".to_string()),
+        description: None,
+        extensions: Default::default(),
+    }),
+);
 ```
 
 Reference in handlers:
