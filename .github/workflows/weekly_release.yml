@@ -139,13 +139,14 @@ jobs:
       ref: ${{ needs.release.outputs.tag }}
     secrets: inherit
 
-  release-lsp-binaries:
-    name: Release rovo-lsp (${{ matrix.target }})
+  # Build every target first and upload only once all of them succeed, so a
+  # release never ships with some platforms' archives missing
+  build-lsp-binaries:
+    name: Build rovo-lsp (${{ matrix.target }})
     needs: release
     if: needs.release.outputs.skipped != 'true'
     runs-on: ${{ matrix.os }}
     strategy:
-      fail-fast: false
       matrix:
         include:
           - target: x86_64-unknown-linux-gnu
@@ -176,17 +177,45 @@ jobs:
         run: cargo build --release --locked -p rovo-lsp --target ${{ matrix.target }}
 
       # Asset names must match `[package.metadata.binstall]` in rovo-lsp/Cargo.toml
-      - name: Upload to GitHub release
+      - name: Package archive
         shell: bash
+        env:
+          TARGET: ${{ matrix.target }}
+          BIN: rovo-lsp${{ runner.os == 'Windows' && '.exe' || '' }}
+        run: tar -czf "rovo-lsp-$TARGET.tar.gz" -C "target/$TARGET/release" "$BIN"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rovo-lsp-${{ matrix.target }}
+          path: rovo-lsp-${{ matrix.target }}.tar.gz
+          if-no-files-found: error
+
+  release-lsp-binaries:
+    name: Release rovo-lsp binaries
+    needs: [release, build-lsp-binaries]
+    runs-on: ubuntu-latest
+    steps:
+      # binstall downloads from `/releases/download/v{version}/`, see rovo-lsp/Cargo.toml
+      - name: Check release tag matches binstall pkg-url
+        env:
+          TAG: ${{ needs.release.outputs.tag }}
+          VERSION: ${{ needs.release.outputs.version }}
+        run: |
+          if [ "$TAG" != "v$VERSION" ]; then
+            echo "::error::Release tag '$TAG' is not 'v$VERSION'; update pkg-url in rovo-lsp/Cargo.toml"
+            exit 1
+          fi
+
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: rovo-lsp-*
+          merge-multiple: true
+
+      - name: Upload to GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ needs.release.outputs.tag }}
-          TARGET: ${{ matrix.target }}
-          BIN: rovo-lsp${{ runner.os == 'Windows' && '.exe' || '' }}
-        run: |
-          archive="rovo-lsp-$TARGET.tar.gz"
-          tar -czf "$archive" -C "target/$TARGET/release" "$BIN"
-          gh release upload "$TAG" "$archive" --clobber
+        run: gh release upload "$TAG" rovo-lsp-*.tar.gz --clobber --repo "$GITHUB_REPOSITORY"
 
   no-release:
     name: No Release Needed
