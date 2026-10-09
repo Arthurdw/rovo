@@ -475,7 +475,14 @@ impl OperationOutput for ApiError {
 }
 ```
 
-`#[rovo]` takes the router's state type from a `State<T>` parameter. If a custom extractor needs state but the handler has no `State<T>` parameter, add one (`_: State<AppState>`).
+`#[rovo]` takes the router's state type from a `State<T>` parameter, or uses `()` if there is none. If a custom extractor needs state but the handler has no `State<T>` parameter, name the state type in the attribute:
+
+```rust
+#[rovo(state = AppState)]
+async fn me(user: AuthUser) -> Result<Json<Profile>, ApiError> {
+    // ...
+}
+```
 
 See [examples/auth_api.rs](./examples/auth_api.rs) for a complete bearer-token example.
 

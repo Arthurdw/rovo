@@ -147,13 +147,10 @@ async fn login(
 ///
 /// @tag auth
 /// @security bearer_auth
-#[rovo]
-async fn me(
-    // `#[rovo]` takes the router's state type from a `State<T>` parameter. `AuthUser`
-    // needs `AppState`, so name it here even though the handler doesn't use it.
-    _: State<AppState>,
-    user: AuthUser,
-) -> Result<Json<Profile>, ApiError> {
+// `#[rovo]` normally takes the router's state type from a `State<T>` parameter.
+// This handler has none, but `AuthUser` needs `AppState`, so name it here.
+#[rovo(state = AppState)]
+async fn me(user: AuthUser) -> Result<Json<Profile>, ApiError> {
     Ok(Json(Profile {
         username: user.username,
     }))

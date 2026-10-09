@@ -19,7 +19,7 @@ use quote::{quote, quote_spanned};
 mod parser;
 mod utils;
 
-use parser::{parse_rovo_function, PathParamDoc, PathParamInfo};
+use parser::{parse_rovo_args, parse_rovo_function, PathParamDoc, PathParamInfo};
 
 /// Known primitive types that map to `OpenAPI` types
 const PRIMITIVE_TYPES: &[&str] = &[
@@ -183,6 +183,12 @@ fn generate_path_param_setters(
 /// Additionally, the Rust `#[deprecated]` attribute is automatically detected
 /// and will mark the operation as deprecated in the `OpenAPI` spec.
 ///
+/// ## Router State
+///
+/// The handler's router state type is taken from its `State<T>` parameter, or `()`
+/// if it has none. When a custom extractor needs state but the handler has no
+/// `State<T>` parameter, name the state type with `#[rovo(state = AppState)]`.
+///
 /// # Examples
 ///
 /// ## Primitive Path Parameter
@@ -253,6 +259,20 @@ fn generate_path_param_setters(
 /// }
 /// ```
 ///
+/// ## Explicit State Type
+///
+/// ```rust,ignore
+/// /// Get the current user.
+/// ///
+/// /// # Responses
+/// ///
+/// /// 200: Json<Profile> - The logged-in user
+/// #[rovo(state = AppState)]
+/// async fn me(user: AuthUser) -> impl IntoApiResponse {
+///     // `AuthUser` implements `FromRequestParts<AppState>`
+/// }
+/// ```
+///
 /// ## Deprecated Endpoint
 ///
 /// ```rust,ignore
@@ -269,11 +289,13 @@ fn generate_path_param_setters(
 /// }
 /// ```
 #[proc_macro_attribute]
-pub fn rovo(_attr: TokenStream, item: TokenStream) -> TokenStream {
+pub fn rovo(attr: TokenStream, item: TokenStream) -> TokenStream {
     let input = item;
 
-    match parse_rovo_function(input.into()) {
-        Ok((func_item, doc_info)) => {
+    match parse_rovo_args(attr.into()).and_then(|args| {
+        parse_rovo_function(input.into()).map(|(func_item, doc_info)| (args, func_item, doc_info))
+    }) {
+        Ok((args, func_item, doc_info)) => {
             let func_name = &func_item.name;
 
             let title = doc_info.title.as_deref().unwrap_or("");
@@ -375,10 +397,12 @@ pub fn rovo(_attr: TokenStream, item: TokenStream) -> TokenStream {
             // Create a const with an uppercase version of the handler name
             let const_name = quote::format_ident!("{}", func_name.to_string().to_uppercase());
 
-            // Determine the state type for the trait implementation
-            let state_type = func_item
+            // Determine the state type for the trait implementation: an explicit
+            // `#[rovo(state = T)]` wins over a `State<T>` parameter
+            let state_type = args
                 .state_type
                 .as_ref()
+                .or(func_item.state_type.as_ref())
                 .map_or_else(|| quote! { () }, |st| quote! { #st });
 
             let output = quote! {
