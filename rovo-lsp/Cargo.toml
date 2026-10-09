@@ -11,7 +11,7 @@ categories = ["development-tools", "text-editors"]
 
 # Prebuilt binaries are attached to each GitHub release by .github/workflows/weekly_release.yml
 [package.metadata.binstall]
-pkg-url = "{ repo }/releases/download/v{ version }/{ name }-{ target }{ archive-suffix }"
+pkg-url = "{ repo }/releases/download/v{ version }/{ name }-{ target }.tar.gz"
 bin-dir = "{ bin }{ binary-ext }"
 pkg-fmt = "tgz"
 

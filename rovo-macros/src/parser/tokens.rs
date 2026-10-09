@@ -480,6 +480,23 @@ mod tests {
     }
 
     #[test]
+    fn extracts_state_type_inside_group() {
+        let tokens: TokenStream = "(state, db): (State<AppState>, Extension<Db>)"
+            .parse()
+            .unwrap();
+        let result = extract_state_type(&tokens).unwrap();
+        assert_eq!(result.to_string(), "AppState");
+    }
+
+    #[test]
+    fn ignores_empty_or_unclosed_state_generic() {
+        let empty: TokenStream = "State<>".parse().unwrap();
+        assert!(extract_state_type(&empty).is_none());
+        let unclosed: TokenStream = "State<AppState".parse().unwrap();
+        assert!(extract_state_type(&unclosed).is_none());
+    }
+
+    #[test]
     fn extracts_nested_state_type() {
         let tokens: TokenStream = "State<Arc<RwLock<Database>>>".parse().unwrap();
         let result = extract_state_type(&tokens);

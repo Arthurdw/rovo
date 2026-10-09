@@ -94,6 +94,18 @@ mod tests {
     }
 
     #[test]
+    fn rejects_non_identifier_argument() {
+        let err = parse_rovo_args(quote! { "state" = AppState }).unwrap_err();
+        assert!(err.to_string().contains("expected `state = Type`"));
+    }
+
+    #[test]
+    fn rejects_state_without_value() {
+        let err = parse_rovo_args(quote! { state }).unwrap_err();
+        assert!(err.to_string().contains("expected `=`"));
+    }
+
+    #[test]
     fn rejects_missing_equals() {
         let err = parse_rovo_args(quote! { state AppState }).unwrap_err();
         assert!(err.to_string().contains("expected `=`"));
