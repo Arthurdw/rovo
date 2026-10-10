@@ -43,7 +43,7 @@ Or install from your IDE:
 
 3. Install the `rovo-lsp` server:
    ```bash
-   cargo install rovo-lsp
+   cargo binstall rovo-lsp   # or: cargo install rovo-lsp
    ```
 
 ## Features
@@ -145,7 +145,8 @@ async fn get_user(id: i32) -> Json<User> {
 The plugin requires `rovo-lsp` to be installed:
 
 ```bash
-cargo install rovo-lsp
+cargo binstall rovo-lsp   # prebuilt binary, needs cargo-binstall
+cargo install rovo-lsp    # or build from source
 ```
 
 The plugin will automatically detect the LSP server from common locations:

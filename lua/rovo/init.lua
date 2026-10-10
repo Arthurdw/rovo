@@ -244,6 +244,87 @@ function M.debug_highlight()
   end
 end
 
+-- Version of the plugin, read from the workspace Cargo.toml it ships with
+local function plugin_version()
+  local source = debug.getinfo(1, 'S').source
+  if source:sub(1, 1) ~= '@' then
+    return nil
+  end
+  -- lua/rovo/init.lua -> repository root
+  local root = vim.fn.fnamemodify(source:sub(2), ':p:h:h:h')
+  local ok, lines = pcall(vim.fn.readfile, root .. '/Cargo.toml')
+  if not ok then
+    return nil
+  end
+  local in_workspace_package = false
+  for _, line in ipairs(lines) do
+    local section = line:match('^%s*%[(.-)%]')
+    if section then
+      in_workspace_package = section == 'workspace.package'
+    elseif in_workspace_package then
+      local version = line:match('^%s*version%s*=%s*"(.-)"')
+      if version then
+        return version
+      end
+    end
+  end
+  return nil
+end
+
+-- Run install steps in order until one succeeds, then finish LSP setup
+local function run_install_steps(steps, index, opts)
+  local step = steps[index]
+  vim.notify('[rovo] Installing rovo-lsp via ' .. step.via .. '...', vim.log.levels.INFO)
+
+  local output_lines = {}
+  local function collect(_, data)
+    if data then
+      for _, line in ipairs(data) do
+        if line ~= '' then
+          table.insert(output_lines, line)
+        end
+      end
+    end
+  end
+
+  local job_id = vim.fn.jobstart(step.cmd, {
+    on_stdout = collect,
+    on_stderr = collect,
+    on_exit = function(_, exit_code)
+      if exit_code == 0 then
+        vim.notify('[rovo] rovo-lsp installed successfully!', vim.log.levels.INFO)
+        vim.schedule(function()
+          -- Re-invoke setup with auto_install disabled to complete LSP wiring
+          require('rovo').setup(vim.tbl_extend('keep', opts or {}, { auto_install = false }))
+        end)
+        return
+      end
+
+      vim.notify('[rovo] ' .. step.via .. ' failed. Exit code: ' .. exit_code, vim.log.levels.WARN)
+      -- Show last few lines of output for debugging
+      if #output_lines > 0 then
+        local last_lines = {}
+        for i = math.max(1, #output_lines - 5), #output_lines do
+          table.insert(last_lines, output_lines[i])
+        end
+        vim.notify('[rovo] Output: ' .. table.concat(last_lines, '\n'), vim.log.levels.WARN)
+      end
+
+      if steps[index + 1] then
+        vim.schedule(function()
+          run_install_steps(steps, index + 1, opts)
+        end)
+      else
+        vim.notify('[rovo] Failed to install rovo-lsp', vim.log.levels.ERROR)
+      end
+    end,
+  })
+
+  if job_id <= 0 then
+    vim.notify('[rovo] Failed to start ' .. step.via .. ' job', vim.log.levels.ERROR)
+  end
+end
+
 -- Check if rovo-lsp is installed, and optionally install it
 local function check_and_install_server(opts)
   opts = opts or {}
@@ -271,66 +352,41 @@ local function check_and_install_server(opts)
     return false
   end
 
+  -- Pin the version to the plugin's own, so the server matches the editor integration
+  local version = plugin_version()
+  local crate_args = {'rovo-lsp'}
+  if version then
+    crate_args = {'rovo-lsp', '--version', version}
+  end
+
+  -- Prefer a prebuilt binary via cargo-binstall, falling back to building from source
+  local steps = {}
+  if vim.fn.executable('cargo-binstall') == 1 then
+    table.insert(steps, {
+      via = 'cargo binstall',
+      -- Only our own release archives (no third-party quick-install); building from source is left to `cargo install`
+      cmd = vim.list_extend({'cargo', 'binstall', '-y', '--disable-strategies', 'quick-install,compile'}, crate_args),
+    })
+  end
+  table.insert(steps, {
+    via = 'cargo install',
+    cmd = vim.list_extend({'cargo', 'install'}, crate_args),
+  })
+
   -- Prompt user to install
-  local choice = vim.fn.confirm(
-    'rovo-lsp is not installed. Would you like to install it now via cargo?',
-    "&Yes\n&No",
-    1
-  )
+  local prompt = 'rovo-lsp is not installed. Build it from source now via cargo install?'
+  if #steps > 1 then
+    prompt = 'rovo-lsp is not installed. Download a prebuilt binary from GitHub releases now via cargo binstall?'
+      .. ' (falls back to building from source)'
+  end
+  local choice = vim.fn.confirm(prompt, "&Yes\n&No", 1)
 
   if choice ~= 1 then
     vim.notify('[rovo] Installation cancelled. Install manually: cargo install rovo-lsp', vim.log.levels.INFO)
     return false
   end
 
-  -- Install rovo-lsp in background
-  vim.notify('[rovo] Installing rovo-lsp via cargo...', vim.log.levels.INFO)
-
-  local output_lines = {}
-  local job_id = vim.fn.jobstart({'cargo', 'install', 'rovo-lsp'}, {
-    on_stdout = function(_, data)
-      if data then
-        for _, line in ipairs(data) do
-          if line ~= '' then
-            table.insert(output_lines, line)
-          end
-        end
-      end
-    end,
-    on_stderr = function(_, data)
-      if data then
-        for _, line in ipairs(data) do
-          if line ~= '' then
-            table.insert(output_lines, line)
-          end
-        end
-      end
-    end,
-    on_exit = function(_, exit_code)
-      if exit_code == 0 then
-        vim.notify('[rovo] rovo-lsp installed successfully!', vim.log.levels.INFO)
-        vim.schedule(function()
-          -- Re-invoke setup with auto_install disabled to complete LSP wiring
-          require('rovo').setup(vim.tbl_extend('keep', opts or {}, { auto_install = false }))
-        end)
-      else
-        vim.notify('[rovo] Failed to install rovo-lsp. Exit code: ' .. exit_code, vim.log.levels.ERROR)
-        -- Show last few lines of output for debugging
-        if #output_lines > 0 then
-          local last_lines = {}
-          for i = math.max(1, #output_lines - 5), #output_lines do
-            table.insert(last_lines, output_lines[i])
-          end
-          vim.notify('[rovo] Output: ' .. table.concat(last_lines, '\n'), vim.log.levels.ERROR)
-        end
-      end
-    end,
-  })
-
-  if job_id <= 0 then
-    vim.notify('[rovo] Failed to start cargo install job', vim.log.levels.ERROR)
-    return false
-  end
+  run_install_steps(steps, 1, opts)
 
   -- Return false for now since installation is in progress
   -- LSP will start after installation completes

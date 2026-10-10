@@ -1,0 +1,31 @@
+error[E0277]: `#[rovo(state = Foo)]` does not match the handler's `State<Bar>` parameter
+  --> tests/ui/state_attribute_mismatch.rs:17:16
+   |
+17 | #[rovo(state = Foo)]
+   |                ^^^ the handler extracts `State<Bar>`
+   |
+help: the trait `rovo::__private::SameState<Bar>` is not implemented for `Foo`
+  --> tests/ui/state_attribute_mismatch.rs:7:1
+   |
+ 7 | struct Foo;
+   | ^^^^^^^^^^
+   = note: remove `state = ...` from `#[rovo]`, or make it match the `State` parameter
+note: required by a bound in `__rovo_check_state`
+  --> tests/ui/state_attribute_mismatch.rs:17:1
+   |
+17 | #[rovo(state = Foo)]
+   | ^^^^^^^^^^^^^^^^^^^^ required by this bound in `__rovo_check_state`
+   = note: this error originates in the attribute macro `rovo` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0308]: mismatched types
+  --> tests/ui/state_attribute_mismatch.rs:17:1
+   |
+17 | #[rovo(state = Foo)]
+   | ^^^^^^^^^^^^^^^^^^^^
+   | |
+   | expected `ApiMethodRouter<Foo>`, found `ApiMethodRouter<Bar>`
+   | expected `rovo::aide::axum::routing::ApiMethodRouter<Foo>` because of return type
+   |
+   = note: expected struct `ApiMethodRouter<Foo>`
+              found struct `ApiMethodRouter<Bar>`
+   = note: this error originates in the attribute macro `rovo` (in Nightly builds, run with -Z macro-backtrace for more info)

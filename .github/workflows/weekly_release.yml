@@ -139,6 +139,84 @@ jobs:
       ref: ${{ needs.release.outputs.tag }}
     secrets: inherit
 
+  # Build every target first and upload only once all of them succeed, so a
+  # release never ships with some platforms' archives missing
+  build-lsp-binaries:
+    name: Build rovo-lsp (${{ matrix.target }})
+    needs: release
+    if: needs.release.outputs.skipped != 'true'
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-22.04
+          - target: aarch64-unknown-linux-gnu
+            os: ubuntu-22.04-arm
+          - target: x86_64-apple-darwin
+            os: macos-latest
+          - target: aarch64-apple-darwin
+            os: macos-latest
+          - target: x86_64-pc-windows-msvc
+            os: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.release.outputs.tag }}
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
+
+      - name: Build rovo-lsp
+        run: cargo build --release --locked -p rovo-lsp --target ${{ matrix.target }}
+
+      # Asset names must match `[package.metadata.binstall]` in rovo-lsp/Cargo.toml
+      - name: Package archive
+        shell: bash
+        env:
+          TARGET: ${{ matrix.target }}
+          BIN: rovo-lsp${{ runner.os == 'Windows' && '.exe' || '' }}
+        run: tar -czf "rovo-lsp-$TARGET.tar.gz" -C "target/$TARGET/release" "$BIN"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rovo-lsp-${{ matrix.target }}
+          path: rovo-lsp-${{ matrix.target }}.tar.gz
+          if-no-files-found: error
+
+  release-lsp-binaries:
+    name: Release rovo-lsp binaries
+    needs: [release, build-lsp-binaries]
+    runs-on: ubuntu-latest
+    steps:
+      # binstall downloads from `/releases/download/v{version}/`, see rovo-lsp/Cargo.toml
+      - name: Check release tag matches binstall pkg-url
+        env:
+          TAG: ${{ needs.release.outputs.tag }}
+          VERSION: ${{ needs.release.outputs.version }}
+        run: |
+          if [ "$TAG" != "v$VERSION" ]; then
+            echo "::error::Release tag '$TAG' is not 'v$VERSION'; update pkg-url in rovo-lsp/Cargo.toml"
+            exit 1
+          fi
+
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: rovo-lsp-*
+          merge-multiple: true
+
+      - name: Upload to GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.release.outputs.tag }}
+        run: gh release upload "$TAG" rovo-lsp-*.tar.gz --clobber --repo "$GITHUB_REPOSITORY"
+
   no-release:
     name: No Release Needed
     needs: check-changes

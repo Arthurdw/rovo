@@ -62,6 +62,16 @@ pub struct FuncItem {
 }
 
 impl FuncItem {
+    /// Whether the function declares generic parameters, as in `fn handler<S>(...)`.
+    pub fn is_generic(&self) -> bool {
+        let mut tokens = self.tokens.clone().into_iter();
+        tokens
+            .by_ref()
+            .find(|tt| matches!(tt, TokenTree::Ident(ident) if ident == "fn"));
+        tokens.next();
+        matches!(tokens.next(), Some(TokenTree::Punct(p)) if p.as_char() == '<')
+    }
+
     /// Generate a renamed version of this function.
     ///
     /// An existing visibility qualifier (`pub`, `pub(crate)`, `pub(super)`,

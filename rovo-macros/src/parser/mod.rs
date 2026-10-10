@@ -1,8 +1,10 @@
 mod annotations;
+mod args;
 mod error;
 mod tokens;
 pub mod types;
 
+pub use args::parse_rovo_args;
 pub use error::ParseError;
 pub use types::{DocInfo, FuncItem, PathParamDoc, PathParamInfo};
 

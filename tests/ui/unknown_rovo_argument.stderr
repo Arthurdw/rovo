@@ -1,0 +1,6 @@
+error: unknown #[rovo] argument `stat`
+       note: the only supported argument is `state = Type`
+  --> tests/ui/unknown_rovo_argument.rs:11:8
+   |
+11 | #[rovo(stat = ())]
+   |        ^^^^

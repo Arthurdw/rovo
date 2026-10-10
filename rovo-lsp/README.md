@@ -83,15 +83,16 @@ async fn get_user(id: i32) -> Json<User> { ... }
 
 ## Installation
 
+Download a prebuilt binary with [cargo-binstall](https://github.com/cargo-bins/cargo-binstall):
+
 ```bash
-cargo install --path .
+cargo binstall rovo-lsp
 ```
 
-Or add to your `Cargo.toml`:
+Or build it from source:
 
-```toml
-[dev-dependencies]
-rovo-lsp = "0.1"
+```bash
+cargo install rovo-lsp
 ```
 
 ## Usage

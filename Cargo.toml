@@ -30,10 +30,21 @@ default = []
 swagger = ["aide/swagger"]
 redoc = ["aide/redoc"]
 scalar = ["aide/scalar"]
+multipart = ["aide/axum-multipart"]
+ws = ["aide/axum-ws"]
 
 [dependencies]
 rovo-macros.workspace = true
-aide = { version = "0.15", features = ["axum", "axum-json", "axum-query"] }
+# These only enable aide impls for extractors that axum already builds with its default features
+aide = { version = "0.15", features = [
+    "axum",
+    "axum-form",
+    "axum-json",
+    "axum-matched-path",
+    "axum-original-uri",
+    "axum-query",
+    "axum-tokio",
+] }
 axum = "0.8.9"
 serde_yaml = "0.9"
 schemars = { version = "0.9", features = ["uuid1"] }
@@ -56,3 +67,11 @@ version_check = "0.9"
 [[example]]
 name = "todo_api"
 required-features = ["swagger"]
+
+[[example]]
+name = "auth_api"
+required-features = ["swagger"]
+
+[[example]]
+name = "catalog_api"
+required-features = ["swagger", "multipart"]
