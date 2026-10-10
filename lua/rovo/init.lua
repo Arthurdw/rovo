@@ -364,8 +364,8 @@ local function check_and_install_server(opts)
   if vim.fn.executable('cargo-binstall') == 1 then
     table.insert(steps, {
       via = 'cargo binstall',
-      -- Building from source is left to the explicit `cargo install` step
-      cmd = vim.list_extend({'cargo', 'binstall', '-y', '--disable-strategies', 'compile'}, crate_args),
+      -- Only our own release archives (no third-party quick-install); building from source is left to `cargo install`
+      cmd = vim.list_extend({'cargo', 'binstall', '-y', '--disable-strategies', 'quick-install,compile'}, crate_args),
     })
   end
   table.insert(steps, {

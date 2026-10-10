@@ -291,9 +291,9 @@ async function installServer(outputChannel: vscode.OutputChannel, context: vscod
                 let installed = false;
                 if (hasBinstall) {
                     progress.report({ message: 'Downloading prebuilt binary...' });
-                    // Building from source is left to the explicit `cargo install` below
+                    // Only our own release archives (no third-party quick-install); building from source is left to `cargo install` below
                     installed = await runCargo(
-                        ['binstall', '-y', '--disable-strategies', 'compile', ...versionArgs],
+                        ['binstall', '-y', '--disable-strategies', 'quick-install,compile', ...versionArgs],
                         outputChannel
                     );
                     if (!installed) {
