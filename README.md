@@ -116,6 +116,8 @@ tokio = { version = "1", features = ["full"] }
 
 For detailed API documentation, see [docs.rs/rovo](https://docs.rs/rovo).
 
+Using an AI coding assistant? Point it at [`llms.txt`](./llms.txt) for a compact reference, or [`llms-full.txt`](./llms-full.txt) for the README and all examples in one file. Both are also shipped in the published crate.
+
 > **schemars version:** rovo uses schemars 0.9, because aide 0.15 does. If your project also uses schemars 1.x, derive `rovo::schemars::JsonSchema` on the types your handlers return; see [Troubleshooting](#jsonschema-is-not-implemented-with-schemars-1x-in-the-project).
 
 ### Feature Flags

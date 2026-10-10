@@ -66,7 +66,7 @@ example:
     cargo run --example todo_api --features swagger
 
 # Run all checks (fmt, clippy, test)
-check: fmt-check lint test
+check: fmt-check lint test llms-check
 
 # Run all checks and fixes
 fix: fmt lint-fix test
@@ -94,6 +94,14 @@ deny-check:
 # Update dependencies
 update:
     cargo update
+
+# Regenerate llms-full.txt from llms.txt, the README and the examples
+llms:
+    ./scripts/gen-llms-full.sh
+
+# Check that llms-full.txt is up to date
+llms-check:
+    ./scripts/gen-llms-full.sh --check
 
 # Build documentation
 docs:

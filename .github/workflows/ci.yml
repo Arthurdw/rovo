@@ -97,6 +97,9 @@ jobs:
       - name: Check examples
         run: cargo check --manifest-path examples/hello_world/Cargo.toml
 
+      - name: Check llms-full.txt is up to date
+        run: ./scripts/gen-llms-full.sh --check
+
   coverage:
     name: Code Coverage
     runs-on: ubuntu-latest

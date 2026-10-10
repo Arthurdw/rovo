@@ -1,0 +1,115 @@
+# rovo
+
+> rovo generates OpenAPI documentation for axum from handler doc comments. Add `#[rovo]` to a handler, describe its responses in a `# Responses` section of the doc comment, and route it with `rovo::Router`, which keeps axum's `.route(path, get(handler))` syntax. It is built on aide 0.15 and schemars 0.9, and the doc comment is validated at compile time.
+
+Request bodies and query parameters are not written in the doc comment: rovo reads them from the handler's extractors (`Json<T>`, `Form<T>`, `Query<T>`, `Multipart`). Do not write aide `TransformOperation` functions or utoipa `#[utoipa::path]` attributes for rovo handlers.
+
+## Setup
+
+```toml
+[dependencies]
+rovo = { version = "0.4", features = ["swagger"] } # or "redoc", "scalar"; "multipart", "ws" for those extractors
+axum = "0.8"                                       # only needed for axum::serve
+serde = { version = "1", features = ["derive"] }
+tokio = { version = "1", features = ["full"] }
+```
+
+`use rovo::prelude::*;` brings in `rovo` (the macro), `Router`, `get`/`post`/`put`/`patch`/`delete`/`any`, `Json`, `Path`, `Query`, `Form`, `State`, `StatusCode`, `IntoResponse`, `IntoApiResponse`, `OpenApi` and `JsonSchema`. rovo re-exports `aide`, `schemars`, `extract`, `response` and `http`, so they are not direct dependencies.
+
+## Minimal handler and router
+
+```rust
+use rovo::prelude::*;
+use serde::Serialize;
+
+#[derive(Serialize, JsonSchema)]
+struct User { id: u64, name: String }
+
+/// Get a user by ID.
+///
+/// # Path Parameters
+///
+/// id: The user's ID
+///
+/// # Responses
+///
+/// 200: Json<User> - User found
+/// 404: () - User not found
+///
+/// # Metadata
+///
+/// @tag users
+#[rovo]
+async fn get_user(Path(id): Path<u64>) -> impl IntoApiResponse {
+    Json(User { id, name: "Alice".into() })
+}
+
+#[tokio::main]
+async fn main() {
+    let mut api = OpenApi::default();
+    api.info.title = "My API".into();
+
+    let app = Router::new()
+        .route("/users/{id}", get(get_user))
+        .with_oas(api)          // serves /api.json and /api.yaml
+        .with_swagger("/docs")  // needs the "swagger" feature
+        .finish();              // use .with_state(state).finish() when handlers take State<T>
+
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:3000").await.unwrap();
+    axum::serve(listener, app).await.unwrap();
+}
+```
+
+## Doc comment grammar
+
+The first line is the summary, and the lines after it, up to the first section, are the description. The sections below may appear in any order. Each is optional, but an endpoint without `# Responses` documents no responses.
+
+- `# Responses`: one line per response, `<status>: <type> - <description>`. The status is 100-599, the type is any Rust type that implements `aide::OperationOutput` (`Json<T>`, `()`, `String`, ...), and the description is required and may continue on following lines.
+- `# Path Parameters`: one line per parameter, `<name>: <description>`. Names must match the bindings in `Path(...)`, for example `Path(id): Path<u64>` or `Path((org, idx)): Path<(Uuid, u32)>`. For struct paths (`Path<UserPath>`), use field doc comments instead.
+- `# Examples`: `<status>: <rust expression>`, and the expression may span several lines. The status must also appear in `# Responses`.
+- `# Metadata`: `@tag <name>` (repeatable), `@security <scheme>` (repeatable; the scheme must be registered in `api.components.security_schemes`), `@id <operation_id>` (alphanumerics and `_` only; defaults to the function name), and `@hidden` (still routed, but left out of the spec).
+- `@rovo-ignore`, anywhere: rovo stops parsing the rest of the doc comment.
+- `#[deprecated]` on the handler marks the operation as deprecated.
+
+## Handlers and extractors
+
+- Return `impl IntoApiResponse` (or a concrete type implementing `OperationOutput`), not `impl IntoResponse`.
+- `Json<T>`/`Form<T>` become the request body and `Query<T>` becomes one query parameter per field. Field doc comments become descriptions, and `Option<_>` fields are optional. Types used in bodies, queries and responses derive `JsonSchema` (from `rovo::prelude` or `rovo::schemars`).
+- Custom extractors need `impl rovo::aide::OperationInput for MyExtractor {}`. Custom error types need `impl rovo::aide::OperationOutput for MyError { type Inner = MyErrorBody; }`.
+- `#[rovo]` takes the router state type from a `State<T>` parameter. If a custom extractor needs state but the handler has no `State<T>`, write `#[rovo(state = AppState)]`.
+- `routing::any(handler)` takes a plain axum handler and is left out of the spec, which suits proxies and `{*path}` catch-alls.
+
+## Router
+
+- `Router::new().route(path, get(a).post(b))`, `.nest("/api", inner)`, `.with_oas(api)`, `.with_oas_route(api, "/openapi")`, `.with_swagger(p)`, `.with_redoc(p)`, `.with_scalar(p)`, `.with_state(s)`, `.finish()` returns an `axum::Router`.
+- Nested routers with different state types: call `.with_state(...)` on each inner router before `.nest`, then `.finish()` on the outer one.
+- `.into_inner()` returns the underlying `aide::axum::ApiRouter` for anything rovo doesn't cover.
+
+## Common mistakes
+
+- Using `axum::Router` or `axum::routing::get` with a `#[rovo]` handler: `#[rovo]` replaces the function with a marker type that only rovo's routing functions accept. Import them from `rovo::prelude`.
+- Calling a `#[rovo]` handler directly, for example in a unit test: the name now refers to that marker type. Test through the router (`tower::ServiceExt::oneshot`) instead.
+- Forgetting `#[rovo]`: the handler then doesn't implement the traits that `rovo::routing::get` needs.
+- Documenting a path parameter whose name doesn't match the `Path(...)` binding, or an example status code missing from `# Responses`: both are compile errors.
+- Deriving `JsonSchema` from schemars 1.x: rovo needs schemars 0.9. Derive `rovo::schemars::JsonSchema` (both versions can be derived on one type).
+- Writing request-body or query docs in the doc comment: they come from the extractors' types.
+- `@security` without registering the scheme on the `OpenApi` object.
+
+## Docs
+
+- [Full reference](https://raw.githubusercontent.com/Arthurdw/rovo/main/llms-full.txt): this file plus the README and all examples in one document
+- [README](https://raw.githubusercontent.com/Arthurdw/rovo/main/README.md): features, documentation format, request inputs, router API, troubleshooting
+- [API docs](https://docs.rs/rovo): rustdoc for `Router`, `routing` and the `#[rovo]` macro
+
+## Examples
+
+- [hello_world](https://raw.githubusercontent.com/Arthurdw/rovo/main/examples/hello_world/src/main.rs): the smallest documented handler
+- [todo_api](https://raw.githubusercontent.com/Arthurdw/rovo/main/examples/todo_api.rs): CRUD, path parameters, nested routers with different states
+- [auth_api](https://raw.githubusercontent.com/Arthurdw/rovo/main/examples/auth_api.rs): bearer auth, custom extractor and error type, form login, `@security`
+- [catalog_api](https://raw.githubusercontent.com/Arthurdw/rovo/main/examples/catalog_api.rs): query pagination, generic `Page<T>`, tagged enum (`oneOf`), multipart upload
+
+## Optional
+
+- [Comparison with utoipa and aide](https://github.com/Arthurdw/rovo#compared-to-utoipa-and-aide)
+- [Editor support](https://github.com/Arthurdw/rovo#features): language server for VSCode, Neovim, JetBrains and Zed
+- [Changelog](https://raw.githubusercontent.com/Arthurdw/rovo/main/CHANGELOG.md)
