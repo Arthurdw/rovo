@@ -1,0 +1,1655 @@
+# rovo
+
+> rovo generates OpenAPI documentation for axum from handler doc comments. Add `#[rovo]` to a handler, describe its responses in a `# Responses` section of the doc comment, and route it with `rovo::Router`, which keeps axum's `.route(path, get(handler))` syntax. It is built on aide 0.15 and schemars 0.9, and the doc comment is validated at compile time.
+
+Request bodies and query parameters are not written in the doc comment: rovo reads them from the handler's extractors (`Json<T>`, `Form<T>`, `Query<T>`, `Multipart`). Do not write aide `TransformOperation` functions or utoipa `#[utoipa::path]` attributes for rovo handlers.
+
+## Setup
+
+```toml
+[dependencies]
+rovo = { version = "0.4", features = ["swagger"] } # or "redoc", "scalar"; "multipart", "ws" for those extractors
+axum = "0.8"                                       # only needed for axum::serve
+serde = { version = "1", features = ["derive"] }
+tokio = { version = "1", features = ["full"] }
+```
+
+`use rovo::prelude::*;` brings in `rovo` (the macro), `Router`, `get`/`post`/`put`/`patch`/`delete`/`any`, `Json`, `Path`, `Query`, `Form`, `State`, `StatusCode`, `IntoResponse`, `IntoApiResponse`, `OpenApi` and `JsonSchema`. rovo re-exports `aide`, `schemars`, `extract`, `response` and `http`, so they are not direct dependencies.
+
+## Minimal handler and router
+
+```rust
+use rovo::prelude::*;
+use serde::Serialize;
+
+#[derive(Serialize, JsonSchema)]
+struct User { id: u64, name: String }
+
+/// Get a user by ID.
+///
+/// # Path Parameters
+///
+/// id: The user's ID
+///
+/// # Responses
+///
+/// 200: Json<User> - User found
+/// 404: () - User not found
+///
+/// # Metadata
+///
+/// @tag users
+#[rovo]
+async fn get_user(Path(id): Path<u64>) -> impl IntoApiResponse {
+    Json(User { id, name: "Alice".into() })
+}
+
+#[tokio::main]
+async fn main() {
+    let mut api = OpenApi::default();
+    api.info.title = "My API".into();
+
+    let app = Router::new()
+        .route("/users/{id}", get(get_user))
+        .with_oas(api)          // serves /api.json and /api.yaml
+        .with_swagger("/docs")  // needs the "swagger" feature
+        .finish();              // use .with_state(state).finish() when handlers take State<T>
+
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:3000").await.unwrap();
+    axum::serve(listener, app).await.unwrap();
+}
+```
+
+## Doc comment grammar
+
+The first line is the summary, and the lines after it, up to the first section, are the description. The sections below may appear in any order. Each is optional, but an endpoint without `# Responses` documents no responses.
+
+- `# Responses`: one line per response, `<status>: <type> - <description>`. The status is 100-599, the type is any Rust type that implements `aide::OperationOutput` (`Json<T>`, `()`, `String`, ...), and the description is required and may continue on following lines.
+- `# Path Parameters`: one line per parameter, `<name>: <description>`. Names must match the bindings in `Path(...)`, for example `Path(id): Path<u64>` or `Path((org, idx)): Path<(Uuid, u32)>`. For struct paths (`Path<UserPath>`), use field doc comments instead.
+- `# Examples`: `<status>: <rust expression>`, and the expression may span several lines. The status must also appear in `# Responses`.
+- `# Metadata`: `@tag <name>` (repeatable), `@security <scheme>` (repeatable; the scheme must be registered in `api.components.security_schemes`), `@id <operation_id>` (alphanumerics and `_` only; defaults to the function name), and `@hidden` (still routed, but left out of the spec).
+- `@rovo-ignore`, anywhere: rovo stops parsing the rest of the doc comment.
+- `#[deprecated]` on the handler marks the operation as deprecated.
+
+## Handlers and extractors
+
+- Return `impl IntoApiResponse` (or a concrete type implementing `OperationOutput`), not `impl IntoResponse`.
+- `Json<T>`/`Form<T>` become the request body and `Query<T>` becomes one query parameter per field. Field doc comments become descriptions, and `Option<_>` fields are optional. Types used in bodies, queries and responses derive `JsonSchema` (from `rovo::prelude` or `rovo::schemars`).
+- Custom extractors need `impl rovo::aide::OperationInput for MyExtractor {}`. Custom error types need `impl rovo::aide::OperationOutput for MyError { type Inner = MyErrorBody; }`.
+- `#[rovo]` takes the router state type from a `State<T>` parameter. If a custom extractor needs state but the handler has no `State<T>`, write `#[rovo(state = AppState)]`.
+- `routing::any(handler)` takes a plain axum handler and is left out of the spec, which suits proxies and `{*path}` catch-alls.
+
+## Router
+
+- `Router::new().route(path, get(a).post(b))`, `.nest("/api", inner)`, `.with_oas(api)`, `.with_oas_route(api, "/openapi")`, `.with_swagger(p)`, `.with_redoc(p)`, `.with_scalar(p)`, `.with_state(s)`, `.finish()` returns an `axum::Router`.
+- Nested routers with different state types: call `.with_state(...)` on each inner router before `.nest`, then `.finish()` on the outer one.
+- `.into_inner()` returns the underlying `aide::axum::ApiRouter` for anything rovo doesn't cover.
+
+## Common mistakes
+
+- Using `axum::Router` or `axum::routing::get` with a `#[rovo]` handler: `#[rovo]` replaces the function with a marker type that only rovo's routing functions accept. Import them from `rovo::prelude`.
+- Calling a `#[rovo]` handler directly, for example in a unit test: the name now refers to that marker type. Test through the router (`tower::ServiceExt::oneshot`) instead.
+- Forgetting `#[rovo]`: the handler then doesn't implement the traits that `rovo::routing::get` needs.
+- Documenting a path parameter whose name doesn't match the `Path(...)` binding, or an example status code missing from `# Responses`: both are compile errors.
+- Deriving `JsonSchema` from schemars 1.x: rovo needs schemars 0.9. Derive `rovo::schemars::JsonSchema` (both versions can be derived on one type).
+- Writing request-body or query docs in the doc comment: they come from the extractors' types.
+- `@security` without registering the scheme on the `OpenApi` object.
+
+## Docs
+
+- [Full reference](https://raw.githubusercontent.com/Arthurdw/rovo/main/llms-full.txt): this file plus the README and all examples in one document
+- [README](https://raw.githubusercontent.com/Arthurdw/rovo/main/README.md): features, documentation format, request inputs, router API, troubleshooting
+- [API docs](https://docs.rs/rovo): rustdoc for `Router`, `routing` and the `#[rovo]` macro
+
+## Examples
+
+- [hello_world](https://raw.githubusercontent.com/Arthurdw/rovo/main/examples/hello_world/src/main.rs): the smallest documented handler
+- [todo_api](https://raw.githubusercontent.com/Arthurdw/rovo/main/examples/todo_api.rs): CRUD, path parameters, nested routers with different states
+- [auth_api](https://raw.githubusercontent.com/Arthurdw/rovo/main/examples/auth_api.rs): bearer auth, custom extractor and error type, form login, `@security`
+- [catalog_api](https://raw.githubusercontent.com/Arthurdw/rovo/main/examples/catalog_api.rs): query pagination, generic `Page<T>`, tagged enum (`oneOf`), multipart upload
+
+## Optional
+
+- [Comparison with utoipa and aide](https://github.com/Arthurdw/rovo#compared-to-utoipa-and-aide)
+- [Editor support](https://github.com/Arthurdw/rovo#features): language server for VSCode, Neovim, JetBrains and Zed
+- [Changelog](https://raw.githubusercontent.com/Arthurdw/rovo/main/CHANGELOG.md)
+
+---
+
+# README
+
+
+OpenAPI documentation for Axum, written as doc comments.
+
+Document an endpoint in the doc comment above the handler, add `#[rovo]`, and keep routing exactly as you would in axum. Request bodies, query parameters and schemas are picked up from your extractors and types; rovo checks the doc comment at compile time.
+
+```rust
+/// Get a user by ID.
+///
+/// # Path Parameters
+///
+/// id: The user's ID
+///
+/// # Responses
+///
+/// 200: Json<User> - User found
+/// 404: () - User not found
+#[rovo]
+async fn get_user(Path(id): Path<u64>) -> impl IntoApiResponse { /* ... */ }
+
+let app = Router::new().route("/users/{id}", get(get_user));
+```
+
+## Features
+
+- Drop-in replacement for `axum::Router`, with the same `.route(path, get(handler))` syntax
+- Doc-comment driven documentation, readable as plain rustdoc
+- Compile-time validation of annotations
+- Request bodies (`Json`, `Form`, `Multipart`) and query parameters documented from extractors
+- Built-in Swagger/Redoc/Scalar UI integration
+- Type-safe response definitions
+- Minimal runtime overhead
+- **Editor Integration** (completions, hover docs and diagnostics for doc annotations):
+  - **VSCode/VSCodium** - See [VSCODE.md](./VSCODE.md) for extension with auto-installation, completions, and syntax highlighting
+  - **Neovim LSP** - See [NEOVIM.md](./NEOVIM.md) for editor support with completions, hover docs, and more
+  - **JetBrains IDEs** - See [JETBRAINS.md](./JETBRAINS.md) for RustRover, IntelliJ IDEA, and CLion support
+  - **Zed** - See [ZED.md](./ZED.md) for full Zed editor integration
+
+## Quick Start
+
+```rust
+use rovo::prelude::*;
+use serde::Serialize;
+
+#[derive(Clone)]
+struct AppState {}
+
+#[derive(Serialize, JsonSchema)]
+struct User {
+    id: u64,
+    name: String,
+}
+
+/// Get user information.
+///
+/// Returns the current user's profile information.
+///
+/// # Responses
+///
+/// 200: Json<User> - User profile retrieved successfully
+///
+/// # Metadata
+///
+/// @tag users
+#[rovo]
+async fn get_user(State(_state): State<AppState>) -> impl IntoApiResponse {
+    Json(User {
+        id: 1,
+        name: "Alice".to_string(),
+    })
+}
+
+#[tokio::main]
+async fn main() {
+    let state = AppState {};
+
+    let mut api = OpenApi::default();
+    api.info.title = "My API".to_string();
+
+    let app = Router::new()
+        .route("/user", get(get_user))
+        .with_oas(api)
+        .with_swagger("/")
+        .with_state(state)
+        .finish();
+
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:3000")
+        .await
+        .unwrap();
+
+    axum::serve(listener, app).await.unwrap();
+}
+```
+
+## Installation
+
+```toml
+[dependencies]
+rovo = { version = "0.4.11", features = ["swagger"] }
+axum = "0.8"
+serde = { version = "1.0", features = ["derive"] }
+tokio = { version = "1", features = ["full"] }
+```
+
+> **Note:** `rovo::prelude::*` brings in the macro, router, routing functions and the common extractors and response types. Rovo also re-exports `aide`, `schemars`, and axum's `extract`, `response` and `http` modules, so you don't need them as direct dependencies. The `axum` dependency is still needed for `axum::serve()`.
+
+For detailed API documentation, see [docs.rs/rovo](https://docs.rs/rovo).
+
+Using an AI coding assistant? Point it at [`llms.txt`](./llms.txt) for a compact reference, or [`llms-full.txt`](./llms-full.txt) for the README and all examples in one file. Both are also shipped in the published crate.
+
+> **schemars version:** rovo uses schemars 0.9, because aide 0.15 does. If your project also uses schemars 1.x, derive `rovo::schemars::JsonSchema` on the types your handlers return; see [Troubleshooting](#jsonschema-is-not-implemented-with-schemars-1x-in-the-project).
+
+### Feature Flags
+
+Choose one or more documentation UIs (none enabled by default):
+
+- `swagger` - Swagger UI
+- `redoc` - Redoc UI
+- `scalar` - Scalar UI
+
+Optional extractor support:
+
+- `multipart` - Document handlers that take `axum::extract::Multipart`
+- `ws` - Allow handlers that take `axum::extract::WebSocketUpgrade`
+
+## Compared to utoipa and aide
+
+The same endpoint in each library: a `GET /users/{id}` with a described path parameter, a tag and two responses.
+
+**utoipa** (with `utoipa-axum`):
+
+```rust
+#[derive(Serialize, ToSchema)]
+struct User { id: u64, name: String }
+
+/// Get a user by ID.
+#[utoipa::path(
+    get,
+    path = "/users/{id}",
+    tag = "users",
+    params(("id" = u64, Path, description = "The user's ID")),
+    responses(
+        (status = 200, description = "User found", body = User),
+        (status = 404, description = "User not found"),
+    ),
+)]
+async fn get_user(Path(id): Path<u64>) -> Result<Json<User>, StatusCode> { /* ... */ }
+
+let (router, api) = OpenApiRouter::new()
+    .routes(routes!(get_user))
+    .split_for_parts();
+```
+
+**aide**:
+
+```rust
+#[derive(Serialize, JsonSchema)]
+struct User { id: u64, name: String }
+
+#[derive(Deserialize, JsonSchema)]
+struct UserPath {
+    /// The user's ID
+    id: u64,
+}
+
+async fn get_user(Path(UserPath { id }): Path<UserPath>) -> impl IntoApiResponse { /* ... */ }
+
+fn get_user_docs(op: TransformOperation) -> TransformOperation {
+    op.description("Get a user by ID.")
+        .tag("users")
+        .response_with::<200, Json<User>, _>(|res| res.description("User found"))
+        .response_with::<404, (), _>(|res| res.description("User not found"))
+}
+
+let router = ApiRouter::new()
+    .api_route("/users/{id}", get_with(get_user, get_user_docs));
+```
+
+**rovo**:
+
+```rust
+#[derive(Serialize, JsonSchema)]
+struct User { id: u64, name: String }
+
+/// Get a user by ID.
+///
+/// # Path Parameters
+///
+/// id: The user's ID
+///
+/// # Responses
+///
+/// 200: Json<User> - User found
+/// 404: () - User not found
+///
+/// # Metadata
+///
+/// @tag users
+#[rovo]
+async fn get_user(Path(id): Path<u64>) -> impl IntoApiResponse { /* ... */ }
+
+let router = Router::new().route("/users/{id}", get(get_user));
+```
+
+| | utoipa | aide | rovo |
+|---|---|---|---|
+| Where docs live | `#[utoipa::path(...)]` attribute | A separate `TransformOperation` function | The handler's doc comment |
+| Routing | `OpenApiRouter` + `routes!` | `api_route` + `get_with` | axum's `.route(path, get(handler))` |
+| Frameworks | axum, actix-web, rocket and more | axum | axum |
+| Docs checked at compile time | Yes | Yes (plain Rust code) | Yes |
+| Editor support for the docs | Standard Rust tooling | Standard Rust tooling | Language server with completions and hover |
+| Maturity | Most widely used | Established | Pre-1.0, smaller community |
+
+Rovo is built on aide, so everything aide generates (schemas, request bodies, query parameters) is available, and `Router::into_inner()` hands you the underlying aide `ApiRouter` when you need something rovo doesn't cover.
+
+**Pick utoipa** if you're not on axum, or you want the largest ecosystem. **Pick aide** if you prefer documentation as plain Rust function calls. **Pick rovo** if you're on axum and want your API docs to read like normal doc comments next to the handler.
+
+## Documentation Format
+
+Rovo uses Rust-style documentation with markdown sections and metadata annotations.
+
+### Complete Example
+
+```rust
+/// Get a todo item by ID.
+///
+/// Retrieves a single todo item from the database. Returns 404
+/// if the item doesn't exist.
+///
+/// # Path Parameters
+///
+/// id: The todo item's unique identifier
+///
+/// # Responses
+///
+/// 200: Json<TodoItem> - Successfully retrieved the todo item
+/// 404: () - Todo item was not found
+/// 500: Json<ErrorResponse> - Internal server error
+///
+/// # Examples
+///
+/// 200: TodoItem {
+///   title: "Buy milk".into(),
+///   ..Default::default()
+/// }
+/// 404: ()
+///
+/// # Metadata
+///
+/// @tag todos
+/// @security bearer_auth
+#[rovo]
+async fn get_todo(Path(id): Path<i32>) -> impl IntoApiResponse {
+    // ...
+}
+```
+
+### Responses Section
+
+Document HTTP responses with status codes, types, and descriptions:
+
+```rust
+/// # Responses
+///
+/// 200: Json<User> - User found successfully
+/// 404: () - User not found
+/// 500: Json<ErrorResponse> - Internal server error
+```
+
+**Format:** `<status_code>: <type> - <description>`
+
+- Status codes must be valid HTTP codes (100-599)
+- Type must be valid Rust syntax
+- Description explains when this response occurs
+
+### Path Parameters Section
+
+Document path parameters for primitive types:
+
+```rust
+/// # Path Parameters
+///
+/// id: The user's unique identifier
+/// index: Zero-based item index
+```
+
+**Format:** `<name>: <description>`
+
+- Parameter names must match the variable bindings in your function signature
+- Works with primitives: `String`, `u64`, `u32`, `i64`, `i32`, `bool`, `Uuid`, etc.
+- For tuple paths like `Path((a, b)): Path<(Uuid, u32)>`, document each parameter
+
+### Examples Section
+
+Provide concrete response examples:
+
+```rust
+/// # Examples
+///
+/// 200: User { id: 1, name: "Alice".into(), email: "alice@example.com".into() }
+/// 404: ()
+```
+
+**Format:** `<status_code>: <rust_expression>`
+
+Examples should match the types defined in the Responses section.
+
+### Metadata Section
+
+Contains API metadata using `@` annotations:
+
+#### `@tag`
+
+Group operations by tags (can be used multiple times):
+
+```rust
+/// # Metadata
+///
+/// @tag users
+/// @tag authentication
+```
+
+#### `@security`
+
+Specify security requirements (can be used multiple times):
+
+```rust
+/// # Metadata
+///
+/// @security bearer_auth
+```
+
+Security schemes must be defined in your OpenAPI spec. See [Tips](#tips) for details.
+
+#### `@id`
+
+Set custom operation ID (defaults to function name):
+
+```rust
+/// # Metadata
+///
+/// @id getUserById
+```
+
+Must contain only alphanumeric characters and underscores.
+
+#### `@hidden`
+
+Hide an operation from documentation:
+
+```rust
+/// # Metadata
+///
+/// @hidden
+```
+
+### Special Directives
+
+#### `#[deprecated]`
+
+Mark endpoints as deprecated using Rust's built-in attribute:
+
+```rust
+#[deprecated]
+#[rovo]
+async fn old_handler() -> impl IntoApiResponse {
+    // ...
+}
+```
+
+#### `@rovo-ignore`
+
+Stop processing annotations after this point (location-independent):
+
+```rust
+/// Get user information.
+///
+/// # Responses
+///
+/// 200: Json<User> - User found successfully
+///
+/// # Metadata
+///
+/// @tag users
+///
+/// @rovo-ignore
+///
+/// Additional documentation here won't be processed.
+/// You can write @anything without causing errors.
+#[rovo]
+async fn handler() -> impl IntoApiResponse {
+    // ...
+}
+```
+
+## Request Inputs
+
+You don't document request inputs in the doc comment: rovo reads them from the handler's extractors.
+
+| Extractor | Documented as |
+|-----------|---------------|
+| `Json<T>` | `application/json` request body with `T`'s schema |
+| `Form<T>` | `application/x-www-form-urlencoded` request body with `T`'s schema |
+| `Multipart` (feature `multipart`) | `multipart/form-data` request body |
+| `Query<T>` | One query parameter per field of `T` |
+| `Path<T>` | Path parameters (see [Path Parameters](#path-parameters-section)) |
+| `State<T>`, `HeaderMap` | Nothing (not part of the API surface) |
+
+Doc comments on struct fields become parameter and property descriptions, and `Option<_>` fields are marked as not required:
+
+```rust
+#[derive(Deserialize, JsonSchema)]
+struct SearchParams {
+    /// Maximum number of results to return
+    limit: Option<u32>,
+    /// Only return users whose name contains this string
+    name: Option<String>,
+}
+
+#[derive(Deserialize, JsonSchema)]
+struct CreateUser {
+    /// Display name
+    name: String,
+}
+
+/// Search users.
+///
+/// # Responses
+///
+/// 200: Json<Vec<User>> - Matching users
+#[rovo]
+async fn search_users(Query(params): Query<SearchParams>) -> impl IntoApiResponse {
+    // documented as GET with `limit` and `name` query parameters
+}
+
+/// Create a user.
+///
+/// # Responses
+///
+/// 201: Json<User> - User created
+/// 422: Json<ErrorResponse> - Invalid input
+#[rovo]
+async fn create_user(Json(body): Json<CreateUser>) -> impl IntoApiResponse {
+    // documented with a JSON request body
+}
+```
+
+Headers read through `HeaderMap` aren't added to the spec. For authentication headers, declare a [security scheme](#security-schemes) and reference it with `@security`.
+
+Schemas come from [schemars](https://docs.rs/schemars), so serde attributes are respected. For example, an enum with `#[serde(tag = "type")]` becomes a `oneOf` with one object per variant.
+
+### Custom extractors and error types
+
+Every extractor in a `#[rovo]` handler must implement `aide::OperationInput`, and every return type `aide::OperationOutput`. For your own types, an empty `OperationInput` impl and an `OperationOutput` impl naming the response body are usually enough, since the `# Responses` section documents the actual responses:
+
+```rust
+use rovo::aide::{OperationInput, OperationOutput};
+
+struct AuthUser { /* ... */ }
+impl FromRequestParts<AppState> for AuthUser { /* ... */ }
+impl OperationInput for AuthUser {}
+
+enum ApiError { /* ... */ }
+impl IntoResponse for ApiError { /* ... */ }
+impl OperationOutput for ApiError {
+    type Inner = ErrorBody;
+}
+```
+
+`#[rovo]` takes the router's state type from a `State<T>` parameter, or uses `()` if there is none. If a custom extractor needs state but the handler has no `State<T>` parameter, name the state type in the attribute:
+
+```rust
+#[rovo(state = AppState)]
+async fn me(user: AuthUser) -> Result<Json<Profile>, ApiError> {
+    // ...
+}
+```
+
+See [examples/auth_api.rs](./examples/auth_api.rs) for a complete bearer-token example.
+
+## Router API
+
+### Basic Usage
+
+```rust
+use rovo::Router;
+
+let app = Router::new()
+    .route("/path", get(handler))
+    .with_state(state)
+    .finish();
+```
+
+### Method Chaining
+
+```rust
+use rovo::routing::{get, post, patch, delete};
+
+Router::new()
+    .route("/items", get(list_items).post(create_item))
+    .route("/items/{id}", get(get_item).patch(update_item).delete(delete_item))
+```
+
+### Nesting Routes
+
+```rust
+Router::new()
+    .nest(
+        "/api",
+        Router::new()
+            .route("/users", get(list_users))
+            .route("/posts", get(list_posts))
+    )
+```
+
+Nest routers with different state types by calling `.with_state()` on each inner router:
+
+```rust
+let app = Router::new()
+    .nest(
+        "/api",
+        Router::new()
+            .route("/todos", get(list_todos))
+            .with_state(todo_state),
+    )
+    .nest(
+        "/meta",
+        Router::new()
+            .route("/health", get(health_check))
+            .with_state(meta_state),
+    )
+    .with_oas(api)
+    .finish();
+```
+
+### Documentation UIs
+
+```rust
+Router::new()
+    .route("/users", get(list_users))
+    .with_oas(api)
+    .with_swagger("/swagger")
+    .with_redoc("/redoc")
+    .with_scalar("/scalar")
+    .with_state(state)
+    .finish()
+```
+
+Use custom OAS route:
+
+```rust
+Router::new()
+    .route("/users", get(list_users))
+    .with_oas_route(api, "/openapi")
+    .with_swagger("/")
+    .with_state(state)
+    .finish()
+```
+
+## OpenAPI Formats
+
+Rovo automatically serves your OpenAPI specification in multiple formats:
+
+- **JSON** - `/api.json` (default)
+- **YAML** - `/api.yaml` or `/api.yml`
+
+All formats are automatically available when you use `.with_oas()` or `.with_oas_route()`.
+
+## Examples
+
+| Example | Shows |
+|---------|-------|
+| [hello_world](./examples/hello_world) | The smallest documented handler, as a standalone crate |
+| [todo_api](./examples/todo_api.rs) | A CRUD API with path parameters and nested routers with different state types |
+| [auth_api](./examples/auth_api.rs) | Bearer-token auth with a custom extractor, a custom error type, form login and `@security` |
+| [catalog_api](./examples/catalog_api.rs) | Query-string pagination, a generic `Page<T>` response, a tagged enum (`oneOf`) and a multipart upload (needs `-F multipart`) |
+
+Run one with:
+
+```bash
+cargo run -F swagger --example todo_api
+```
+
+## Migration from Axum
+
+Replace imports and add documentation:
+
+```rust
+// Before
+use axum::{Router, response::IntoResponse, routing::get};
+
+async fn handler() -> impl IntoResponse {
+    Json(data)
+}
+
+// After
+use rovo::prelude::*;
+
+/// Handler description
+///
+/// # Responses
+///
+/// 200: Json<Data> - Success
+///
+/// # Metadata
+///
+/// @tag category
+#[rovo]
+async fn handler() -> impl IntoApiResponse {
+    Json(data)
+}
+```
+
+Add OpenAPI setup in `main()`:
+
+```rust
+let mut api = OpenApi::default();
+api.info.title = "My API".to_string();
+
+let app = Router::new()
+    .route("/path", get(handler))
+    .with_oas(api)
+    .with_swagger("/")
+    .with_state(state)
+    .finish();
+```
+
+## Tips
+
+### Path Parameters
+
+For primitive types (`String`, `u64`, `Uuid`, `bool`, etc.), document parameters directly in doc comments:
+
+```rust
+/// Get user by ID.
+///
+/// # Path Parameters
+///
+/// id: The user's unique identifier
+///
+/// # Responses
+///
+/// 200: Json<User> - User found
+#[rovo]
+async fn get_user(Path(id): Path<u64>) -> impl IntoApiResponse {
+    // ...
+}
+```
+
+For tuple parameters:
+
+```rust
+/// Get item in collection.
+///
+/// # Path Parameters
+///
+/// collection_id: The collection UUID
+/// index: Item index
+///
+/// # Responses
+///
+/// 200: Json<Item> - Item found
+#[rovo]
+async fn get_item(Path((collection_id, index)): Path<(Uuid, u32)>) -> impl IntoApiResponse {
+    // ...
+}
+```
+
+For complex types, use structs with `JsonSchema`:
+
+```rust
+use rovo::schemars::JsonSchema;
+use serde::Deserialize;
+use uuid::Uuid;
+
+#[derive(Deserialize, JsonSchema)]
+struct UserId {
+    /// The user's unique identifier
+    id: Uuid,
+}
+
+#[rovo]
+async fn get_user(Path(UserId { id }): Path<UserId>) -> impl IntoApiResponse {
+    // ...
+}
+```
+
+### Security Schemes
+
+Define in OpenAPI object:
+
+```rust
+use rovo::aide::openapi::{ReferenceOr, SecurityScheme};
+
+api.components.get_or_insert_default().security_schemes.insert(
+    "bearer_auth".to_string(),
+    ReferenceOr::Item(SecurityScheme::Http {
+        scheme: "bearer".to_string(),
+        bearer_format: Some("JWT".to_string()),
+        description: None,
+        extensions: Default::default(),
+    }),
+);
+```
+
+Reference in handlers:
+
+```rust
+/// Protected endpoint requiring authentication.
+///
+/// # Responses
+///
+/// 200: Json<Data> - Success
+/// 401: () - Unauthorized
+///
+/// # Metadata
+///
+/// @security bearer_auth
+#[rovo]
+async fn protected_handler() -> impl IntoApiResponse {
+    // ...
+}
+```
+
+## Troubleshooting
+
+### Handler doesn't implement required traits
+
+Add the `#[rovo]` macro:
+
+```rust
+#[rovo]
+async fn handler() -> impl IntoApiResponse {
+    // ...
+}
+```
+
+### `JsonSchema` is not implemented with schemars 1.x in the project
+
+```text
+error[E0277]: the trait bound `User: rovo::schemars::JsonSchema` is not satisfied
+note: there are multiple different versions of crate `schemars` in the dependency graph
+```
+
+rovo uses schemars 0.9 (through aide 0.15), so a type that only derives `schemars::JsonSchema` from schemars 1.x doesn't implement the trait rovo needs. Both versions can live in one project, and one type can derive both:
+
+```rust
+#[derive(Serialize, rovo::schemars::JsonSchema, schemars::JsonSchema)]
+struct User {
+    /// Shared `#[schemars(...)]` attributes apply to both derives.
+    #[schemars(range(min = 1))]
+    id: u64,
+}
+```
+
+### Using different state types
+
+Call `.with_state()` on each nested router individually, then `.finish()` at the top level (see [Nesting Routes](#nesting-routes)).
+
+
+---
+
+# examples/hello_world/src/main.rs
+
+```rust
+//! A minimal rovo API with a documented endpoint and auto-generated OpenAPI spec.
+
+use rovo::prelude::*;
+use serde::Serialize;
+
+#[derive(Debug, Serialize, JsonSchema)]
+struct Greeting {
+    message: String,
+}
+
+/// Say hello
+///
+/// Returns a friendly greeting.
+///
+/// # Responses
+///
+/// 200: Json<Greeting> - A greeting
+///
+/// # Metadata
+///
+/// @tag greetings
+#[rovo]
+async fn hello() -> impl IntoApiResponse {
+    Json(Greeting {
+        message: "Hello, world!".into(),
+    })
+}
+
+#[tokio::main]
+async fn main() {
+    let mut api = OpenApi::default();
+    api.info.title = "Hello World API".into();
+    api.info.version = "0.1.0".into();
+
+    let app = Router::new()
+        .route("/hello", get(hello))
+        .with_oas(api)
+        .finish();
+
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:3000")
+        .await
+        .unwrap();
+    println!("Listening on http://127.0.0.1:3000");
+    println!("OpenAPI spec at http://127.0.0.1:3000/api.json");
+    axum::serve(listener, app).await.unwrap();
+}
+```
+
+---
+
+# examples/todo_api.rs
+
+```rust
+use rovo::aide::{axum::IntoApiResponse, openapi::OpenApi};
+use rovo::{
+    extract::{Path, State},
+    http::StatusCode,
+    response::{IntoResponse, Json},
+};
+use rovo::{rovo, schemars::JsonSchema, Router};
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+use std::sync::{Arc, Mutex};
+use tracing::info;
+use uuid::Uuid;
+
+#[derive(Clone)]
+pub struct AppState {
+    pub todos: Arc<Mutex<HashMap<Uuid, TodoItem>>>,
+}
+
+/// Separate state for the health/meta routes, demonstrating multi-state nesting.
+#[derive(Clone)]
+pub struct MetaState {
+    pub app_name: &'static str,
+    pub version: &'static str,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq)]
+pub struct TodoItem {
+    pub id: Uuid,
+    pub description: String,
+    pub complete: bool,
+}
+
+impl Default for TodoItem {
+    fn default() -> Self {
+        Self {
+            id: Uuid::nil(),
+            description: "Sample todo item".into(),
+            complete: false,
+        }
+    }
+}
+
+// Note: For complex path parameters, you can still use structs with JsonSchema:
+// #[derive(Deserialize, JsonSchema)]
+// struct TodoId {
+//     /// The unique identifier of the todo item.
+//     id: Uuid,
+// }
+//
+// But for primitives like Uuid, String, u64, etc., you can use them directly
+// with the # Path Parameters section in doc comments (see get_todo below).
+
+#[derive(Deserialize, JsonSchema)]
+pub struct CreateTodoRequest {
+    /// Description of the todo item.
+    pub description: String,
+}
+
+#[derive(Deserialize, JsonSchema)]
+pub struct UpdateTodoRequest {
+    /// Optional new description.
+    pub description: Option<String>,
+    /// Optional completion status.
+    pub complete: Option<bool>,
+}
+
+/// Get a single Todo item.
+///
+/// Retrieve a Todo item by its ID from the database.
+///
+/// # Path Parameters
+///
+/// id: The id of the todo item to retrieve
+///
+/// # Responses
+///
+/// 200: Json<TodoItem> - Successfully retrieved the todo item
+/// 404: () - Todo item was not found
+///
+/// # Examples
+///
+/// 200: TodoItem::default()
+///
+/// # Metadata
+///
+/// @tag todos
+#[rovo]
+async fn get_todo(State(app): State<AppState>, Path(id): Path<Uuid>) -> impl IntoApiResponse {
+    if let Some(todo) = app.todos.lock().unwrap().get(&id) {
+        (StatusCode::OK, Json(todo.clone())).into_response()
+    } else {
+        StatusCode::NOT_FOUND.into_response()
+    }
+}
+
+/// List all Todo items.
+///
+/// Returns a list of all todo items in the system.
+///
+/// # Responses
+///
+/// 200: Json<Vec<TodoItem>> - List of all todo items
+///
+/// # Metadata
+///
+/// @tag todos
+#[rovo]
+async fn list_todos(State(app): State<AppState>) -> Json<Vec<TodoItem>> {
+    let todos: Vec<TodoItem> = app.todos.lock().unwrap().values().cloned().collect();
+    Json(todos)
+}
+
+/// Create a new Todo item.
+///
+/// Creates a new todo item with the provided description.
+///
+/// # Responses
+///
+/// 201: Json<TodoItem> - Todo item created successfully
+///
+/// # Examples
+///
+/// 201:
+/// ```
+/// TodoItem {
+///     id: Uuid::nil(),
+///     description: "Buy milk".into(),
+///     ..Default::default()
+/// }
+/// ```
+///
+/// # Metadata
+///
+/// @tag todos
+#[rovo]
+async fn create_todo(
+    State(app): State<AppState>,
+    Json(req): Json<CreateTodoRequest>,
+) -> (StatusCode, Json<TodoItem>) {
+    let todo = TodoItem {
+        id: Uuid::new_v4(),
+        description: req.description,
+        complete: false,
+    };
+    app.todos.lock().unwrap().insert(todo.id, todo.clone());
+    (StatusCode::CREATED, Json(todo))
+}
+
+/// Update an existing Todo item.
+///
+/// Updates the description and/or completion status of a todo item.
+///
+/// # Path Parameters
+///
+/// id: The unique identifier of the todo item to update
+///
+/// # Responses
+///
+/// 200: Json<TodoItem> - Todo item updated successfully
+/// 404: () - Todo item was not found
+///
+/// # Examples
+///
+/// 200: TodoItem::default()
+///
+/// # Metadata
+///
+/// @tag todos
+#[rovo]
+async fn update_todo(
+    State(app): State<AppState>,
+    Path(id): Path<Uuid>,
+    Json(req): Json<UpdateTodoRequest>,
+) -> impl IntoApiResponse {
+    let mut todos = app.todos.lock().unwrap();
+
+    if let Some(todo) = todos.get_mut(&id) {
+        if let Some(description) = req.description {
+            todo.description = description;
+        }
+        if let Some(complete) = req.complete {
+            todo.complete = complete;
+        }
+        (StatusCode::OK, Json(todo.clone())).into_response()
+    } else {
+        StatusCode::NOT_FOUND.into_response()
+    }
+}
+
+/// Delete a Todo item.
+///
+/// Permanently deletes a todo item by its ID.
+///
+/// # Path Parameters
+///
+/// id: The unique identifier of the todo item to delete
+///
+/// # Responses
+///
+/// 204: () - Todo item deleted successfully
+/// 404: () - Todo item was not found
+///
+/// # Metadata
+///
+/// @tag todos
+#[rovo]
+async fn delete_todo(State(app): State<AppState>, Path(id): Path<Uuid>) -> impl IntoApiResponse {
+    if app.todos.lock().unwrap().remove(&id).is_some() {
+        StatusCode::NO_CONTENT
+    } else {
+        StatusCode::NOT_FOUND
+    }
+}
+
+#[derive(Serialize, JsonSchema)]
+pub struct HealthResponse {
+    pub app_name: String,
+    pub version: String,
+    pub status: String,
+}
+
+/// Health check
+///
+/// Returns the current health status and version of the API.
+///
+/// # Responses
+///
+/// 200: Json<HealthResponse> - Service is healthy
+///
+/// # Metadata
+///
+/// @tag meta
+#[rovo]
+async fn health_check(State(meta): State<MetaState>) -> Json<HealthResponse> {
+    Json(HealthResponse {
+        app_name: meta.app_name.to_string(),
+        version: meta.version.to_string(),
+        status: "ok".to_string(),
+    })
+}
+
+#[tokio::main]
+async fn main() {
+    use rovo::routing::get;
+
+    // Initialize tracing
+    tracing_subscriber::fmt()
+        .with_env_filter(
+            tracing_subscriber::EnvFilter::try_from_default_env()
+                .unwrap_or_else(|_| "info,todo_api=debug".into()),
+        )
+        .init();
+
+    let todo_state = AppState {
+        todos: Arc::new(Mutex::new(HashMap::new())),
+    };
+
+    let meta_state = MetaState {
+        app_name: "Todo API",
+        version: "1.0.0",
+    };
+
+    let mut api = OpenApi::default();
+    api.info.title = "Todo API Example".to_string();
+    api.info.description = Some("OpenAPI documentation example using rovo".to_string());
+
+    // Build the router with Swagger UI and API documentation.
+    // Each nested group can have its own state type — just call .with_state() on
+    // the inner router before nesting it.
+    let app = Router::new()
+        .nest(
+            "/api",
+            Router::new()
+                .route("/todos", get(list_todos).post(create_todo))
+                .route(
+                    "/todos/{id}",
+                    get(get_todo).patch(update_todo).delete(delete_todo),
+                )
+                .with_state(todo_state),
+        )
+        .nest(
+            "/meta",
+            Router::new()
+                .route("/health", get(health_check))
+                .with_state(meta_state),
+        )
+        .with_oas(api)
+        .with_swagger("/")
+        .finish();
+
+    let port = std::env::var("PORT").unwrap_or_else(|_| "3000".to_string());
+    let addr = format!("127.0.0.1:{port}");
+
+    let listener = tokio::net::TcpListener::bind(&addr).await.unwrap();
+
+    info!("Server started successfully");
+    info!("Address: http://{addr}");
+
+    axum::serve(listener, app).await.unwrap();
+}
+```
+
+---
+
+# examples/auth_api.rs
+
+```rust
+//! Bearer-token authentication with a custom extractor and a custom error type.
+//!
+//! Run with `cargo run -F swagger --example auth_api`, then open http://127.0.0.1:3000
+//! (set `PORT` to use another port).
+//! Log in with `alice` / `hunter2` and paste the token into Swagger's "Authorize" dialog.
+
+use rovo::aide::openapi::{ReferenceOr, SecurityScheme};
+use rovo::aide::{OperationInput, OperationOutput};
+use rovo::extract::FromRequestParts;
+use rovo::http::{header, request::Parts};
+use rovo::prelude::*;
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+use std::sync::{Arc, Mutex};
+
+#[derive(Clone, Default)]
+struct AppState {
+    /// Issued tokens, mapped to the username they belong to.
+    sessions: Arc<Mutex<HashMap<String, String>>>,
+}
+
+#[derive(Deserialize, JsonSchema)]
+struct LoginForm {
+    /// Account name.
+    username: String,
+    /// Account password.
+    password: String,
+}
+
+#[derive(Serialize, JsonSchema)]
+struct TokenResponse {
+    /// Send as `Authorization: Bearer <token>`.
+    token: String,
+}
+
+#[derive(Serialize, JsonSchema)]
+struct Profile {
+    username: String,
+}
+
+/// The JSON body of every error response.
+#[derive(Serialize, JsonSchema)]
+struct ErrorBody {
+    /// Machine-readable error code.
+    code: &'static str,
+    /// Human-readable explanation.
+    message: &'static str,
+}
+
+/// The error type shared by all handlers.
+enum ApiError {
+    InvalidCredentials,
+    Unauthorized,
+}
+
+impl IntoResponse for ApiError {
+    fn into_response(self) -> rovo::response::Response {
+        let (status, code, message) = match self {
+            Self::InvalidCredentials => (
+                StatusCode::UNAUTHORIZED,
+                "invalid_credentials",
+                "wrong username or password",
+            ),
+            Self::Unauthorized => (
+                StatusCode::UNAUTHORIZED,
+                "unauthorized",
+                "missing or unknown bearer token",
+            ),
+        };
+        (status, Json(ErrorBody { code, message })).into_response()
+    }
+}
+
+// Lets handlers return `Result<_, ApiError>`. The error responses themselves are
+// documented in each handler's `# Responses` section.
+impl OperationOutput for ApiError {
+    type Inner = ErrorBody;
+}
+
+/// A logged-in user, extracted from the `Authorization` header.
+struct AuthUser {
+    username: String,
+}
+
+impl FromRequestParts<AppState> for AuthUser {
+    type Rejection = ApiError;
+
+    async fn from_request_parts(parts: &mut Parts, state: &AppState) -> Result<Self, ApiError> {
+        let token = parts
+            .headers
+            .get(header::AUTHORIZATION)
+            .and_then(|value| value.to_str().ok())
+            .and_then(|value| value.strip_prefix("Bearer "))
+            .ok_or(ApiError::Unauthorized)?;
+
+        let sessions = state.sessions.lock().unwrap();
+        let username = sessions.get(token).ok_or(ApiError::Unauthorized)?;
+        Ok(AuthUser {
+            username: username.clone(),
+        })
+    }
+}
+
+// Every extractor used in a `#[rovo]` handler must implement `OperationInput`.
+// The empty impl adds nothing to the spec; the `@security` directive on the
+// handler documents the requirement instead.
+impl OperationInput for AuthUser {}
+
+/// Log in.
+///
+/// Exchanges a username and password for a bearer token.
+///
+/// # Responses
+///
+/// 200: Json<TokenResponse> - Logged in
+/// 401: Json<ErrorBody> - Wrong username or password
+///
+/// # Metadata
+///
+/// @tag auth
+#[rovo]
+async fn login(
+    State(state): State<AppState>,
+    Form(form): Form<LoginForm>,
+) -> Result<Json<TokenResponse>, ApiError> {
+    if form.username != "alice" || form.password != "hunter2" {
+        return Err(ApiError::InvalidCredentials);
+    }
+
+    let token = format!("token-{}", form.username);
+    state
+        .sessions
+        .lock()
+        .unwrap()
+        .insert(token.clone(), form.username);
+    Ok(Json(TokenResponse { token }))
+}
+
+/// Get the current user.
+///
+/// # Responses
+///
+/// 200: Json<Profile> - The logged-in user
+/// 401: Json<ErrorBody> - Missing or unknown bearer token
+///
+/// # Metadata
+///
+/// @tag auth
+/// @security bearer_auth
+// `#[rovo]` normally takes the router's state type from a `State<T>` parameter.
+// This handler has none, but `AuthUser` needs `AppState`, so name it here.
+#[rovo(state = AppState)]
+async fn me(user: AuthUser) -> Result<Json<Profile>, ApiError> {
+    Ok(Json(Profile {
+        username: user.username,
+    }))
+}
+
+#[tokio::main]
+async fn main() {
+    let mut api = OpenApi::default();
+    api.info.title = "Auth API Example".to_string();
+    api.components
+        .get_or_insert_default()
+        .security_schemes
+        .insert(
+            "bearer_auth".to_string(),
+            ReferenceOr::Item(SecurityScheme::Http {
+                scheme: "bearer".to_string(),
+                bearer_format: None,
+                description: Some("A token from `POST /login`.".to_string()),
+                extensions: Default::default(),
+            }),
+        );
+
+    // `with_oas` and `with_swagger` go before `with_state`.
+    let app = Router::new()
+        .route("/login", post(login))
+        .route("/me", get(me))
+        .with_oas(api)
+        .with_swagger("/")
+        .with_state(AppState::default())
+        .finish();
+
+    let port = std::env::var("PORT").unwrap_or_else(|_| "3000".to_string());
+    let addr = format!("127.0.0.1:{port}");
+    let listener = tokio::net::TcpListener::bind(&addr).await.unwrap();
+    println!("Listening on http://{addr}");
+    axum::serve(listener, app).await.unwrap();
+}
+```
+
+---
+
+# examples/catalog_api.rs
+
+```rust
+//! A product catalog: pagination, a generic response wrapper, a tagged enum and a file upload.
+//!
+//! Run with `cargo run -F swagger,multipart --example catalog_api`, then open http://127.0.0.1:3000
+//! (set `PORT` to use another port).
+
+use rovo::extract::Multipart;
+use rovo::prelude::*;
+use serde::{Deserialize, Serialize};
+use std::sync::{Arc, RwLock};
+
+/// A product in the catalog.
+#[derive(Clone, Serialize, JsonSchema)]
+struct Product {
+    id: u32,
+    name: String,
+    /// What kind of product this is.
+    kind: ProductKind,
+    /// Filename of the product image, if one was uploaded.
+    image: Option<String>,
+}
+
+// Internally tagged, so the spec documents it as a `oneOf` with one object per
+// variant, each with a `type` property.
+/// The kind of product, with kind-specific details.
+#[derive(Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(tag = "type", rename_all = "snake_case")]
+enum ProductKind {
+    /// A physical item that ships in a box.
+    Physical {
+        /// Shipping weight in grams.
+        weight_grams: u32,
+    },
+    /// A download.
+    Digital {
+        /// Download size in bytes.
+        size_bytes: u64,
+    },
+}
+
+#[derive(Deserialize, JsonSchema)]
+struct NewProduct {
+    name: String,
+    kind: ProductKind,
+}
+
+// Each field becomes a query parameter, with its doc comment, default and range.
+/// Pagination for list endpoints.
+#[derive(Deserialize, JsonSchema)]
+struct Pagination {
+    /// Page number, starting at 1.
+    #[serde(default = "first_page")]
+    #[schemars(range(min = 1))]
+    page: u32,
+    /// Items per page.
+    #[serde(default = "default_per_page")]
+    #[schemars(range(min = 1, max = 100))]
+    per_page: u32,
+}
+
+fn first_page() -> u32 {
+    1
+}
+
+fn default_per_page() -> u32 {
+    20
+}
+
+// Every `Page<T>` used in a response gets its own schema (here `Page_for_Product`).
+/// One page of results.
+#[derive(Serialize, JsonSchema)]
+struct Page<T> {
+    items: Vec<T>,
+    page: u32,
+    per_page: u32,
+    /// Total number of items across all pages.
+    total: usize,
+}
+
+#[derive(Clone, Default)]
+struct AppState {
+    products: Arc<RwLock<Vec<Product>>>,
+}
+
+/// List products.
+///
+/// # Responses
+///
+/// 200: Json<Page<Product>> - One page of products
+///
+/// # Metadata
+///
+/// @tag products
+#[rovo]
+async fn list_products(
+    State(state): State<AppState>,
+    Query(pagination): Query<Pagination>,
+) -> impl IntoApiResponse {
+    let products = state.products.read().unwrap();
+    let page = pagination.page.max(1);
+    let per_page = pagination.per_page.clamp(1, 100);
+    let items = products
+        .iter()
+        .skip(((page - 1) * per_page) as usize)
+        .take(per_page as usize)
+        .cloned()
+        .collect();
+
+    Json(Page {
+        items,
+        page,
+        per_page,
+        total: products.len(),
+    })
+}
+
+/// Create a product.
+///
+/// # Responses
+///
+/// 201: Json<Product> - Product created
+///
+/// # Examples
+///
+/// 201: Product {
+///     id: 1,
+///     name: "Mechanical keyboard".into(),
+///     kind: ProductKind::Physical { weight_grams: 900 },
+///     image: None,
+/// }
+///
+/// # Metadata
+///
+/// @tag products
+#[rovo]
+async fn create_product(
+    State(state): State<AppState>,
+    Json(new): Json<NewProduct>,
+) -> impl IntoApiResponse {
+    let mut products = state.products.write().unwrap();
+    let product = Product {
+        id: products.len() as u32 + 1,
+        name: new.name,
+        kind: new.kind,
+        image: None,
+    };
+    products.push(product.clone());
+    (StatusCode::CREATED, Json(product))
+}
+
+/// Upload a product image.
+///
+/// Send the image as the `image` field of a `multipart/form-data` request.
+///
+/// # Path Parameters
+///
+/// id: The product ID
+///
+/// # Responses
+///
+/// 200: Json<Product> - Image stored
+/// 400: () - No `image` field in the request
+/// 404: () - Product not found
+///
+/// # Metadata
+///
+/// @tag products
+#[rovo]
+async fn upload_image(
+    State(state): State<AppState>,
+    Path(id): Path<u32>,
+    mut multipart: Multipart,
+) -> impl IntoApiResponse {
+    let mut filename = None;
+    while let Ok(Some(field)) = multipart.next_field().await {
+        if field.name() == Some("image") {
+            filename = Some(field.file_name().unwrap_or("image").to_string());
+            // A real service would store `field.bytes().await` somewhere.
+            break;
+        }
+    }
+    let Some(filename) = filename else {
+        return StatusCode::BAD_REQUEST.into_response();
+    };
+
+    let mut products = state.products.write().unwrap();
+    match products.iter_mut().find(|product| product.id == id) {
+        Some(product) => {
+            product.image = Some(filename);
+            Json(product.clone()).into_response()
+        }
+        None => StatusCode::NOT_FOUND.into_response(),
+    }
+}
+
+#[tokio::main]
+async fn main() {
+    let mut api = OpenApi::default();
+    api.info.title = "Catalog API Example".to_string();
+
+    let app = Router::new()
+        .route("/products", get(list_products).post(create_product))
+        .route("/products/{id}/image", post(upload_image))
+        .with_oas(api)
+        .with_swagger("/")
+        .with_state(AppState::default())
+        .finish();
+
+    let port = std::env::var("PORT").unwrap_or_else(|_| "3000".to_string());
+    let addr = format!("127.0.0.1:{port}");
+    let listener = tokio::net::TcpListener::bind(&addr).await.unwrap();
+    println!("Listening on http://{addr}");
+    axum::serve(listener, app).await.unwrap();
+}
+```
