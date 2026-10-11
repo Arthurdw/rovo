@@ -21,6 +21,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [0.4.12] - 2026-10-11
+
+### Documentation
+
+- docs: add llms.txt and generated llms-full.txt ([#38](https://github.com/Arthurdw/rovo/pull/38)) by @Arthurdw
+
+### Other Changes
+
+- fix/docs: Docs overhaul, prelude, extractor fixes and #[rovo(state = T)] ([#37](https://github.com/Arthurdw/rovo/pull/37)) by @Arthurdw
+
 ## [0.4.11] - 2026-09-26
 
 ### Bug Fixes
