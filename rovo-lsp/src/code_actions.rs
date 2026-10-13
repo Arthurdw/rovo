@@ -4,7 +4,7 @@ use tower_lsp::lsp_types::*;
 
 /// Get available code actions for the given range
 ///
-/// Provides quick fixes and refactoring actions like adding #[rovo] attributes,
+/// Provides quick fixes and refactoring actions like adding `#[rovo]` attributes,
 /// inserting annotations, or adding JsonSchema derives.
 ///
 /// # Arguments

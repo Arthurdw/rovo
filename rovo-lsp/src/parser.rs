@@ -44,7 +44,7 @@ pub struct Annotation {
     // Response fields (from # Responses section)
     /// HTTP status code for response entries
     pub status: Option<u16>,
-    /// Response type (e.g., Json<User>)
+    /// Response type (e.g., `Json<User>`)
     pub response_type: Option<String>,
     /// Description for response entries
     pub description: Option<String>,
@@ -90,7 +90,7 @@ impl Annotation {
     }
 }
 
-/// Check if a given position (line number) is near a #[rovo] attribute
+/// Check if a given position (line number) is near a `#[rovo]` attribute
 pub fn is_near_rovo_attribute(content: &str, target_line: usize) -> bool {
     let lines: Vec<&str> = content.lines().collect();
 
@@ -122,7 +122,7 @@ enum Section {
 
 /// Parse all Rovo annotations from source code content
 ///
-/// Searches for #[rovo] attributes and extracts all @ annotations and markdown sections
+/// Searches for `#[rovo]` attributes and extracts all @ annotations and markdown sections
 /// from the doc comments immediately preceding them.
 ///
 /// # Arguments
