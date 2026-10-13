@@ -100,6 +100,41 @@ jobs:
       - name: Check llms-full.txt is up to date
         run: ./scripts/gen-llms-full.sh --check
 
+  docs:
+    name: Rustdoc
+    runs-on: ubuntu-latest
+    env:
+      RUSTDOCFLAGS: -D warnings
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Build docs
+        run: cargo doc --workspace --no-deps --all-features
+
+  features:
+    name: Feature Powerset
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Install cargo-hack
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-hack
+
+      - name: Check feature combinations
+        run: cargo hack check --feature-powerset --no-dev-deps -p rovo
+
   coverage:
     name: Code Coverage
     runs-on: ubuntu-latest
