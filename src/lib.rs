@@ -461,7 +461,7 @@ where
             let json_bytes: ::axum::body::Bytes = serde_json::to_vec(&api_mut)
                 .expect("Failed to serialize OpenAPI spec to JSON")
                 .into();
-            let yaml_bytes: ::axum::body::Bytes = serde_yaml::to_string(&api_mut)
+            let yaml_bytes: ::axum::body::Bytes = serde_saphyr::to_string(&api_mut)
                 .expect("Failed to serialize OpenAPI spec to YAML")
                 .into();
 

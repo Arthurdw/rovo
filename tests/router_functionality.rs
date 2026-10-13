@@ -154,7 +154,7 @@ fn test_all_formats_identical() {
         let yaml_body = axum::body::to_bytes(yaml_response.into_body(), usize::MAX)
             .await
             .unwrap();
-        let yaml_spec: OpenApi = serde_yaml::from_slice(&yaml_body).unwrap();
+        let yaml_spec: OpenApi = serde_saphyr::from_slice(&yaml_body).unwrap();
 
         // Get YML
         let yml_response = app
@@ -169,7 +169,7 @@ fn test_all_formats_identical() {
         let yml_body = axum::body::to_bytes(yml_response.into_body(), usize::MAX)
             .await
             .unwrap();
-        let yml_spec: OpenApi = serde_yaml::from_slice(&yml_body).unwrap();
+        let yml_spec: OpenApi = serde_saphyr::from_slice(&yml_body).unwrap();
 
         (json_spec, yaml_spec, yml_spec)
     });
@@ -190,6 +190,166 @@ fn test_all_formats_identical() {
 
     assert_eq!(json_paths, yaml_paths, "Should have same number of paths");
     assert_eq!(json_paths, yml_paths, "Should have same number of paths");
+}
+
+/// Strings a YAML emitter has to quote to keep them strings on the way back in.
+const YAML_TRICKY_STRINGS: &[&str] = &[
+    "",
+    " ",
+    " leading",
+    "trailing ",
+    "true",
+    "false",
+    "yes",
+    "no",
+    "on",
+    "off",
+    "y",
+    "n",
+    "null",
+    "Null",
+    "~",
+    "1",
+    "-1",
+    "+1",
+    "007",
+    "1.0",
+    "1e3",
+    ".5",
+    "0x1F",
+    "0o17",
+    ".inf",
+    "-.inf",
+    ".nan",
+    "12:30",
+    "2001-12-14",
+    "key: value",
+    "- item",
+    "# comment",
+    "@at",
+    "`tick",
+    "*alias",
+    "&anchor",
+    "!tag",
+    "%directive",
+    "|",
+    ">",
+    "'single'",
+    "\"double\"",
+    "a\tb",
+    "line one\nline two\n",
+    "line\n",
+    "\n",
+    "trailing\\",
+    "{flow}",
+    "[seq]",
+    "a, b",
+    "?",
+    ":",
+    "héllo ✓",
+    "---",
+    "...",
+];
+
+#[test]
+fn test_yaml_round_trips_to_json_spec() {
+    use aide::openapi::{ExternalDocumentation, Info, Server, Tag};
+    use serde_json::{json, Value};
+
+    let mut api = OpenApi {
+        info: Info {
+            title: "Round-trip API".to_string(),
+            summary: None,
+            description: Some("line one\nline two: with colon\n\n  indented\n".to_string()),
+            version: "1.0".to_string(),
+            ..Info::default()
+        },
+        servers: vec![Server {
+            url: "https://example.com/{version}".to_string(),
+            description: Some("yes".to_string()),
+            ..Server::default()
+        }],
+        tags: vec![Tag {
+            name: "items".to_string(),
+            description: Some("null".to_string()),
+            external_docs: Some(ExternalDocumentation {
+                description: None,
+                url: "https://example.com/docs#items".to_string(),
+                ..ExternalDocumentation::default()
+            }),
+            ..Tag::default()
+        }],
+        ..OpenApi::default()
+    };
+    api.extensions.insert(
+        "x-strings".to_string(),
+        Value::Array(YAML_TRICKY_STRINGS.iter().map(|s| json!(s)).collect()),
+    );
+    api.extensions.insert(
+        "x-keys".to_string(),
+        Value::Object(
+            YAML_TRICKY_STRINGS
+                .iter()
+                .enumerate()
+                .map(|(i, s)| ((*s).to_string(), json!(i)))
+                .collect(),
+        ),
+    );
+    api.extensions.insert(
+        "x-values".to_string(),
+        json!({
+            "null": null,
+            "bools": [true, false],
+            "ints": [0, -1, i64::MIN, i64::MAX, u64::MAX],
+            "floats": [0.1, -2.5, 1.0, 1e300, 1e-300],
+            "empty_array": [],
+            "empty_object": {},
+            "nested": [[{"a": [null, {"b": "c"}]}]],
+        }),
+    );
+    api.extensions
+        .insert("x-scalar-null".to_string(), Value::Null);
+
+    let app = Router::new()
+        .route("/items", get(list_items).post(create_item))
+        .route("/items/{id}", patch(update_item).delete(delete_item))
+        .with_oas(api)
+        .with_state(AppState)
+        .finish();
+
+    let json_body = fetch_body(app.clone(), "/api.json");
+    let yaml_body = fetch_body(app.clone(), "/api.yaml");
+    let yml_body = fetch_body(app, "/api.yml");
+
+    assert_eq!(
+        yaml_body, yml_body,
+        ".yaml and .yml should serve the same document"
+    );
+
+    let json_spec: OpenApi = serde_json::from_slice(&json_body).unwrap();
+    let yaml_spec: OpenApi = serde_saphyr::from_slice(&yaml_body).unwrap_or_else(|e| {
+        panic!(
+            "served YAML should parse into OpenApi: {e}\n---\n{}",
+            String::from_utf8_lossy(&yaml_body)
+        )
+    });
+
+    assert!(
+        json_spec.components.is_some(),
+        "fixture should exercise components"
+    );
+    assert!(
+        json_spec.info.summary.is_none(),
+        "fixture should exercise None fields"
+    );
+    assert_eq!(yaml_spec, json_spec, "YAML spec should equal JSON spec");
+
+    let json_value: Value = serde_json::from_slice(&json_body).unwrap();
+    assert_eq!(
+        serde_json::to_value(&yaml_spec).unwrap(),
+        json_value,
+        "YAML spec should re-serialize to the served JSON"
+    );
 }
 
 #[test]
@@ -507,6 +667,27 @@ fn get_path_item(
         aide::openapi::ReferenceOr::Item(item) => item,
         _ => panic!("Expected PathItem, got Reference"),
     }
+}
+
+fn fetch_body(app: ::axum::Router, uri: &str) -> Vec<u8> {
+    use axum::body::Body;
+    use axum::http::Request;
+    use tower::util::ServiceExt;
+
+    let rt = tokio::runtime::Runtime::new().unwrap();
+
+    rt.block_on(async {
+        let response = app
+            .oneshot(Request::builder().uri(uri).body(Body::empty()).unwrap())
+            .await
+            .unwrap();
+        assert!(response.status().is_success(), "GET {uri} failed");
+
+        axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .unwrap()
+            .to_vec()
+    })
 }
 
 fn extract_openapi_from_router(app: ::axum::Router) -> OpenApi {
