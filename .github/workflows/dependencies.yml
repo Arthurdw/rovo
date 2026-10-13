@@ -108,8 +108,8 @@ jobs:
         with:
           fail-on-severity: moderate
 
-  licenses:
-    name: Check Licenses
+  deny:
+    name: Cargo Deny
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -123,5 +123,5 @@ jobs:
       - name: Install cargo-deny
         run: cargo install cargo-deny
 
-      - name: Check licenses
-        run: cargo deny check licenses
+      - name: Check advisories, bans, licenses and sources
+        run: cargo deny check

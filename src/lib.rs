@@ -189,7 +189,7 @@ use std::sync::Arc;
 /// Trait for types that can be nested into a [`Router`].
 ///
 /// Implemented for [`Router<S>`] (same state type, preserves `OpenAPI` docs)
-/// and [`axum::Router`] (state already applied via `with_state`, e.g. for nesting
+/// and [`axum::Router`](::axum::Router) (state already applied via `with_state`, e.g. for nesting
 /// routers with different state types).
 pub trait IntoNestRouter<S>
 where
@@ -202,7 +202,7 @@ where
 /// Trait for types that can be registered as routes on a [`Router`].
 ///
 /// Implemented for [`ApiMethodRouter`] (documented routes via aide's `api_route`)
-/// and [`axum::routing::MethodRouter`] (undocumented routes via plain `route`).
+/// and [`axum::routing::MethodRouter`](::axum::routing::MethodRouter) (undocumented routes via plain `route`).
 pub trait IntoRouteHandler<S> {
     /// Register this handler on the router at the given path.
     fn register(self, router: AideApiRouter<S>, path: &str) -> AideApiRouter<S>;
@@ -325,7 +325,7 @@ where
 
     /// Nest another router at the given path
     ///
-    /// Accepts both a [`Router<S>`] (same state type) and an [`axum::Router`]
+    /// Accepts both a [`Router<S>`] (same state type) and an [`axum::Router`](::axum::Router)
     /// (state already applied via [`with_state`](Self::with_state)).
     /// The latter enables nesting routers with different state types:
     ///
@@ -461,7 +461,7 @@ where
             let json_bytes: ::axum::body::Bytes = serde_json::to_vec(&api_mut)
                 .expect("Failed to serialize OpenAPI spec to JSON")
                 .into();
-            let yaml_bytes: ::axum::body::Bytes = serde_yaml::to_string(&api_mut)
+            let yaml_bytes: ::axum::body::Bytes = serde_saphyr::to_string(&api_mut)
                 .expect("Failed to serialize OpenAPI spec to YAML")
                 .into();
 
