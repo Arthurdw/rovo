@@ -21,6 +21,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [0.4.13] - 2026-10-13
+
+### Features
+
+- fix: replace deprecated serde_yaml with serde-saphyr ([#40](https://github.com/Arthurdw/rovo/pull/40)) by @Arthurdw
+
+### Bug Fixes
+
+- fix(release): bump version in llms-full.txt ([#39](https://github.com/Arthurdw/rovo/pull/39)) by @Arthurdw
+
 ## [0.4.12] - 2026-10-11
 
 ### Documentation
