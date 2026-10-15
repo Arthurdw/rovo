@@ -33,7 +33,7 @@ jobs:
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
 
       - name: Install cargo-audit
-        run: cargo install cargo-audit
+        run: cargo install --locked cargo-audit@0.22.2
 
       - name: Run security audit
         run: cargo audit --deny warnings
@@ -53,7 +53,7 @@ jobs:
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
 
       - name: Install cargo-outdated
-        run: cargo install cargo-outdated
+        run: cargo install --locked cargo-outdated@0.19.0
 
       - name: Check for outdated dependencies
         run: |
@@ -96,7 +96,7 @@ jobs:
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
 
       - name: Install cargo-machete
-        run: cargo install cargo-machete
+        run: cargo install --locked cargo-machete@0.9.2
 
       - name: Check for unused dependencies
         run: cargo machete
@@ -110,7 +110,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Dependency Review
-        uses: actions/dependency-review-action@v5
+        uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0
         with:
           fail-on-severity: moderate
 
@@ -129,7 +129,7 @@ jobs:
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
 
       - name: Install cargo-deny
-        run: cargo install cargo-deny
+        run: cargo install --locked cargo-deny@0.20.2
 
       - name: Check advisories, bans, licenses and sources
         run: cargo deny check
