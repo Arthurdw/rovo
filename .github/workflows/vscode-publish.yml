@@ -20,11 +20,16 @@ on:
 jobs:
   publish:
     name: Publish to VS Code Marketplace
+    # Credentials are only exposed to code from the protected default branch
+    # (or a release tag built from it by the caller). Manual dispatch against
+    # any other branch or tag is refused before checkout or secret use.
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
           ref: ${{ inputs.ref || github.ref }}
+          persist-credentials: false
 
       - name: Setup Node.js
         uses: actions/setup-node@v4

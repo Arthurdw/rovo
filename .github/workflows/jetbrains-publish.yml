@@ -32,6 +32,10 @@ permissions: {}
 jobs:
   publish:
     name: Publish to JetBrains Marketplace
+    # Credentials are only exposed to code from the protected default branch
+    # (or a release tag built from it by the caller). Manual dispatch against
+    # any other branch or tag is refused before checkout or secret use.
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -39,6 +43,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ inputs.ref || github.ref }}
+          persist-credentials: false
 
       - name: Free disk space
         run: |
