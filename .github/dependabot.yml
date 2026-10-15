@@ -39,6 +39,9 @@ updates:
       interval: weekly
     labels:
       - "release:patch"
+    ignore:
+      # Must stay in step with engines.vscode, otherwise vsce package fails
+      - dependency-name: "@types/vscode"
     groups:
       npm-minor-patch:
         update-types:
