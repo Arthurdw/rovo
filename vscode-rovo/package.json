@@ -103,6 +103,6 @@
     "esbuild": "^0.28.2",
     "eslint": "^10.12.0",
     "ovsx": "^1.2.0",
-    "typescript": "^5.9.3"
+    "typescript": "^6.0.3"
   }
 }
