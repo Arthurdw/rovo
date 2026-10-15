@@ -26,6 +26,9 @@ permissions: {}
 jobs:
   check-changes:
     name: Check for Changes
+    # The release jobs hold the release app and registry tokens, so a manual
+    # dispatch against any non-default branch must not run them
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:
       contents: read
