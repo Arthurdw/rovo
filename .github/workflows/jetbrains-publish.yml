@@ -107,7 +107,7 @@ jobs:
       ZIP_SIGNER_SHA256: "7d744c299cd0e3ea3cefdb7f8a882532d331f5120748354b1eb80b7cfc763dc0"
     steps:
       - name: Download unsigned plugin archive
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: jetbrains-plugin-unsigned
           path: unsigned
