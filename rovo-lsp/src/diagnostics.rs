@@ -251,6 +251,10 @@ fn check_undocumented_path_params(_content: &str, lines: &[&str]) -> Vec<Diagnos
 
 /// Maximum number of lines scanned when collecting a function signature
 pub(crate) const MAX_SIGNATURE_LINES: usize = 50;
+/// Maximum number of bytes collected for a function signature
+const MAX_SIGNATURE_BYTES: usize = 16 * 1024;
+/// Maximum number of bytes scanned for the closing paren of one `Path(`
+const MAX_PATH_SCAN_BYTES: usize = 2048;
 /// Maximum number of distinct path bindings extracted from one signature
 pub(crate) const MAX_PATH_BINDINGS: usize = 32;
 /// Maximum number of lines scanned when looking for the end of an example
@@ -267,6 +271,9 @@ pub(crate) fn extract_path_bindings_from_signature(
     // Collect signature until opening brace
     let mut signature = String::new();
     for line in lines.iter().skip(rovo_line).take(MAX_SIGNATURE_LINES) {
+        if signature.len() >= MAX_SIGNATURE_BYTES {
+            break;
+        }
         let trimmed = line.trim();
         if trimmed.starts_with("///") || trimmed.starts_with("#[") {
             continue;
@@ -277,6 +284,15 @@ pub(crate) fn extract_path_bindings_from_signature(
         }
         signature.push_str(line);
         signature.push(' ');
+    }
+
+    // A single oversized line can exceed the budget; cut on a char boundary
+    if signature.len() > MAX_SIGNATURE_BYTES {
+        let mut cut = MAX_SIGNATURE_BYTES;
+        while !signature.is_char_boundary(cut) {
+            cut -= 1;
+        }
+        signature.truncate(cut);
     }
 
     // Extract Path bindings
@@ -292,7 +308,12 @@ pub(crate) fn extract_path_bindings_from_signature(
         let mut end_pos = 0;
         let is_tuple = after_path.starts_with('(');
 
-        for (i, ch) in after_path.char_indices() {
+        // Bounded: binding lists are short, and an unmatched `Path(` must not
+        // rescan the rest of the signature (quadratic on long lines)
+        for (i, ch) in after_path
+            .char_indices()
+            .take_while(|(i, _)| *i < MAX_PATH_SCAN_BYTES)
+        {
             match ch {
                 '(' => depth += 1,
                 ')' => {

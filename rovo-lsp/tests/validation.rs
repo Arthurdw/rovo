@@ -899,3 +899,24 @@ fn deeply_nested_response_type_is_bounded() {
         Some("T".to_string())
     );
 }
+
+#[test]
+fn many_unmatched_path_tokens_on_one_line_terminate() {
+    let src = format!("#[rovo]\nasync fn h({}) {{}}\n", "Path(".repeat(200_000));
+    let start = std::time::Instant::now();
+    let _ = rovo_lsp::diagnostics::validate_annotations(&src);
+    assert!(start.elapsed().as_secs() < 5);
+}
+
+#[test]
+fn unterminated_example_with_huge_lines_is_bounded() {
+    let big = "x".repeat(50_000);
+    let mut src = String::from("/// # Examples\n///\n/// 200: {\n");
+    for _ in 0..100 {
+        src.push_str(&format!("/// {big}\n"));
+    }
+    src.push_str("#[rovo]\nasync fn h() {}\n");
+    let start = std::time::Instant::now();
+    let _ = rovo_lsp::diagnostics::validate_annotations(&src);
+    assert!(start.elapsed().as_secs() < 5);
+}

@@ -457,6 +457,8 @@ fn count_delimiters(content: &str) -> (i32, i32, i32) {
 
 /// Maximum number of lines a single example may span
 const MAX_EXAMPLE_LINES: usize = 100;
+/// Maximum total bytes collected for a single example
+const MAX_EXAMPLE_BYTES: usize = 64 * 1024;
 
 /// Parse a potentially multi-line example from # Examples section
 /// Returns the annotation and the number of lines consumed
@@ -494,7 +496,11 @@ fn parse_multiline_example(doc_lines: &[(usize, &str)]) -> Option<(Annotation, u
         lines_consumed += 1;
 
         // Collect lines until we hit closing ``` or a safety boundary
-        while lines_consumed < doc_lines.len() && example_lines.len() < MAX_EXAMPLE_LINES {
+        let mut example_bytes = 0;
+        while lines_consumed < doc_lines.len()
+            && example_lines.len() < MAX_EXAMPLE_LINES
+            && example_bytes < MAX_EXAMPLE_BYTES
+        {
             let (_, line) = doc_lines[lines_consumed];
             let line_content = line.trim_start_matches("///").trim();
 
@@ -510,12 +516,14 @@ fn parse_multiline_example(doc_lines: &[(usize, &str)]) -> Option<(Annotation, u
                 break;
             }
 
+            example_bytes += line_content.len();
             example_lines.push(line_content);
             lines_consumed += 1;
         }
     } else {
         // Inline format - collect the example value, potentially across multiple lines
         example_lines.push(after_colon);
+        let mut example_bytes = after_colon.len();
 
         // Check if the expression needs more lines (count braces/brackets/parens)
         // Uses string-aware counting to ignore delimiters inside literals
@@ -526,6 +534,7 @@ fn parse_multiline_example(doc_lines: &[(usize, &str)]) -> Option<(Annotation, u
         while (brace_depth > 0 || bracket_depth > 0 || paren_depth > 0)
             && lines_consumed < doc_lines.len()
             && example_lines.len() < MAX_EXAMPLE_LINES
+            && example_bytes < MAX_EXAMPLE_BYTES
         {
             let (_, next_line) = doc_lines[lines_consumed];
             let next_content = next_line.trim_start_matches("///").trim();
@@ -538,6 +547,7 @@ fn parse_multiline_example(doc_lines: &[(usize, &str)]) -> Option<(Annotation, u
                 break;
             }
 
+            example_bytes += next_content.len();
             example_lines.push(next_content);
             lines_consumed += 1;
 
