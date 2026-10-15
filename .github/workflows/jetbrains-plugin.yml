@@ -43,7 +43,7 @@ jobs:
         run: ./gradlew verifyPlugin
 
       - name: Upload Plugin Artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: rovo-jetbrains-plugin
           path: jetbrains-plugin/build/distributions/*.zip
@@ -70,7 +70,7 @@ jobs:
 
       - name: Upload Test Report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: test-report
           path: jetbrains-plugin/build/reports/tests/
@@ -145,7 +145,7 @@ jobs:
         run: cargo test --release
 
       - name: Upload LSP Binary
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: rovo-lsp-${{ matrix.os }}
           path: |
