@@ -30,15 +30,22 @@ concurrency:
 permissions: {}
 
 jobs:
-  publish:
-    name: Publish to JetBrains Marketplace
+  # This job executes repository-controlled Gradle code and therefore must
+  # never receive any secret.
+  build:
+    name: Build and verify JetBrains plugin
+    # Only code from the protected default branch (or a release tag built from
+    # it by the caller) is built and signed. Manual dispatch against any other
+    # branch is refused before checkout; the signing job depends on this job.
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           ref: ${{ inputs.ref || github.ref }}
+          persist-credentials: false
 
       - name: Free disk space
         run: |
@@ -50,7 +57,7 @@ jobs:
           df -h
 
       - name: Setup Java
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4.9.1
         with:
           distribution: "temurin"
           java-version: "17"
@@ -66,16 +73,86 @@ jobs:
         working-directory: jetbrains-plugin
         run: ./gradlew verifyPlugin
 
+      - name: Collect unsigned plugin archive
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          archives=(jetbrains-plugin/build/distributions/*.zip)
+          if [ "${#archives[@]}" -ne 1 ]; then
+            echo "Expected exactly one plugin archive, found ${#archives[@]}" >&2
+            exit 1
+          fi
+          mkdir -p unsigned
+          cp "${archives[0]}" unsigned/plugin.zip
+
+      - name: Upload unsigned plugin archive
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: jetbrains-plugin-unsigned
+          path: unsigned/plugin.zip
+          if-no-files-found: error
+          retention-days: 1
+
+  # This job holds the signing and publishing secrets. It deliberately does not
+  # check out the repository or run Gradle, so no repository-controlled code can
+  # read the credentials. It only handles the built archive as opaque data.
+  sign-and-publish:
+    name: Sign and publish to JetBrains Marketplace
+    needs: build
+    runs-on: ubuntu-latest
+    permissions: {}
+    env:
+      PLUGIN_XML_ID: com.rovo.lsp
+      ZIP_SIGNER_VERSION: "0.1.24"
+      ZIP_SIGNER_SHA256: "7d744c299cd0e3ea3cefdb7f8a882532d331f5120748354b1eb80b7cfc763dc0"
+    steps:
+      - name: Download unsigned plugin archive
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: jetbrains-plugin-unsigned
+          path: unsigned
+
+      - name: Setup Java
+        uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4.9.1
+        with:
+          distribution: "temurin"
+          java-version: "17"
+
+      - name: Download Marketplace ZIP Signer
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --location \
+            --output zip-signer.jar \
+            "https://github.com/JetBrains/marketplace-zip-signer/releases/download/${ZIP_SIGNER_VERSION}/marketplace-zip-signer-cli.jar"
+          echo "${ZIP_SIGNER_SHA256}  zip-signer.jar" | sha256sum --check --strict
+
       - name: Sign Plugin
-        working-directory: jetbrains-plugin
         env:
           CERTIFICATE_CHAIN: ${{ secrets.JETBRAINS_CERTIFICATE_CHAIN }}
           PRIVATE_KEY: ${{ secrets.JETBRAINS_PRIVATE_KEY }}
           PRIVATE_KEY_PASSWORD: ${{ secrets.JETBRAINS_PRIVATE_KEY_PASSWORD }}
-        run: ./gradlew signPlugin
+        run: |
+          set -euo pipefail
+          umask 077
+          keydir="$(mktemp -d)"
+          trap 'rm -rf "$keydir"' EXIT
+          printf '%s' "$CERTIFICATE_CHAIN" > "$keydir/chain.crt"
+          printf '%s' "$PRIVATE_KEY" > "$keydir/private.pem"
+          mkdir -p signed
+          java -jar zip-signer.jar sign \
+            -in unsigned/plugin.zip \
+            -out signed/plugin-signed.zip \
+            -cert-file "$keydir/chain.crt" \
+            -key-file "$keydir/private.pem" \
+            -key-pass "$PRIVATE_KEY_PASSWORD"
 
       - name: Publish to JetBrains Marketplace
-        working-directory: jetbrains-plugin
         env:
           PUBLISH_TOKEN: ${{ secrets.JETBRAINS_PUBLISH_TOKEN }}
-        run: ./gradlew publishPlugin
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error \
+            --header "Authorization: Bearer ${PUBLISH_TOKEN}" \
+            --form "xmlId=${PLUGIN_XML_ID}" \
+            --form "file=@signed/plugin-signed.zip" \
+            "https://plugins.jetbrains.com/api/updates/upload"
