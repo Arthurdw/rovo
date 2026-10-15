@@ -15,7 +15,7 @@ const execAsync = promisify(child_process.exec);
 let client: LanguageClient;
 
 export async function activate(context: vscode.ExtensionContext) {
-    const outputChannel = vscode.window.createOutputChannel('Rovo LSP');
+    const outputChannel = vscode.window.createOutputChannel('Rovo LSP', { log: true });
     outputChannel.appendLine('Rovo extension activating...');
 
     // Setup text decorations for Rovo annotations (works alongside rust-analyzer)
@@ -350,7 +350,7 @@ function runCargo(args: string[], outputChannel: vscode.OutputChannel): Promise<
 async function startLanguageServer(
     serverPath: string,
     config: vscode.WorkspaceConfiguration,
-    outputChannel: vscode.OutputChannel,
+    outputChannel: vscode.LogOutputChannel,
     context: vscode.ExtensionContext
 ) {
     outputChannel.appendLine(`Starting rovo-lsp server at: ${serverPath}`);

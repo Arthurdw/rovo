@@ -92,7 +92,7 @@
     "test": "tsc --noEmit"
   },
   "dependencies": {
-    "vscode-languageclient": "^9.0.1"
+    "vscode-languageclient": "^10.1.2"
   },
   "devDependencies": {
     "@types/node": "^26.6.5",
