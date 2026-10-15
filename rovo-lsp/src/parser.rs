@@ -93,9 +93,14 @@ impl Annotation {
 /// Check if a given position (line number) is near a `#[rovo]` attribute
 pub fn is_near_rovo_attribute(content: &str, target_line: usize) -> bool {
     let lines: Vec<&str> = content.lines().collect();
+    is_near_rovo_attribute_in_lines(&lines, target_line)
+}
 
+/// Same as [`is_near_rovo_attribute`] but takes pre-split lines, so callers
+/// checking many lines don't re-split the content each time (quadratic).
+pub fn is_near_rovo_attribute_in_lines(lines: &[&str], target_line: usize) -> bool {
     // Look ahead up to 20 lines to find a #[rovo] attribute
-    for i in target_line..std::cmp::min(target_line + 20, lines.len()) {
+    for i in target_line..std::cmp::min(target_line.saturating_add(20), lines.len()) {
         if lines[i].trim() == "#[rovo]" || lines[i].contains("#[") && lines[i].contains("rovo") {
             return true;
         }
@@ -450,6 +455,9 @@ fn count_delimiters(content: &str) -> (i32, i32, i32) {
     (brace_depth, bracket_depth, paren_depth)
 }
 
+/// Maximum number of lines a single example may span
+const MAX_EXAMPLE_LINES: usize = 100;
+
 /// Parse a potentially multi-line example from # Examples section
 /// Returns the annotation and the number of lines consumed
 fn parse_multiline_example(doc_lines: &[(usize, &str)]) -> Option<(Annotation, usize)> {
@@ -486,7 +494,7 @@ fn parse_multiline_example(doc_lines: &[(usize, &str)]) -> Option<(Annotation, u
         lines_consumed += 1;
 
         // Collect lines until we hit closing ``` or a safety boundary
-        while lines_consumed < doc_lines.len() {
+        while lines_consumed < doc_lines.len() && example_lines.len() < MAX_EXAMPLE_LINES {
             let (_, line) = doc_lines[lines_consumed];
             let line_content = line.trim_start_matches("///").trim();
 
@@ -517,6 +525,7 @@ fn parse_multiline_example(doc_lines: &[(usize, &str)]) -> Option<(Annotation, u
         // Continue collecting lines if we have unclosed delimiters
         while (brace_depth > 0 || bracket_depth > 0 || paren_depth > 0)
             && lines_consumed < doc_lines.len()
+            && example_lines.len() < MAX_EXAMPLE_LINES
         {
             let (_, next_line) = doc_lines[lines_consumed];
             let next_content = next_line.trim_start_matches("///").trim();

@@ -1433,9 +1433,10 @@ pub fn semantic_tokens_full(content: &str) -> Option<SemanticTokensResult> {
 
     let mut in_path_params_section = false;
 
-    for (line_idx, line) in content.lines().enumerate() {
+    let all_lines: Vec<&str> = content.lines().collect();
+    for (line_idx, line) in all_lines.iter().copied().enumerate() {
         // Only process lines near #[rovo] attributes
-        if !crate::parser::is_near_rovo_attribute(content, line_idx) {
+        if !crate::parser::is_near_rovo_attribute_in_lines(&all_lines, line_idx) {
             continue;
         }
 
