@@ -23,7 +23,7 @@ jobs:
     name: Build Plugin
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Setup Java
         uses: actions/setup-java@v5
@@ -53,7 +53,7 @@ jobs:
     name: Run Tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Setup Java
         uses: actions/setup-java@v5
@@ -80,7 +80,7 @@ jobs:
     name: Kotlin Lint
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Setup Java
         uses: actions/setup-java@v5
@@ -102,7 +102,7 @@ jobs:
       matrix:
         ide-version: ['2023.2', '2023.3', '2024.1']
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Setup Java
         uses: actions/setup-java@v5
@@ -125,7 +125,7 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@686976e191b89faba57d3206551f0f330d8cb249 # stable
