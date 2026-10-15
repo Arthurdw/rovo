@@ -1,9 +1,10 @@
 # This is a Gradle generated file for dependency locking.
 # Manual edits can break the build and are not advised.
 # This file is expected to be part of source control.
+# To regenerate this file, run: ./gradlew :dependencies --write-locks
 bundledPlugin:com.intellij.java:IC-243.21565.193=compileClasspath,testCompileClasspath
 com.jetbrains.plugins:com.redhat.devtools.lsp4ij:0.18.0=compileClasspath,testCompileClasspath
 idea:ideaIC:2024.3=compileClasspath,testCompileClasspath
-org.jetbrains.kotlin:kotlin-stdlib:2.1.0=compileClasspath,intellijPlatformRuntimeClasspath,intellijPlatformTestRuntimeClasspath,runtimeClasspath,testCompileClasspath,testRuntimeClasspath
+org.jetbrains.kotlin:kotlin-stdlib:2.4.21=compileClasspath,intellijPlatformRuntimeClasspath,intellijPlatformTestRuntimeClasspath,runtimeClasspath,testCompileClasspath,testRuntimeClasspath
 org.jetbrains:annotations:13.0=compileClasspath,intellijPlatformRuntimeClasspath,intellijPlatformTestRuntimeClasspath,runtimeClasspath,testCompileClasspath,testRuntimeClasspath
-empty=
+empty=intellijPlatformSandboxRuntimeClasspath,intellijPlatformTestSandboxRuntimeClasspath
