@@ -151,4 +151,4 @@ jobs:
             --header "Authorization: Bearer ${PUBLISH_TOKEN}" \
             --form "xmlId=${PLUGIN_XML_ID}" \
             --form "file=@signed/plugin-signed.zip" \
-            "https://plugins.jetbrains.com/plugin/uploadPlugin"
+            "https://plugins.jetbrains.com/api/updates/upload"
