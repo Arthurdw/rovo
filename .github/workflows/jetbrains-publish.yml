@@ -34,6 +34,10 @@ jobs:
   # never receive any secret.
   build:
     name: Build and verify JetBrains plugin
+    # Only code from the protected default branch (or a release tag built from
+    # it by the caller) is built and signed. Manual dispatch against any other
+    # branch is refused before checkout; the signing job depends on this job.
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:
       contents: read
