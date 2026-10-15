@@ -21,14 +21,14 @@ concurrency:
   group: ${{ github.workflow }}
   cancel-in-progress: false
 
-permissions:
-  contents: write
-  pull-requests: read
+permissions: {}
 
 jobs:
   check-changes:
     name: Check for Changes
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     outputs:
       has_changes: ${{ steps.check.outputs.has_changes }}
     steps:
@@ -90,6 +90,9 @@ jobs:
     needs: check-changes
     if: needs.check-changes.outputs.has_changes == 'true'
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
     outputs:
       version: ${{ steps.release.outputs.version }}
       tag: ${{ steps.release.outputs.tag }}
@@ -125,6 +128,8 @@ jobs:
     name: Publish VSCode Extension
     needs: release
     if: needs.release.outputs.skipped != 'true'
+    permissions:
+      contents: read
     uses: ./.github/workflows/vscode-publish.yml
     with:
       ref: ${{ needs.release.outputs.tag }}
@@ -134,6 +139,8 @@ jobs:
     name: Publish JetBrains Plugin
     needs: release
     if: needs.release.outputs.skipped != 'true'
+    permissions:
+      contents: read
     uses: ./.github/workflows/jetbrains-publish.yml
     with:
       ref: ${{ needs.release.outputs.tag }}
@@ -146,6 +153,8 @@ jobs:
     needs: release
     if: needs.release.outputs.skipped != 'true'
     runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
     strategy:
       matrix:
         include:
@@ -194,6 +203,8 @@ jobs:
     name: Release rovo-lsp binaries
     needs: [release, build-lsp-binaries]
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       # binstall downloads from `/releases/download/v{version}/`, see rovo-lsp/Cargo.toml
       - name: Check release tag matches binstall pkg-url

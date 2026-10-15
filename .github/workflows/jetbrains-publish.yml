@@ -27,13 +27,14 @@ concurrency:
   group: jetbrains-publish
   cancel-in-progress: false
 
-permissions:
-  contents: write
+permissions: {}
 
 jobs:
   publish:
     name: Publish to JetBrains Marketplace
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v4
         with:

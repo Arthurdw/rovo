@@ -8,15 +8,16 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
-permissions:
-  contents: write
-  pull-requests: write
+permissions: {}
 
 jobs:
   auto-fix:
     name: Auto Fix Issues
     runs-on: ubuntu-latest
     if: github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'dependabot[bot]'
+    # Checkout and push use the app token, so the default token only needs read
+    permissions:
+      contents: read
     steps:
       - name: Generate App Token
         id: generate_token
