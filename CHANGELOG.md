@@ -21,6 +21,55 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [0.4.14] - 2026-10-15
+
+### Features
+
+- ci: harden workflows (Aikido findings) ([#59](https://github.com/Arthurdw/rovo/pull/59)) by @Arthurdw
+
+### Bug Fixes
+
+- fix: security hardening (LSP DoS, action pins, nvim installer) ([#89](https://github.com/Arthurdw/rovo/pull/89)) by @Arthurdw
+- fix(security): [aikido] Fix shell command injection vulnerability in rovo.serverPath configuration ([#88](https://github.com/Arthurdw/rovo/pull/88)) by @aikido-autofix[bot]
+- fix(security): [aikido] Fix 5 security issues in zerovec-derive, zerovec, smallvec and 2 more ([#65](https://github.com/Arthurdw/rovo/pull/65)) by @aikido-autofix[bot]
+- fix(security): [aikido] Fix 5 security issues in http, smallvec, mio and 1 more ([#66](https://github.com/Arthurdw/rovo/pull/66)) by @aikido-autofix[bot]
+- fix(security): [aikido] Restrict credential exposure in VS Code and JetBrains publish workflows ([#63](https://github.com/Arthurdw/rovo/pull/63)) by @aikido-autofix[bot]
+- fix(security): [aikido] Isolate secrets from repository-controlled Gradle code in JetBrains publish workflow ([#62](https://github.com/Arthurdw/rovo/pull/62)) by @aikido-autofix[bot]
+
+### Chores
+
+- chore(deps): bump vscode-languageclient from 9.0.1 to 10.1.2 in /vscode-rovo ([#84](https://github.com/Arthurdw/rovo/pull/84)) by @dependabot[bot]
+- chore(deps): bump the gradle-minor-patch group in /jetbrains-plugin with 3 updates ([#79](https://github.com/Arthurdw/rovo/pull/79)) by @dependabot[bot]
+- chore(deps-dev): bump @vscode/vsce from 3.7.1 to 4.0.0 in /vscode-rovo ([#83](https://github.com/Arthurdw/rovo/pull/83)) by @dependabot[bot]
+- chore(deps): bump gradle/actions/setup-gradle from 3.5.0 to 6.4.0 ([#87](https://github.com/Arthurdw/rovo/pull/87)) by @dependabot[bot]
+- chore(deps): bump actions/upload-artifact from 4 to 7 ([#86](https://github.com/Arthurdw/rovo/pull/86)) by @dependabot[bot]
+- chore(deps): bump actions/checkout from 4 to 7 ([#85](https://github.com/Arthurdw/rovo/pull/85)) by @dependabot[bot]
+- chore(deps-dev): bump typescript from 5.9.3 to 6.0.3 in /vscode-rovo ([#82](https://github.com/Arthurdw/rovo/pull/82)) by @dependabot[bot]
+- chore(deps-dev): bump eslint from 9.39.1 to 10.12.0 in /vscode-rovo ([#71](https://github.com/Arthurdw/rovo/pull/71)) by @dependabot[bot]
+- ci: ignore @types/vscode updates in dependabot ([#81](https://github.com/Arthurdw/rovo/pull/81)) by @Arthurdw
+- ci: harden weekly release checkout credentials and pin actions ([#80](https://github.com/Arthurdw/rovo/pull/80)) by @Arthurdw
+- chore(deps-dev): bump the npm-minor-patch group across 1 directory with 4 updates ([#69](https://github.com/Arthurdw/rovo/pull/69)) by @dependabot[bot]
+- chore(deps): bump actions/setup-java from 4 to 5 ([#77](https://github.com/Arthurdw/rovo/pull/77)) by @dependabot[bot]
+- chore(deps): bump actions/download-artifact from 4 to 8 ([#78](https://github.com/Arthurdw/rovo/pull/78)) by @dependabot[bot]
+- chore(deps): bump codecov/codecov-action from 5.5.5 to 7.1.1 ([#76](https://github.com/Arthurdw/rovo/pull/76)) by @dependabot[bot]
+- chore(deps): bump actions/setup-node from 4 to 7 ([#75](https://github.com/Arthurdw/rovo/pull/75)) by @dependabot[bot]
+- chore(deps): bump actions/dependency-review-action from 4 to 5 ([#74](https://github.com/Arthurdw/rovo/pull/74)) by @dependabot[bot]
+- chore(deps-dev): bump @types/node from 22.19.1 to 26.6.5 in /vscode-rovo ([#72](https://github.com/Arthurdw/rovo/pull/72)) by @dependabot[bot]
+- chore(deps-dev): bump ovsx from 0.10.9 to 1.2.0 in /vscode-rovo ([#73](https://github.com/Arthurdw/rovo/pull/73)) by @dependabot[bot]
+- ci: add dependabot config for cargo, npm, gradle and actions ([#67](https://github.com/Arthurdw/rovo/pull/67)) by @Arthurdw
+- chore(deps): bump the npm_and_yarn group across 1 directory with 2 updates ([#58](https://github.com/Arthurdw/rovo/pull/58)) by @dependabot[bot]
+- chore(deps): bump the npm_and_yarn group across 1 directory with 15 updates ([#57](https://github.com/Arthurdw/rovo/pull/57)) by @dependabot[bot]
+- ci: skip auto-fix for dependabot PRs ([#52](https://github.com/Arthurdw/rovo/pull/52)) by @Arthurdw
+
+### Other Changes
+
+- deps: update version of stuff ([#64](https://github.com/Arthurdw/rovo/pull/64)) by @Arthurdw
+- [Aikido] Add 1 gradle.lockfile file for dependency locking ([#61](https://github.com/Arthurdw/rovo/pull/61)) by @aikido-autofix[bot]
+- [Aikido] AI Fix for Potential file inclusion attack via reading file ([#60](https://github.com/Arthurdw/rovo/pull/60)) by @aikido-autofix[bot]
+- [Aikido] Fix security issue in brace-expansion via minor version upgrade from 2.0.2 to 2.1.7 in vscode-rovo ([#55](https://github.com/Arthurdw/rovo/pull/55)) by @aikido-autofix[bot]
+- [Aikido] Fix security issue in anyhow via minor version upgrade from 1.0.102 to 1.0.103 in zed-rovo ([#54](https://github.com/Arthurdw/rovo/pull/54)) by @aikido-autofix[bot]
+- [Aikido] Fix security issue in bytes via minor version upgrade from 1.11.1 to 1.12.1 in examples ([#53](https://github.com/Arthurdw/rovo/pull/53)) by @aikido-autofix[bot]
+
 ## [0.4.13] - 2026-10-13
 
 ### Features
