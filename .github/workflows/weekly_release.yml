@@ -21,14 +21,14 @@ concurrency:
   group: ${{ github.workflow }}
   cancel-in-progress: false
 
-permissions:
-  contents: write
-  pull-requests: read
+permissions: {}
 
 jobs:
   check-changes:
     name: Check for Changes
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     outputs:
       has_changes: ${{ steps.check.outputs.has_changes }}
     steps:
@@ -38,9 +38,12 @@ jobs:
 
       - name: Check for changes since last release
         id: check
+        env:
+          INPUT_FORCE: ${{ inputs.force }}
+          INPUT_INCLUDE_CI_CHANGES: ${{ inputs.include_ci_changes }}
         run: |
           # Force release if requested
-          if [ "${{ inputs.force }}" == "true" ]; then
+          if [ "$INPUT_FORCE" == "true" ]; then
             echo "Force release requested"
             echo "has_changes=true" >> $GITHUB_OUTPUT
             exit 0
@@ -70,7 +73,7 @@ jobs:
           echo "$CHANGED_FILES"
 
           # Filter out .github/ changes unless override is set
-          if [ "${{ inputs.include_ci_changes }}" != "true" ]; then
+          if [ "$INPUT_INCLUDE_CI_CHANGES" != "true" ]; then
             RELEASE_FILES=$(echo "$CHANGED_FILES" | grep -v '^\.github/' || echo "")
           else
             RELEASE_FILES="$CHANGED_FILES"
@@ -90,6 +93,9 @@ jobs:
     needs: check-changes
     if: needs.check-changes.outputs.has_changes == 'true'
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
     outputs:
       version: ${{ steps.release.outputs.version }}
       tag: ${{ steps.release.outputs.tag }}
@@ -110,13 +116,15 @@ jobs:
           token: ${{ steps.get_token.outputs.token }}
 
       - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@686976e191b89faba57d3206551f0f330d8cb249 # stable
+        with:
+          toolchain: stable
 
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
 
       - name: Release with release-pilot
         id: release
-        uses: a-line-services/release-pilot@v1
+        uses: a-line-services/release-pilot@04a84a73c027b94ff0cfbf04a22a1acd63595c8c # v1
         with:
           github-token: ${{ steps.get_token.outputs.token }}
           cargo-token: ${{ secrets.CARGO_REGISTRY_TOKEN }}
@@ -125,6 +133,8 @@ jobs:
     name: Publish VSCode Extension
     needs: release
     if: needs.release.outputs.skipped != 'true'
+    permissions:
+      contents: read
     uses: ./.github/workflows/vscode-publish.yml
     with:
       ref: ${{ needs.release.outputs.tag }}
@@ -134,6 +144,8 @@ jobs:
     name: Publish JetBrains Plugin
     needs: release
     if: needs.release.outputs.skipped != 'true'
+    permissions:
+      contents: read
     uses: ./.github/workflows/jetbrains-publish.yml
     with:
       ref: ${{ needs.release.outputs.tag }}
@@ -146,6 +158,8 @@ jobs:
     needs: release
     if: needs.release.outputs.skipped != 'true'
     runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
     strategy:
       matrix:
         include:
@@ -165,11 +179,12 @@ jobs:
           ref: ${{ needs.release.outputs.tag }}
 
       - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@686976e191b89faba57d3206551f0f330d8cb249 # stable
         with:
+          toolchain: stable
           targets: ${{ matrix.target }}
 
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
         with:
           key: ${{ matrix.target }}
 
@@ -194,6 +209,8 @@ jobs:
     name: Release rovo-lsp binaries
     needs: [release, build-lsp-binaries]
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       # binstall downloads from `/releases/download/v{version}/`, see rovo-lsp/Cargo.toml
       - name: Check release tag matches binstall pkg-url

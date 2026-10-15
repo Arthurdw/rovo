@@ -8,19 +8,20 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
-permissions:
-  contents: write
-  pull-requests: write
+permissions: {}
 
 jobs:
   auto-fix:
     name: Auto Fix Issues
     runs-on: ubuntu-latest
     if: github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'dependabot[bot]'
+    # Checkout and push use the app token, so the default token only needs read
+    permissions:
+      contents: read
     steps:
       - name: Generate App Token
         id: generate_token
-        uses: tibdex/github-app-token@v2
+        uses: tibdex/github-app-token@3beb63f4bd073e61482598c45c71c1019b59b73a # v2
         with:
           app_id: ${{ secrets.ROVO_CD_APP_ID }}
           private_key: ${{ secrets.ROVO_CD_TOKEN }}
@@ -32,11 +33,12 @@ jobs:
           ref: ${{ github.event.pull_request.head.ref }}
 
       - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@686976e191b89faba57d3206551f0f330d8cb249 # stable
         with:
+          toolchain: stable
           components: rustfmt, clippy
 
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
 
       - name: Run cargo fmt
         run: cargo fmt --all
