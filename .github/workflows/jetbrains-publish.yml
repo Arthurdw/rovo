@@ -100,6 +100,7 @@ jobs:
     env:
       PLUGIN_XML_ID: com.rovo.lsp
       ZIP_SIGNER_VERSION: "0.1.24"
+      ZIP_SIGNER_SHA256: "7d744c299cd0e3ea3cefdb7f8a882532d331f5120748354b1eb80b7cfc763dc0"
     steps:
       - name: Download unsigned plugin archive
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
@@ -119,6 +120,7 @@ jobs:
           curl --fail --silent --show-error --location \
             --output zip-signer.jar \
             "https://github.com/JetBrains/marketplace-zip-signer/releases/download/${ZIP_SIGNER_VERSION}/marketplace-zip-signer-cli.jar"
+          echo "${ZIP_SIGNER_SHA256}  zip-signer.jar" | sha256sum --check --strict
 
       - name: Sign Plugin
         env:
