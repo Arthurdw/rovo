@@ -119,7 +119,8 @@ pub fn validate_annotations(content: &str) -> Vec<Diagnostic> {
                         let mut end_line = start_line;
 
                         // Scan forward to find the end of the example
-                        for i in (start_line + 1)..lines.len() {
+                        let scan_end = lines.len().min(start_line + 1 + MAX_EXAMPLE_SCAN_LINES);
+                        for i in (start_line + 1)..scan_end {
                             let line = lines[i].trim();
                             if line.starts_with("///") {
                                 let content = line.trim_start_matches("///").trim();
@@ -248,11 +249,31 @@ fn check_undocumented_path_params(_content: &str, lines: &[&str]) -> Vec<Diagnos
     diagnostics
 }
 
+/// Maximum number of lines scanned when collecting a function signature
+pub(crate) const MAX_SIGNATURE_LINES: usize = 50;
+/// Maximum number of bytes collected for a function signature
+const MAX_SIGNATURE_BYTES: usize = 16 * 1024;
+/// Maximum number of bytes scanned for the closing paren of one `Path(`
+const MAX_PATH_SCAN_BYTES: usize = 2048;
+/// Maximum number of distinct path bindings extracted from one signature
+pub(crate) const MAX_PATH_BINDINGS: usize = 32;
+/// Maximum number of lines scanned when looking for the end of an example
+pub(crate) const MAX_EXAMPLE_SCAN_LINES: usize = 100;
+
 /// Extract path bindings from function signature starting at rovo_line
-fn extract_path_bindings_from_signature(lines: &[&str], rovo_line: usize) -> Vec<String> {
+///
+/// Scanning is bounded (signature length and number of bindings) so that
+/// malformed or hostile input cannot cause excessive work.
+pub(crate) fn extract_path_bindings_from_signature(
+    lines: &[&str],
+    rovo_line: usize,
+) -> Vec<String> {
     // Collect signature until opening brace
     let mut signature = String::new();
-    for line in lines.iter().skip(rovo_line) {
+    for line in lines.iter().skip(rovo_line).take(MAX_SIGNATURE_LINES) {
+        if signature.len() >= MAX_SIGNATURE_BYTES {
+            break;
+        }
         let trimmed = line.trim();
         if trimmed.starts_with("///") || trimmed.starts_with("#[") {
             continue;
@@ -265,8 +286,17 @@ fn extract_path_bindings_from_signature(lines: &[&str], rovo_line: usize) -> Vec
         signature.push(' ');
     }
 
+    // A single oversized line can exceed the budget; cut on a char boundary
+    if signature.len() > MAX_SIGNATURE_BYTES {
+        let mut cut = MAX_SIGNATURE_BYTES;
+        while !signature.is_char_boundary(cut) {
+            cut -= 1;
+        }
+        signature.truncate(cut);
+    }
+
     // Extract Path bindings
-    let mut bindings = Vec::new();
+    let mut bindings: Vec<String> = Vec::new();
     let mut search_start = 0;
 
     while let Some(rel_pos) = signature[search_start..].find("Path(") {
@@ -278,7 +308,12 @@ fn extract_path_bindings_from_signature(lines: &[&str], rovo_line: usize) -> Vec
         let mut end_pos = 0;
         let is_tuple = after_path.starts_with('(');
 
-        for (i, ch) in after_path.char_indices() {
+        // Bounded: binding lists are short, and an unmatched `Path(` must not
+        // rescan the rest of the signature (quadratic on long lines)
+        for (i, ch) in after_path
+            .char_indices()
+            .take_while(|(i, _)| *i < MAX_PATH_SCAN_BYTES)
+        {
             match ch {
                 '(' => depth += 1,
                 ')' => {
@@ -292,17 +327,22 @@ fn extract_path_bindings_from_signature(lines: &[&str], rovo_line: usize) -> Vec
             }
         }
 
+        // `get` returns None instead of panicking on non-char-boundary offsets
         let bindings_str = if is_tuple && end_pos > 1 {
-            &after_path[1..end_pos - 1]
+            after_path.get(1..end_pos - 1)
         } else {
-            &after_path[..end_pos]
-        };
+            after_path.get(..end_pos)
+        }
+        .unwrap_or("");
 
         for binding in bindings_str.split(',') {
+            if bindings.len() >= MAX_PATH_BINDINGS {
+                return bindings;
+            }
             let binding = binding.trim();
             if !binding.is_empty()
                 && binding.chars().all(|c| c.is_alphanumeric() || c == '_')
-                && !bindings.contains(&binding.to_string())
+                && !bindings.iter().any(|b| b == binding)
             {
                 bindings.push(binding.to_string());
             }

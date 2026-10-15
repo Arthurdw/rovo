@@ -359,26 +359,17 @@ local function check_and_install_server(opts)
     crate_args = {'rovo-lsp', '--version', version}
   end
 
-  -- Prefer a prebuilt binary via cargo-binstall, falling back to building from source
-  local steps = {}
-  if vim.fn.executable('cargo-binstall') == 1 then
-    table.insert(steps, {
-      via = 'cargo binstall',
-      -- Only our own release archives (no third-party quick-install); building from source is left to `cargo install`
-      cmd = vim.list_extend({'cargo', 'binstall', '-y', '--disable-strategies', 'quick-install,compile'}, crate_args),
-    })
-  end
-  table.insert(steps, {
-    via = 'cargo install',
-    cmd = vim.list_extend({'cargo', 'install'}, crate_args),
-  })
+  -- Build from crates.io: cargo verifies the crate checksum, whereas binstall would fetch
+  -- mutable release archives that carry no signature or checksum
+  local steps = {
+    {
+      via = 'cargo install',
+      cmd = vim.list_extend({'cargo', 'install'}, crate_args),
+    },
+  }
 
   -- Prompt user to install
   local prompt = 'rovo-lsp is not installed. Build it from source now via cargo install?'
-  if #steps > 1 then
-    prompt = 'rovo-lsp is not installed. Download a prebuilt binary from GitHub releases now via cargo binstall?'
-      .. ' (falls back to building from source)'
-  end
   local choice = vim.fn.confirm(prompt, "&Yes\n&No", 1)
 
   if choice ~= 1 then

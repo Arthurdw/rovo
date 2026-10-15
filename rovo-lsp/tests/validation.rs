@@ -858,3 +858,76 @@ async fn real_handler(Path(user_id): Path<u64>) {}
     );
     assert!(path_param_warnings[0].message.contains("'user_id'"));
 }
+
+#[test]
+fn unterminated_examples_do_not_blow_up() {
+    let mut src = String::from("/// # Examples\n///\n");
+    for _ in 0..300 {
+        src.push_str("/// 200: Foo {\n");
+    }
+    src.push_str("#[rovo]\nasync fn h() {}\n");
+    let _ = rovo_lsp::diagnostics::validate_annotations(&src);
+}
+
+#[test]
+fn unicode_tuple_path_binding_does_not_panic() {
+    let src = "#[rovo]\nasync fn h(Path(()é): Path<()>) {}\n";
+    let _ = rovo_lsp::diagnostics::validate_annotations(src);
+}
+
+#[test]
+fn path_bindings_are_capped() {
+    let names: Vec<String> = (0..200).map(|i| format!("p{i}")).collect();
+    let src = format!(
+        "#[rovo]\nasync fn h(Path(({})): Path<()>) {{}}\n",
+        names.join(", ")
+    );
+    let diags = rovo_lsp::diagnostics::validate_annotations(&src);
+    let msg = &diags[0].message;
+    assert!(msg.matches('\'').count() / 2 <= 32);
+}
+
+#[test]
+fn deeply_nested_response_type_is_bounded() {
+    let deep = format!("{}T{}", "Json<".repeat(5000), ">".repeat(5000));
+    assert_eq!(
+        rovo_lsp::type_resolver::extract_type_from_response(&deep),
+        None
+    );
+    assert_eq!(
+        rovo_lsp::type_resolver::extract_type_from_response("Json<Vec<T>>"),
+        Some("T".to_string())
+    );
+}
+
+#[test]
+fn many_unmatched_path_tokens_on_one_line_terminate() {
+    let src = format!("#[rovo]\nasync fn h({}) {{}}\n", "Path(".repeat(200_000));
+    let start = std::time::Instant::now();
+    let _ = rovo_lsp::diagnostics::validate_annotations(&src);
+    assert!(start.elapsed().as_secs() < 5);
+}
+
+#[test]
+fn unterminated_example_with_huge_lines_is_bounded() {
+    let big = "x".repeat(50_000);
+    let mut src = String::from("/// # Examples\n///\n/// 200: {\n");
+    for _ in 0..100 {
+        src.push_str(&format!("/// {big}\n"));
+    }
+    src.push_str("#[rovo]\nasync fn h() {}\n");
+    let start = std::time::Instant::now();
+    let _ = rovo_lsp::diagnostics::validate_annotations(&src);
+    assert!(start.elapsed().as_secs() < 5);
+}
+
+#[test]
+fn single_oversized_example_line_is_truncated() {
+    let src = format!(
+        "/// # Examples\n///\n/// 200: {{{}\n#[rovo]\nasync fn h() {{}}\n",
+        "é".repeat(5_000_000)
+    );
+    let start = std::time::Instant::now();
+    let _ = rovo_lsp::diagnostics::validate_annotations(&src);
+    assert!(start.elapsed().as_secs() < 5);
+}

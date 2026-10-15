@@ -1262,75 +1262,7 @@ fn create_smart_rest_responses_action(
 fn get_undocumented_path_params(content: &str, rovo_line: usize) -> Vec<String> {
     let lines: Vec<&str> = content.lines().collect();
 
-    // Collect the entire function signature (from rovo_line to opening brace)
-    let mut signature = String::new();
-    for line in lines.iter().skip(rovo_line) {
-        let trimmed = line.trim();
-
-        // Skip doc comments and attributes
-        if trimmed.starts_with("///") || trimmed.starts_with("#[") {
-            continue;
-        }
-
-        // Stop if we've gone past the function signature (found opening brace)
-        if let Some(brace_pos) = line.find('{') {
-            signature.push_str(&line[..brace_pos]);
-            break;
-        }
-
-        signature.push_str(line);
-        signature.push(' ');
-    }
-
-    // Now extract all Path bindings from the collected signature
-    let mut bindings = Vec::new();
-    let mut search_start = 0;
-
-    while let Some(rel_pos) = signature[search_start..].find("Path(") {
-        let path_pos = search_start + rel_pos;
-        let after_path = &signature[path_pos + 5..];
-
-        // Find the matching closing paren, handling nested parens
-        let mut depth = 1;
-        let mut end_pos = 0;
-        let is_tuple = after_path.starts_with('(');
-
-        for (i, ch) in after_path.char_indices() {
-            match ch {
-                '(' => depth += 1,
-                ')' => {
-                    depth -= 1;
-                    if depth == 0 {
-                        end_pos = i;
-                        break;
-                    }
-                }
-                _ => {}
-            }
-        }
-
-        // Extract bindings string
-        let bindings_str = if is_tuple && end_pos > 1 {
-            // Tuple: Path((a, b)) - skip the inner opening paren
-            &after_path[1..end_pos - 1]
-        } else {
-            &after_path[..end_pos]
-        };
-
-        // Parse the bindings
-        for binding in bindings_str.split(',') {
-            let binding = binding.trim();
-            if !binding.is_empty()
-                && binding.chars().all(|c| c.is_alphanumeric() || c == '_')
-                && !bindings.contains(&binding.to_string())
-            {
-                bindings.push(binding.to_string());
-            }
-        }
-
-        // Move search position past this Path(
-        search_start = path_pos + 5;
-    }
+    let bindings = crate::diagnostics::extract_path_bindings_from_signature(&lines, rovo_line);
 
     if bindings.is_empty() {
         return Vec::new();

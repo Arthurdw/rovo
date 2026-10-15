@@ -1,6 +1,9 @@
 use once_cell::sync::Lazy;
 use regex::Regex;
 
+/// Maximum number of nested wrapper layers unwrapped
+const MAX_WRAPPER_DEPTH: usize = 32;
+
 // Static regex patterns to avoid recompilation on hot paths
 static WRAPPER_RE: Lazy<Regex> =
     Lazy::new(|| Regex::new(r"^(?:Json|Vec|Option|Result|Arc|Box|Rc)<(.*)>$").unwrap());
@@ -24,15 +27,16 @@ static ANNOTATION_TYPE_RE: Lazy<Regex> = Lazy::new(|| Regex::new(r"///\s*\d+:\s*
 /// - `"Vec<Option<User>>"` -> `"User"`
 /// - `"TodoItem"` -> `"TodoItem"`
 pub fn extract_type_from_response(response_type: &str) -> Option<String> {
-    let trimmed = response_type.trim();
-    if let Some(captures) = WRAPPER_RE.captures(trimmed) {
-        let inner = captures.get(1)?.as_str();
-        // Recursively unwrap nested generics
-        extract_type_from_response(inner)
-    } else {
-        // No wrapper found, return the trimmed type
-        Some(trimmed.to_string())
+    let mut current = response_type.trim();
+    // Bounded iteration: pathological nesting must not exhaust the stack or CPU
+    for _ in 0..MAX_WRAPPER_DEPTH {
+        match WRAPPER_RE.captures(current) {
+            Some(captures) => current = captures.get(1)?.as_str().trim(),
+            // No wrapper found, return the trimmed type
+            None => return Some(current.to_string()),
+        }
     }
+    None
 }
 
 /// Find the definition line of a type in the content
