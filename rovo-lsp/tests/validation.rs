@@ -920,3 +920,14 @@ fn unterminated_example_with_huge_lines_is_bounded() {
     let _ = rovo_lsp::diagnostics::validate_annotations(&src);
     assert!(start.elapsed().as_secs() < 5);
 }
+
+#[test]
+fn single_oversized_example_line_is_truncated() {
+    let src = format!(
+        "/// # Examples\n///\n/// 200: {{{}\n#[rovo]\nasync fn h() {{}}\n",
+        "é".repeat(5_000_000)
+    );
+    let start = std::time::Instant::now();
+    let _ = rovo_lsp::diagnostics::validate_annotations(&src);
+    assert!(start.elapsed().as_secs() < 5);
+}

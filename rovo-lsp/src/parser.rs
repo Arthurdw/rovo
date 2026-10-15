@@ -460,6 +460,15 @@ const MAX_EXAMPLE_LINES: usize = 100;
 /// Maximum total bytes collected for a single example
 const MAX_EXAMPLE_BYTES: usize = 64 * 1024;
 
+/// Truncate `s` to at most `max` bytes on a char boundary
+fn clamp_bytes(s: &str, max: usize) -> &str {
+    let mut end = max.min(s.len());
+    while !s.is_char_boundary(end) {
+        end -= 1;
+    }
+    &s[..end]
+}
+
 /// Parse a potentially multi-line example from # Examples section
 /// Returns the annotation and the number of lines consumed
 fn parse_multiline_example(doc_lines: &[(usize, &str)]) -> Option<(Annotation, usize)> {
@@ -516,12 +525,14 @@ fn parse_multiline_example(doc_lines: &[(usize, &str)]) -> Option<(Annotation, u
                 break;
             }
 
+            let line_content = clamp_bytes(line_content, MAX_EXAMPLE_BYTES - example_bytes);
             example_bytes += line_content.len();
             example_lines.push(line_content);
             lines_consumed += 1;
         }
     } else {
         // Inline format - collect the example value, potentially across multiple lines
+        let after_colon = clamp_bytes(after_colon, MAX_EXAMPLE_BYTES);
         example_lines.push(after_colon);
         let mut example_bytes = after_colon.len();
 
@@ -547,6 +558,7 @@ fn parse_multiline_example(doc_lines: &[(usize, &str)]) -> Option<(Annotation, u
                 break;
             }
 
+            let next_content = clamp_bytes(next_content, MAX_EXAMPLE_BYTES - example_bytes);
             example_bytes += next_content.len();
             example_lines.push(next_content);
             lines_consumed += 1;
