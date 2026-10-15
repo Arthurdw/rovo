@@ -38,9 +38,12 @@ jobs:
 
       - name: Check for changes since last release
         id: check
+        env:
+          INPUT_FORCE: ${{ inputs.force }}
+          INPUT_INCLUDE_CI_CHANGES: ${{ inputs.include_ci_changes }}
         run: |
           # Force release if requested
-          if [ "${{ inputs.force }}" == "true" ]; then
+          if [ "$INPUT_FORCE" == "true" ]; then
             echo "Force release requested"
             echo "has_changes=true" >> $GITHUB_OUTPUT
             exit 0
@@ -70,7 +73,7 @@ jobs:
           echo "$CHANGED_FILES"
 
           # Filter out .github/ changes unless override is set
-          if [ "${{ inputs.include_ci_changes }}" != "true" ]; then
+          if [ "$INPUT_INCLUDE_CI_CHANGES" != "true" ]; then
             RELEASE_FILES=$(echo "$CHANGED_FILES" | grep -v '^\.github/' || echo "")
           else
             RELEASE_FILES="$CHANGED_FILES"
