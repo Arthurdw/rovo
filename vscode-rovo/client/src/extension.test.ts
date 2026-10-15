@@ -2,36 +2,63 @@ import * as assert from 'assert';
 import * as path from 'path';
 import * as fs from 'fs/promises';
 import * as os from 'os';
+import * as child_process from 'child_process';
+import { promisify } from 'util';
 
 /**
- * Security tests for path traversal vulnerability mitigation in checkServerAvailable function.
+ * Security tests for command injection vulnerability mitigation in checkServerAvailable function.
  * 
- * The vulnerability being tested: Potential file inclusion attack via reading file.
- * The fix validates that constructed paths don't escape the cargo bin directory using path.relative().
+ * The vulnerability being tested: Shell command injection via workspace-controlled rovo.serverPath
+ * 
+ * Original vulnerability:
+ * - The extension used child_process.exec() which spawns a shell
+ * - serverPath was interpolated directly into shell command: `which ${serverPath}`
+ * - Malicious workspace could set serverPath to: "rovo-lsp; touch /tmp/pwned #"
+ * - This would execute arbitrary commands with extension host privileges
+ * 
+ * The fix implements multiple layers of defense:
+ * 1. Only trust user-level (global) configuration, not workspace settings
+ * 2. Use execFile() instead of exec() - no shell interpretation
+ * 3. Input validation: reject empty, dash-prefixed, or null-byte-containing paths
+ * 4. Path traversal protection in fallback cargo bin search
  */
+
+const execFileAsync = promisify(child_process.execFile);
 
 // Extract the checkServerAvailable logic for testing
 async function checkServerAvailableTestable(serverPath: string, cargoBinDirs: string[]): Promise<string | null> {
-    // Simulate the fixed logic from extension.ts (lines 235-248)
-    for (const cargoBinDir of cargoBinDirs) {
-        const baseFull = path.resolve(cargoBinDir);
-        const binPath = path.join(baseFull, serverPath);
-        const rel = path.relative(baseFull, binPath);
-        
-        // Security check: prevent path traversal
-        if (rel === '..' || rel.startsWith(`..${path.sep}`) || path.isAbsolute(rel)) {
-            continue;
-        }
-        
-        try {
-            await fs.access(binPath, fs.constants.F_OK);
-            return binPath;
-        } catch {
-            continue;
-        }
+    // Simulate the fixed input validation from extension.ts (line 229)
+    if (typeof serverPath !== 'string' || serverPath.length === 0 || serverPath.startsWith('-') || /[\0\r\n]/.test(serverPath)) {
+        return null;
     }
     
-    return null;
+    try {
+        const command = process.platform === 'win32' ? 'where' : 'which';
+        // execFile does not spawn a shell; serverPath is passed as a single literal argument.
+        const result = await execFileAsync(command, [serverPath]);
+        return result.stdout.trim().split(/\r?\n/)[0] || null;
+    } catch {
+        // Not in PATH, try common cargo bin locations
+        for (const cargoBinDir of cargoBinDirs) {
+            const baseFull = path.resolve(cargoBinDir);
+            const binPath = path.join(baseFull, serverPath);
+            const rel = path.relative(baseFull, binPath);
+            
+            // Security check: prevent path traversal
+            if (rel === '..' || rel.startsWith(`..${path.sep}`) || path.isAbsolute(rel)) {
+                continue;
+            }
+            
+            try {
+                await fs.access(binPath, fs.constants.F_OK);
+                return binPath;
+            } catch {
+                continue;
+            }
+        }
+        
+        return null;
+    }
 }
 
 interface TestResult {
@@ -59,8 +86,225 @@ async function runTest(name: string, testFn: () => Promise<void> | void): Promis
     }
 }
 
-async function runSecurityTests(): Promise<void> {
-    console.log('\n=== Extension Security Tests ===\n');
+async function runCommandInjectionTests(): Promise<void> {
+    console.log('\n=== Command Injection Mitigation Tests ===\n');
+    
+    // Setup
+    const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'rovo-test-'));
+    const cargoBinDir = path.join(tempDir, '.cargo', 'bin');
+    await fs.mkdir(cargoBinDir, { recursive: true });
+    
+    const testExecutable = path.join(cargoBinDir, 'rovo-lsp');
+    await fs.writeFile(testExecutable, '#!/bin/sh\necho "test"', { mode: 0o755 });
+    
+    const markerFile = path.join(tempDir, 'command-executed');
+
+    try {
+        // Test 1: Unix shell command injection with semicolon
+        await runTest('should prevent Unix shell command injection with semicolon', async () => {
+            const maliciousPath = `rovo-lsp; touch ${markerFile} #`;
+            const result = await checkServerAvailableTestable(maliciousPath, [cargoBinDir]);
+            
+            // The function should not execute the injected command
+            // Since execFile doesn't spawn a shell, the entire string is treated as a literal command name
+            // which won't exist, so it should return null
+            assert.strictEqual(result, null, 'Should not execute injected command');
+            
+            // Verify the marker file was NOT created (command was not executed)
+            try {
+                await fs.access(markerFile);
+                assert.fail('Injected command was executed - security vulnerability!');
+            } catch {
+                // Expected: file should not exist
+            }
+        });
+
+        // Test 2: Unix shell command injection with pipe
+        await runTest('should prevent Unix shell command injection with pipe', async () => {
+            const maliciousPath = `rovo-lsp | touch ${markerFile}`;
+            const result = await checkServerAvailableTestable(maliciousPath, [cargoBinDir]);
+            
+            assert.strictEqual(result, null, 'Should not execute piped command');
+            
+            try {
+                await fs.access(markerFile);
+                assert.fail('Piped command was executed - security vulnerability!');
+            } catch {
+                // Expected: file should not exist
+            }
+        });
+
+        // Test 3: Unix shell command injection with ampersand (background execution)
+        await runTest('should prevent Unix shell command injection with ampersand', async () => {
+            const maliciousPath = `rovo-lsp & touch ${markerFile}`;
+            const result = await checkServerAvailableTestable(maliciousPath, [cargoBinDir]);
+            
+            assert.strictEqual(result, null, 'Should not execute background command');
+            
+            // Wait a bit in case background execution was attempted
+            await new Promise(resolve => setTimeout(resolve, 100));
+            
+            try {
+                await fs.access(markerFile);
+                assert.fail('Background command was executed - security vulnerability!');
+            } catch {
+                // Expected: file should not exist
+            }
+        });
+
+        // Test 4: Unix shell command injection with command substitution
+        await runTest('should prevent Unix shell command injection with command substitution', async () => {
+            const maliciousPath = `rovo-lsp $(touch ${markerFile})`;
+            const result = await checkServerAvailableTestable(maliciousPath, [cargoBinDir]);
+            
+            assert.strictEqual(result, null, 'Should not execute command substitution');
+            
+            try {
+                await fs.access(markerFile);
+                assert.fail('Command substitution was executed - security vulnerability!');
+            } catch {
+                // Expected: file should not exist
+            }
+        });
+
+        // Test 5: Windows shell command injection with ampersand
+        await runTest('should prevent Windows shell command injection with ampersand', async () => {
+            const maliciousPath = `rovo-lsp & echo pwned > ${markerFile}`;
+            const result = await checkServerAvailableTestable(maliciousPath, [cargoBinDir]);
+            
+            assert.strictEqual(result, null, 'Should not execute Windows command chain');
+            
+            try {
+                await fs.access(markerFile);
+                assert.fail('Windows command chain was executed - security vulnerability!');
+            } catch {
+                // Expected: file should not exist
+            }
+        });
+
+        // Test 6: Windows shell command injection with double ampersand
+        await runTest('should prevent Windows shell command injection with double ampersand', async () => {
+            const maliciousPath = `rovo-lsp && echo pwned > ${markerFile}`;
+            const result = await checkServerAvailableTestable(maliciousPath, [cargoBinDir]);
+            
+            assert.strictEqual(result, null, 'Should not execute Windows conditional command');
+            
+            try {
+                await fs.access(markerFile);
+                assert.fail('Windows conditional command was executed - security vulnerability!');
+            } catch {
+                // Expected: file should not exist
+            }
+        });
+
+        // Test 7: Shell command injection with newline
+        await runTest('should prevent shell command injection with newline', async () => {
+            const maliciousPath = `rovo-lsp\ntouch ${markerFile}`;
+            const result = await checkServerAvailableTestable(maliciousPath, [cargoBinDir]);
+            
+            // Input validation should reject paths with newlines
+            assert.strictEqual(result, null, 'Should reject path with newline');
+            
+            try {
+                await fs.access(markerFile);
+                assert.fail('Newline-separated command was executed - security vulnerability!');
+            } catch {
+                // Expected: file should not exist
+            }
+        });
+
+        // Test 8: Exact reproduction of pentest scenario
+        await runTest('should prevent exact pentest reproduction scenario', async () => {
+            // This is the exact payload from the pentest finding
+            const pentestPayload = `rovo-lsp; touch ${markerFile} #`;
+            const result = await checkServerAvailableTestable(pentestPayload, [cargoBinDir]);
+            
+            assert.strictEqual(result, null, 'Should not execute pentest payload');
+            
+            try {
+                await fs.access(markerFile);
+                assert.fail('Pentest payload was executed - vulnerability not fixed!');
+            } catch {
+                // Expected: file should not exist - vulnerability is mitigated
+            }
+        });
+
+    } finally {
+        // Cleanup
+        await fs.rm(tempDir, { recursive: true, force: true });
+    }
+}
+
+async function runInputValidationTests(): Promise<void> {
+    console.log('\n=== Input Validation Tests ===\n');
+    
+    const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'rovo-test-'));
+    const cargoBinDir = path.join(tempDir, '.cargo', 'bin');
+    await fs.mkdir(cargoBinDir, { recursive: true });
+
+    try {
+        // Test empty string
+        await runTest('should reject empty string', async () => {
+            const result = await checkServerAvailableTestable('', [cargoBinDir]);
+            assert.strictEqual(result, null, 'Should reject empty string');
+        });
+
+        // Test dash-prefixed paths (could be interpreted as command flags)
+        await runTest('should reject dash-prefixed paths', async () => {
+            const result = await checkServerAvailableTestable('-version', [cargoBinDir]);
+            assert.strictEqual(result, null, 'Should reject dash-prefixed path');
+        });
+
+        await runTest('should reject double-dash-prefixed paths', async () => {
+            const result = await checkServerAvailableTestable('--help', [cargoBinDir]);
+            assert.strictEqual(result, null, 'Should reject double-dash-prefixed path');
+        });
+
+        // Test null byte injection
+        await runTest('should reject path with null byte', async () => {
+            const result = await checkServerAvailableTestable('rovo-lsp\0malicious', [cargoBinDir]);
+            assert.strictEqual(result, null, 'Should reject path with null byte');
+        });
+
+        // Test carriage return
+        await runTest('should reject path with carriage return', async () => {
+            const result = await checkServerAvailableTestable('rovo-lsp\rmalicious', [cargoBinDir]);
+            assert.strictEqual(result, null, 'Should reject path with carriage return');
+        });
+
+        // Test newline
+        await runTest('should reject path with newline', async () => {
+            const result = await checkServerAvailableTestable('rovo-lsp\nmalicious', [cargoBinDir]);
+            assert.strictEqual(result, null, 'Should reject path with newline');
+        });
+
+        // Test non-string input (type safety)
+        await runTest('should reject non-string input', async () => {
+            const result = await checkServerAvailableTestable(null as any, [cargoBinDir]);
+            assert.strictEqual(result, null, 'Should reject non-string input');
+        });
+
+        await runTest('should reject undefined input', async () => {
+            const result = await checkServerAvailableTestable(undefined as any, [cargoBinDir]);
+            assert.strictEqual(result, null, 'Should reject undefined input');
+        });
+
+        // Test legitimate paths still work
+        await runTest('should accept legitimate simple path', async () => {
+            const testExecutable = path.join(cargoBinDir, 'rovo-lsp');
+            await fs.writeFile(testExecutable, '#!/bin/sh\necho "test"', { mode: 0o755 });
+            
+            const result = await checkServerAvailableTestable('rovo-lsp', [cargoBinDir]);
+            assert.strictEqual(result, testExecutable, 'Should accept legitimate path');
+        });
+
+    } finally {
+        await fs.rm(tempDir, { recursive: true, force: true });
+    }
+}
+
+async function runPathTraversalTests(): Promise<void> {
+    console.log('\n=== Path Traversal Protection Tests ===\n');
     
     // Setup
     const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'rovo-test-'));
@@ -122,10 +366,6 @@ async function runSecurityTests(): Promise<void> {
             assert.strictEqual(result, null, 'Should return null for non-existent files');
         });
 
-        await runTest('should reject path with null bytes', async () => {
-            const result = await checkServerAvailableTestable('rovo-lsp\0/../../sensitive.txt', [cargoBinDir]);
-            assert.strictEqual(result, null, 'Should reject paths with null bytes');
-        });
     } finally {
         // Cleanup
         await fs.rm(tempDir, { recursive: true, force: true });
@@ -176,9 +416,11 @@ async function runPathValidationTests(): Promise<void> {
 
 // Main test runner
 async function main(): Promise<void> {
-    console.log('Running security tests for path traversal vulnerability mitigation...');
+    console.log('Running security tests for command injection vulnerability mitigation...');
     
-    await runSecurityTests();
+    await runCommandInjectionTests();
+    await runInputValidationTests();
+    await runPathTraversalTests();
     await runPathValidationTests();
     
     console.log('\n=== Test Summary ===\n');

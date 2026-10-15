@@ -61,7 +61,8 @@
         "rovo.serverPath": {
           "type": "string",
           "default": "rovo-lsp",
-          "description": "Path to the rovo-lsp executable. Leave as 'rovo-lsp' to use PATH, or specify absolute path"
+          "scope": "machine",
+          "description": "Path to the rovo-lsp executable. Leave as 'rovo-lsp' to use PATH, or specify absolute path. Can only be set in user (machine) settings, not in workspace settings"
         },
         "rovo.autoInstall": {
           "type": "boolean",
@@ -84,12 +85,14 @@
     "vscode:prepublish": "npm run esbuild-base -- --minify",
     "esbuild-base": "esbuild ./client/src/extension.ts --bundle --outfile=out/extension.js --external:vscode --format=cjs --platform=node",
     "compile": "npm run esbuild-base -- --sourcemap",
+    "compile:test": "tsc",
     "watch": "npm run esbuild-base -- --sourcemap --watch",
     "lint": "eslint client/src --ext ts",
     "lint:fix": "eslint client/src --ext ts --fix",
     "package": "vsce package",
     "publish": "vsce publish",
-    "test": "tsc --noEmit"
+    "test": "npm run compile:test && node out/extension.test.js",
+    "test:typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "vscode-languageclient": "^10.1.2"

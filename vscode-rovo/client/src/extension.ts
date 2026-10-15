@@ -11,6 +11,7 @@ import {
 } from 'vscode-languageclient/node';
 
 const execAsync = promisify(child_process.exec);
+const execFileAsync = promisify(child_process.execFile);
 
 let client: LanguageClient;
 
@@ -163,7 +164,11 @@ export async function activate(context: vscode.ExtensionContext) {
     try {
         // Get configuration
         const config = vscode.workspace.getConfiguration('rovo');
-        const serverPath = config.get<string>('serverPath', 'rovo-lsp');
+        // Only trust user-level (global) values for the executable path; workspace-controlled
+        // values (workspace / workspace folder) are ignored to prevent untrusted repositories
+        // from choosing which program is executed.
+        const serverPathInspection = config.inspect<string>('serverPath');
+        const serverPath = serverPathInspection?.globalValue ?? serverPathInspection?.defaultValue ?? 'rovo-lsp';
         const autoInstall = config.get<boolean>('autoInstall', true);
 
         outputChannel.appendLine(`Server path: ${serverPath}`);
@@ -221,10 +226,14 @@ export async function activate(context: vscode.ExtensionContext) {
 }
 
 async function checkServerAvailable(serverPath: string): Promise<string | null> {
+    if (typeof serverPath !== 'string' || serverPath.length === 0 || serverPath.startsWith('-') || /[\0\r\n]/.test(serverPath)) {
+        return null;
+    }
     try {
         const command = process.platform === 'win32' ? 'where' : 'which';
-        const result = await execAsync(`${command} ${serverPath}`);
-        return result.stdout.trim();
+        // execFile does not spawn a shell; serverPath is passed as a single literal argument.
+        const result = await execFileAsync(command, [serverPath]);
+        return result.stdout.trim().split(/\r?\n/)[0] || null;
     } catch {
         // Not in PATH, try common cargo bin locations
         const cargoBinDirs = [
