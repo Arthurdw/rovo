@@ -17,22 +17,28 @@ on:
         required: true
   workflow_dispatch:
 
+permissions: {}
+
 jobs:
-  publish:
-    name: Publish to VS Code Marketplace
-    # Credentials are only exposed to code from the protected default branch
-    # (or a release tag built from it by the caller). Manual dispatch against
-    # any other branch or tag is refused before checkout or secret use.
+  # Runs repository-controlled code (npm install scripts, esbuild) so it gets
+  # no secrets and a read-only token
+  build:
+    name: Build VS Code Extension
+    # Only code from the protected default branch (or a release tag built from
+    # it by the caller) is built. Manual dispatch against any other branch is
+    # refused before checkout.
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           ref: ${{ inputs.ref || github.ref }}
           persist-credentials: false
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: "20"
           cache: "npm"
@@ -46,12 +52,36 @@ jobs:
         working-directory: vscode-rovo
         run: npm run package
 
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: vscode-extension
+          path: vscode-rovo/*.vsix
+          if-no-files-found: error
+          retention-days: 1
+
+  # Holds the marketplace tokens but never checks out or executes repository
+  # code: it only publishes the prebuilt .vsix with version-pinned CLIs
+  publish:
+    name: Publish to VS Code Marketplace
+    needs: build
+    runs-on: ubuntu-latest
+    permissions: {}
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: vscode-extension
+
+      - name: Setup Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: "20"
+
       - name: Publish to VS Code Marketplace
-        working-directory: vscode-rovo
-        run: npx vsce publish
         env:
           VSCE_PAT: ${{ secrets.VSCE_PAT }}
+        run: npx --yes @vscode/vsce@3.7.1 publish --packagePath ./*.vsix
 
       - name: Publish to Open VSX Registry
-        working-directory: vscode-rovo
-        run: npx ovsx publish -p ${{ secrets.OVSX_PAT }}
+        env:
+          OVSX_PAT: ${{ secrets.OVSX_PAT }}
+        run: npx --yes ovsx@0.10.9 publish ./*.vsix -p "$OVSX_PAT"
