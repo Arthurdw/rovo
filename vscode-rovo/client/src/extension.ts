@@ -227,12 +227,18 @@ async function checkServerAvailable(serverPath: string): Promise<string | null> 
         return result.stdout.trim();
     } catch {
         // Not in PATH, try common cargo bin locations
-        const cargoBinPaths = [
-            `${process.env.HOME}/.cargo/bin/${serverPath}`,
-            `/home/${process.env.USER}/.cargo/bin/${serverPath}`,
+        const cargoBinDirs = [
+            `${process.env.HOME}/.cargo/bin`,
+            `/home/${process.env.USER}/.cargo/bin`,
         ];
 
-        for (const binPath of cargoBinPaths) {
+        for (const cargoBinDir of cargoBinDirs) {
+            const baseFull = path.resolve(cargoBinDir);
+            const binPath = path.join(baseFull, serverPath);
+            const rel = path.relative(baseFull, binPath);
+            if (rel === '..' || rel.startsWith(`..${path.sep}`) || path.isAbsolute(rel)) {
+                continue;
+            }
             try {
                 await fs.access(binPath, fs.constants.F_OK);
                 return binPath;
