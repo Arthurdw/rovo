@@ -21,6 +21,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [0.4.15] - 2026-10-28
+
+### Chores
+
+- deps: update lockfile ([#93](https://github.com/Arthurdw/rovo/pull/93)) by @Arthurdw
+- chore(deps-dev): bump the npm-minor-patch group in /vscode-rovo with 2 updates ([#90](https://github.com/Arthurdw/rovo/pull/90)) by @dependabot[bot]
+- chore(deps): bump taiki-e/install-action from 2.87.28 to 2.87.29 in the github-actions-minor-patch group ([#91](https://github.com/Arthurdw/rovo/pull/91)) by @dependabot[bot]
+- chore(deps): bump actions/setup-java from 5.7.0 to 6.1.0 ([#92](https://github.com/Arthurdw/rovo/pull/92)) by @dependabot[bot]
+
 ## [0.4.14] - 2026-10-15
 
 ### Features
