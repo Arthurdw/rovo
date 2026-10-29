@@ -30,7 +30,7 @@ jobs:
         with:
           toolchain: stable
 
-      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
 
       - name: Install cargo-audit
         run: cargo install --locked cargo-audit@0.22.2
@@ -50,7 +50,7 @@ jobs:
         with:
           toolchain: stable
 
-      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
 
       - name: Install cargo-outdated
         run: cargo install --locked cargo-outdated@0.19.0
@@ -93,7 +93,7 @@ jobs:
         with:
           toolchain: stable
 
-      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
 
       - name: Install cargo-machete
         run: cargo install --locked cargo-machete@0.9.2
@@ -126,7 +126,7 @@ jobs:
         with:
           toolchain: stable
 
-      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
 
       - name: Install cargo-deny
         run: cargo install --locked cargo-deny@0.20.2
