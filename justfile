@@ -95,6 +95,28 @@ deny-check:
 update:
     cargo update
 
+# Upgrade all dependencies to their latest versions (Rust + VSCode + JetBrains)
+upgrade: upgrade-rust upgrade-vscode upgrade-jetbrains
+    @echo "All dependencies upgraded! Run 'just check-all' to verify."
+
+# Upgrade Rust dependencies, including breaking versions (schemars stays on 0.9, which aide requires)
+upgrade-rust:
+    cargo upgrade --incompatible --exclude schemars
+    cargo update
+    cd zed-rovo && cargo upgrade --incompatible && cargo update
+
+# Upgrade VSCode extension dependencies, skipping versions that break peer deps (@types/vscode stays pinned to engines.vscode), then apply non-breaking audit fixes
+upgrade-vscode:
+    cd vscode-rovo && npx --yes npm-check-updates --upgrade --peer --reject @types/vscode
+    cd vscode-rovo && npm install
+    -cd vscode-rovo && npm audit fix
+
+# Upgrade the Gradle wrapper and refresh the JetBrains dependency lockfile
+upgrade-jetbrains:
+    cd jetbrains-plugin && ./gradlew wrapper --gradle-version latest
+    cd jetbrains-plugin && ./gradlew wrapper && rm -f gradlew.bat
+    cd jetbrains-plugin && ./gradlew dependencies --write-locks
+
 # Regenerate llms-full.txt from llms.txt, the README and the examples
 llms:
     ./scripts/gen-llms-full.sh

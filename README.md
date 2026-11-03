@@ -822,6 +822,21 @@ prek run  # Run manually
 
 See `just --list` for all available commands.
 
+## Used in production
+
+These teams run rovo in production:
+
+<p>
+  <a href="https://a-line.be" title="A-Line.cloud, a European cloud platform for apps, databases and storage">
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset=".docs/users/a-line-dark.svg">
+      <img src=".docs/users/a-line-light.svg" alt="A-Line.cloud" height="40">
+    </picture>
+  </a>
+</p>
+
+Using rovo in production? Open a pull request that adds your logo here: a light and a dark SVG in `.docs/users/`, linked to your site.
+
 ## Contributing
 
 Contributions are welcome. Please submit a Pull Request.
