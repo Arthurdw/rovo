@@ -21,6 +21,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [0.4.16] - 2026-11-04
+
+### Features
+
+- chore: add just upgrade, upgrade deps ([#98](https://github.com/Arthurdw/rovo/pull/98)) by @Arthurdw
+
+### Chores
+
+- chore(deps-dev): bump the npm-minor-patch group in /vscode-rovo with 2 updates ([#94](https://github.com/Arthurdw/rovo/pull/94)) by @dependabot[bot]
+- chore(deps): bump vscode-languageclient from 10.1.2 to 11.0.0 in /vscode-rovo ([#95](https://github.com/Arthurdw/rovo/pull/95)) by @dependabot[bot]
+- chore(deps): bump gradle-wrapper from 9.8.1 to 9.8.2 in /jetbrains-plugin in the gradle-minor-patch group ([#96](https://github.com/Arthurdw/rovo/pull/96)) by @dependabot[bot]
+- chore(deps): bump the github-actions-minor-patch group with 2 updates ([#97](https://github.com/Arthurdw/rovo/pull/97)) by @dependabot[bot]
+
 ## [0.4.15] - 2026-10-28
 
 ### Chores
