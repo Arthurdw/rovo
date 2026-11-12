@@ -1,7 +1,7 @@
 plugins {
     id("java")
     id("org.jetbrains.kotlin.jvm") version "2.4.21"
-    id("org.jetbrains.intellij.platform") version "2.19.0"  // New 2.x plugin
+    id("org.jetbrains.intellij.platform") version "2.20.0"  // New 2.x plugin
 }
 
 group = "com.rovo"
