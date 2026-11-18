@@ -21,6 +21,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [0.4.17] - 2026-11-18
+
+### Chores
+
+- chore(deps): bump the gradle-minor-patch group in /jetbrains-plugin with 2 updates ([#103](https://github.com/Arthurdw/rovo/pull/103)) by @dependabot[bot]
+- ci(jetbrains): free runner disk space before plugin verification ([#105](https://github.com/Arthurdw/rovo/pull/105)) by @Arthurdw
+- ci(jetbrains): drop redundant plugin compatibility matrix ([#104](https://github.com/Arthurdw/rovo/pull/104)) by @Arthurdw
+- chore(deps): bump the github-actions-minor-patch group with 2 updates ([#102](https://github.com/Arthurdw/rovo/pull/102)) by @dependabot[bot]
+- chore(deps): bump the cargo-minor-patch group with 3 updates ([#101](https://github.com/Arthurdw/rovo/pull/101)) by @dependabot[bot]
+- chore(deps-dev): bump ovsx from 1.3.0 to 1.4.0 in /vscode-rovo in the npm-minor-patch group ([#100](https://github.com/Arthurdw/rovo/pull/100)) by @dependabot[bot]
+- chore(deps): bump the github-actions-minor-patch group with 2 updates ([#99](https://github.com/Arthurdw/rovo/pull/99)) by @dependabot[bot]
+
 ## [0.4.16] - 2026-11-04
 
 ### Features
