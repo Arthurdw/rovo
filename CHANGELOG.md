@@ -21,6 +21,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [0.4.18] - 2026-11-25
+
+### Chores
+
+- chore(deps-dev): bump the npm-minor-patch group in /vscode-rovo with 4 updates ([#107](https://github.com/Arthurdw/rovo/pull/107)) by @dependabot[bot]
+- chore(deps): bump trybuild from 1.0.122 to 1.0.125 in the cargo-minor-patch group ([#106](https://github.com/Arthurdw/rovo/pull/106)) by @dependabot[bot]
+- chore(deps): bump the github-actions-minor-patch group with 2 updates ([#108](https://github.com/Arthurdw/rovo/pull/108)) by @dependabot[bot]
+- chore(deps): bump the gradle-minor-patch group in /jetbrains-plugin with 2 updates ([#109](https://github.com/Arthurdw/rovo/pull/109)) by @dependabot[bot]
+
 ## [0.4.17] - 2026-11-18
 
 ### Chores
